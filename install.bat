@@ -52,9 +52,9 @@ echo ==================================================
 echo           SELECT YOUR GPU DRIVER VERSION
 echo ==================================================
 echo.
-echo [1] CUDA 12.1 (Standard - Recommended for most Dwarves)
+echo [1] CUDA 12.1 (Standard - Recommended for most Nvidia Graphics cards)
 echo [2] CUDA 12.8 (Nightly - For the latest RTX 50-Series)
-echo [3] CPU Only  (Slow - Like walking to Mordor)
+echo [3] CPU Only  (Slow - Not recommended for using LuxTTS, will still work with Kokoro)
 echo.
 set /p choice="Enter selection [1, 2, or 3]: "
 
@@ -71,11 +71,15 @@ echo.
 echo [4/5] Summoning the Voice (Setting up LuxTTS)...
 
 if not exist "LuxTTS" (
-    echo [INFO] LuxTTS not found. Cloning from the archives...
-    git clone https://github.com/Thelukepet/LuxTTS.git
+    echo [INFO] LuxTTS not found. Cloning the 'main' branch...
+    :: Added -b main to ensure we get the right branch immediately
+    git clone -b main https://github.com/Thelukepet/LuxTTS.git
 ) else (
     echo [INFO] LuxTTS exists. Updating the scrolls...
     cd LuxTTS
+    :: Fetch all updates and force-switch to main if it's currently on master
+    git fetch origin
+    git checkout main
     git pull origin main
     cd ..
 )

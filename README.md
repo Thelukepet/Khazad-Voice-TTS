@@ -86,8 +86,7 @@ https://github.com/user-attachments/assets/4585b850-6c7e-4614-9131-a703f62d117b
 
 * **Trigger:** Middle Mouse Button Click.
 * **Mechanism:** Uses manual screen region detection.
-* **First Run Setup:** Upon the first launch, you must draw a bounding box around the **Quest Text** area and the **NPC Name** area on your screen to calibrate the OCR.
-* 
+
 ## FAQ & Troubleshooting
 
 Q: How do I reset the Quest Window coordinates? If you need to recalibrate the screen region detection, simply delete the `coords_retail.json` file located in the Khazad-Voice-TTS data folder. The application will prompt you to redraw the box on the next launch.
