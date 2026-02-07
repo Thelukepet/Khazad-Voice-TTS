@@ -71,6 +71,8 @@ def clean_ocr_errors(sentences: List[str]) -> List[str]:
         "REWARDS": "",
         "'l": "I",
         "Iam": "I am",
+        "Ore": "Orc",
+        "Ihank": "Thank"
     }
     cleaned = []
     for s in sentences:

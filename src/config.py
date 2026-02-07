@@ -17,7 +17,7 @@ MISSING_TEXT_INDICATOR = "There is currently no text in this page"
 
 # --- DETECTION SETTINGS ---
 # Thresholds for template matching
-TEMPLATE_THRESHOLD = 0.4
+TEMPLATE_THRESHOLD = 0.5
 
 # Offsets for text box extraction (Cascading Logic)
 CORNER_OFFSET_X = 5
@@ -40,7 +40,7 @@ SAMPLE_RATE = 24000
 DEFAULT_VOLUME = 0.3
 
 # --- TTS SETTINGS ---
-TTS_SPEED = 0.9  # Lower speed to prevent cutoffs
+TTS_SPEED = 1  # Lower speed to prevent cutoffs
 TTS_WAVE_STEPS = 10  # Quality steps
 
 # --- OCR SETTINGS (Restored) ---

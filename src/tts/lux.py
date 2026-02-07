@@ -253,16 +253,16 @@ class LuxBackend(TTSBackend):
         try:
             # Encode the reference audio for style transfer
             encoded_prompt = self.tts.encode_prompt(
-                ref_audio, text=ref_text, rms=0.001, duration=1000
+                ref_audio, text=ref_text, rms=0.01, duration=1000
             )
 
             # Generate speech
             wav_tensor = self.tts.generate_speech(
                 text,
                 encoded_prompt,
-                return_smooth=True,
                 num_steps=TTS_WAVE_STEPS,
                 speed=TTS_SPEED,
+                t_shift=0.9
             )
 
             # Handle Tensor vs Numpy array

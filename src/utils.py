@@ -326,42 +326,6 @@ def extract_quest_areas(
     )
 
 
-def detect_quest_window(
-    image_source: Union[str, np.ndarray], threshold: float = 0.8
-) -> bool:
-    """
-    Checks if the quest window is present using the User Calibrated Start Leaf.
-
-    Parameters
-    ----------
-    image_source : Union[str, np.ndarray]
-        Path to image or numpy array.
-    threshold : float
-        Confidence threshold for the template match.
-
-    Returns
-    -------
-    bool
-        True if the quest window anchor is found.
-    """
-    if isinstance(image_source, str):
-        img = cv2.imread(image_source, cv2.IMREAD_GRAYSCALE)
-    else:
-        img = (
-            cv2.cvtColor(image_source, cv2.COLOR_BGR2GRAY)
-            if len(image_source.shape) == 3
-            else image_source
-        )
-
-    tmpls = load_user_templates()
-    if not tmpls:
-        return False
-
-    res = cv2.matchTemplate(img, tmpls["start"], cv2.TM_CCOEFF_NORMED)
-    _, max_val, _, _ = cv2.minMaxLoc(res)
-    return max_val > threshold
-
-
 # --- SCREEN CAPTURE UTILS ---
 
 
