@@ -29,11 +29,18 @@ class LuxBackend(TTSBackend):
         The LuxTTS model instance.
     voice_library : dict
         A dictionary mapping categories (e.g. 'elf_male') to lists of reference audio files.
+    samplerate : int
+        Audio sample rate (48000 Hz for LuxTTS).
     """
 
     def __init__(self):
         """
         Initializes the LuxTTS model on the GPU and loads the voice library.
+
+        Raises
+        ------
+        ImportError
+            If the LuxTTS submodule is missing or cannot be imported.
         """
         log.info(f"Loading LuxTTS Model on {DEVICE}...")
 

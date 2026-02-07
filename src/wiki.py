@@ -5,7 +5,7 @@ import urllib.parse
 import string
 import re
 from difflib import SequenceMatcher
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 import requests
 
 # > Third-party Libraries

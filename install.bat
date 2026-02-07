@@ -59,11 +59,11 @@ echo.
 set /p choice="Enter selection [1, 2, or 3]: "
 
 if "%choice%"=="1" (
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 ) else if "%choice%"=="2" (
-    pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+    pip install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
 ) else (
-    pip install torch torchvision torchaudio
+    pip install torch torchaudio
 )
 
 :: --- 3. LuxTTS Setup ---
@@ -71,11 +71,15 @@ echo.
 echo [4/5] Summoning the Voice (Setting up LuxTTS)...
 
 if not exist "LuxTTS" (
-    echo [INFO] LuxTTS not found. Cloning from the archives...
-    git clone https://github.com/Thelukepet/LuxTTS.git
+    echo [INFO] LuxTTS not found. Cloning the 'main' branch...
+    :: Added -b main to ensure we get the right branch immediately
+    git clone -b main https://github.com/Thelukepet/LuxTTS.git
 ) else (
     echo [INFO] LuxTTS exists. Updating the scrolls...
     cd LuxTTS
+    :: Fetch all updates and force-switch to main if it's currently on master
+    git fetch origin
+    git checkout main
     git pull origin main
     cd ..
 )
