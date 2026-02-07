@@ -5,107 +5,170 @@ import time
 import queue
 import threading
 
-# > Third-party Libraries
+# > Third Party Dependencies
 import cv2
+import nltk
 
 # > Local Dependencies
-from .utils import setup_logger, save_npc_memory, load_npc_memory, detect_quest_window
-from .ocr import run_ocr, run_name_ocr
+from .utils import setup_logger, save_npc_memory, load_npc_memory, extract_quest_areas
+from .ocr import run_ocr, run_name_ocr, run_title_ocr
 from .audio import play_audio
-from .config import DEFAULT_VOLUME
+from .config import DEFAULT_VOLUME, ENABLE_WIKI  # <--- Import Flag
+from . import wiki
 
 log = setup_logger("ENGINE")
 
 
 class NarratorEngine:
     """
-    Orchestrates the pipeline: Capture -> OCR -> Data Lookup -> TTS -> Audio Playback.
+    Core engine that orchestrates the workflow between OCR, Database lookups,
+    Wiki fetching, and Text-to-Speech generation.
 
-    Parameters
+    Attributes
     ----------
-    db : NPCDatabase
-        Instance of the NPC database.
-    tts_backend : object
-        Instance of the active TTS backend (LuxBackend or KokoroBackend).
+    db : Database
+        The NPC database interface for race/gender lookups.
+    tts : TTSBackend
+        The initialized Text-to-Speech backend (e.g., Kokoro, Lux).
     mode : str
-        The current operation mode ('echoes' or 'retail').
+        The operation mode ('echoes' for manual, 'retail' for auto).
+    memory : dict
+        A runtime cache of NPC-to-Voice mappings to ensure consistency.
+    audio_queue : queue.Queue
+        A thread-safe queue for buffering generated audio chunks.
+    is_playing : bool
+        Flag to track playback state.
     """
 
     def __init__(self, db, tts_backend, mode="echoes"):
+        """
+        Initializes the NarratorEngine.
+
+        Parameters
+        ----------
+        db : Database
+            Instance of the database handler.
+        tts_backend : TTSBackend
+            Instance of the TTS model wrapper.
+        mode : str, optional
+            The game mode configuration, by default "echoes".
+        """
         self.db = db
         self.tts = tts_backend
         self.mode = mode
-
-        # Load memory specific to the mode (e.g., npc_memory_retail.json)
         self.memory = load_npc_memory(self.mode)
         log.info(f"🧠 Loaded Memory for mode: {self.mode}")
-
         self.audio_queue = queue.Queue()
         self.is_playing = False
 
     def process_capture(self, quest_img_pil, name_img_pil):
         """
-        Processing pipeline for Echoes mode (manual trigger).
+        Handles the 'Echoes' (Classic) mode workflow, which relies on manual
+        screen region selection.
 
         Parameters
         ----------
         quest_img_pil : PIL.Image.Image
-            Screenshot crop of the quest text.
+            The cropped image containing the quest body text.
         name_img_pil : PIL.Image.Image
-            Screenshot crop of the NPC name.
+            The cropped image containing the NPC name.
         """
-        # 1. Quest Text OCR
+        # ECHOES MODE (Manual)
         log.info("Reading Quest Text...")
         sentences = run_ocr(quest_img_pil)
         if not sentences:
             log.warning("No quest text found.")
             return
-
-        # 2. Name Tag OCR
         log.info("Reading NPC Name...")
         npc_name = run_name_ocr(name_img_pil) or "Unknown"
         log.info(f"📝 NPC Name: '{npc_name}'")
-
-        # 3. Resolve Voice
         voice_id = self._resolve_voice(npc_name)
-
-        # 4. Generate & Stream Audio
         self._start_streaming(sentences, voice_id)
 
-    def process_retail(self, quest_img_pil, full_screen_np, npc_name):
+    def process_retail(self, _, full_screen_np, npc_name):
         """
-        Processing pipeline for Retail mode (log-file triggered).
+        Handles the 'Retail' (Live) mode workflow, which uses automatic detection
+        via calibration anchors and log monitoring.
+
+        1. Extracts Title/Body using calibrated layout.
+        2. Runs OCR on the extracted areas.
+        3. (Optional) Fetches cleaned text from the Wiki to fix OCR errors.
+        4. Queues text for TTS.
 
         Parameters
         ----------
-        quest_img_pil : PIL.Image.Image
-            Screenshot crop of the quest text.
+        _ : Any
+            Legacy/unused parameter (placeholder for raw quest crop).
         full_screen_np : np.ndarray
-            Full screenshot for UI element validation (template matching).
+            The full screenshot in NumPy format (BGR).
         npc_name : str
-            Name extracted directly from the game logs.
+            The name of the NPC detected from the game logs.
         """
-        # 1. Verify Window Existence (Template Matching)
-        if not detect_quest_window(full_screen_np):
-            log.info("🙈 NPC in log, but no Quest Window detected. Ignoring.")
+        # RETAIL MODE (Auto)
+        log.info(f"Detecting Quest Window for: {npc_name}...")
+
+        # 1. Extraction
+        title_pil, body_pil = extract_quest_areas(full_screen_np)
+
+        if not title_pil or not body_pil:
+            log.info("🙈 NPC in log, but valid Quest Window not found.")
             return
 
-        # 2. Quest Text OCR (We already know the name!)
-        log.info(f"Reading Quest Text for: {npc_name}...")
-        sentences = run_ocr(quest_img_pil)
-        if not sentences:
-            log.warning("No quest text found (OCR failed or empty).")
+        # 2. OCR Body (Always needed for fallback/reference)
+        ocr_sentences = run_ocr(body_pil)
+        if not ocr_sentences:
+            log.warning("Quest body OCR empty.")
             return
 
-        # 3. Resolve Voice
+        full_ocr_text = " ".join(ocr_sentences)
+        final_text = full_ocr_text
+        source_label = "OCR (Default)"
+
+        # 3. Wiki Logic (Conditional)
+        if ENABLE_WIKI:
+            # OCR Title only if we need Wiki
+            quest_title = run_title_ocr(title_pil)
+            log.info(f"📜 Quest Title: '{quest_title}'")
+            log.info("🌍 Checking Wiki...")
+
+            wiki_url = wiki.get_best_wiki_url(quest_title)
+            stages = wiki.fetch_quest_data(wiki_url)
+
+            if stages:
+                best_stage, matched_text, accuracy = wiki.get_best_match(
+                    full_ocr_text, stages
+                )
+
+                # Smart Fallback Logic
+                if accuracy >= 50.0 and not wiki.has_name_placeholder(matched_text):
+                    final_text = matched_text
+                    source_label = f"Wiki ({best_stage}, {accuracy:.1f}%)"
+                elif wiki.has_name_placeholder(matched_text):
+                    source_label = "OCR (Wiki had placeholder)"
+                else:
+                    source_label = f"OCR (Low Wiki Acc: {accuracy:.1f}%)"
+            else:
+                source_label = "OCR (No Wiki Data)"
+        else:
+            log.info("⏩ Skipping Wiki Lookup (Config Disabled)")
+
+        log.info(f"✅ Source: {source_label}")
+
+        # 4. Playback
         voice_id = self._resolve_voice(npc_name)
-
-        # 4. Generate & Stream
-        self._start_streaming(sentences, voice_id)
+        final_sentences = nltk.sent_tokenize(final_text)
+        self._start_streaming(final_sentences, voice_id)
 
     def _resolve_voice(self, npc_name: str) -> str:
         """
-        Determines the correct voice ID based on memory or database lookup.
+        Determines the appropriate Voice ID for a given NPC.
+
+        Logic:
+        1. Check memory cache.
+        2. If new, look up Race/Gender in DB.
+        3. If unknown, default to 'Narrator'.
+        4. Select a random consistent voice based on tags.
+        5. Save to memory.
 
         Parameters
         ----------
@@ -115,30 +178,18 @@ class NarratorEngine:
         Returns
         -------
         str
-            The resolved voice ID to be used by the TTS backend.
+            The specific voice ID (e.g., 'en_us_male_1') to be used by the TTS.
         """
         key = npc_name.lower()
-
-        # Check Memory first
         if key in self.memory:
-            data = self.memory[key]
-            log.info(f"🧠 Memory Recall: '{data['name']}' -> {data['voice_id']}")
-            return data["voice_id"]
+            return self.memory[key]["voice_id"]
 
-        # Check Database
-        log.info("🔍 Resolving new NPC...")
         gender, race, matched_name = self.db.lookup(npc_name)
-
-        # Fallback
         if not gender or not race:
-            log.info("⚠️ No DB match. Using Default Narrator.")
             matched_name = "Narrator"
             race, gender = "Narrator", "Narrator"
 
-        # Pick Voice via Backend
         voice_id, category = self.tts.pick_voice(gender, race)
-
-        # Save to Memory (Specific to current mode)
         self.memory[key] = {
             "name": matched_name,
             "race": race,
@@ -146,29 +197,27 @@ class NarratorEngine:
             "voice_id": voice_id,
         }
         save_npc_memory(self.memory, self.mode)
-        log.info(f"💾 Saved: {matched_name} -> {voice_id} ({category})")
         return voice_id
 
     def _start_streaming(self, sentences: list[str], voice_id: str):
         """
-        Starts a producer thread for TTS generation and plays audio in the main loop.
+        Starts the audio generation and playback pipeline.
+
+        Uses a Producer-Consumer model:
+        - The Producer (Thread) generates audio using the TTS model.
+        - The Consumer (Main Loop) pulls audio from the queue and plays it.
 
         Parameters
         ----------
         sentences : list[str]
-            List of text segments to speak.
+            A list of text sentences to narrate.
         voice_id : str
-            The specific voice ID string for the backend.
+            The target voice ID for synthesis.
         """
-
         def producer():
-            """Generates audio chunks and puts them in the queue."""
             clean_lines = [s.strip() for s in sentences if s.strip()]
-
-            # LuxTTS optimization: Batch generation often sounds better/faster
             if type(self.tts).__name__ == "LuxBackend":
-                # Chunk into batches of 4 sentences to keep generation smooth
-                chunk_size = 4
+                chunk_size = 2
                 for i in range(0, len(clean_lines), chunk_size):
                     batch = clean_lines[i : i + chunk_size]
                     full_text = " ".join(batch)
@@ -176,26 +225,20 @@ class NarratorEngine:
                         audio = self.tts.generate(full_text, voice_id)
                         self.audio_queue.put((full_text, audio, self.tts.samplerate))
             else:
-                # Kokoro: Line-by-line generation
                 for line in clean_lines:
                     audio = self.tts.generate(line, voice_id)
                     self.audio_queue.put((line, audio, self.tts.samplerate))
-
-            self.audio_queue.put(None)  # End signal
+            self.audio_queue.put(None)
 
         threading.Thread(target=producer, daemon=True).start()
 
-        # Playback Loop (Blocking)
         print("\n--- 🟢 PLAYBACK STARTED ---")
         while True:
             item = self.audio_queue.get()
             if item is None:
                 break
-
             text, audio, sr = item
-            display_text = (text[:60] + "...") if len(text) > 60 else text
-            print(f"▶️ Speaking: {display_text}")
-
+            print(f"▶️ Speaking: {text[:60]}...")
             if len(audio) > 0:
                 play_audio(audio, sr, volume=DEFAULT_VOLUME)
                 time.sleep(0.1)

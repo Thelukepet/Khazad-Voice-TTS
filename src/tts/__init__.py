@@ -9,6 +9,7 @@ from src.utils import setup_logger
 
 log = setup_logger("TTS_FACTORY")
 
+
 def get_tts_backend(device_choice: str = "cpu"):
     """
     Factory function to return the requested TTS backend.

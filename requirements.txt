@@ -10,3 +10,5 @@ kokoro>=0.3.4
 soundfile
 transformers
 accelerate
+nltk
+beautifulsoup4

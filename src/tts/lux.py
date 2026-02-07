@@ -12,10 +12,7 @@ import numpy as np
 
 # > Local Dependencies
 from src.utils import setup_logger
-from src.config import (
-    DEVICE, REF_AUDIO_DIR, TTS_SPEED,
-    TTS_WAVE_STEPS
-)
+from src.config import DEVICE, REF_AUDIO_DIR, TTS_SPEED, TTS_WAVE_STEPS
 from .base import TTSBackend
 
 log = setup_logger(__name__)
@@ -142,26 +139,32 @@ class LuxBackend(TTSBackend):
             # Process FLACs
             flacs = sorted(list(folder.glob("*.flac")), key=lambda x: x.name)
             for i, fpath in enumerate(flacs):
-                if not flac_lines: continue
+                if not flac_lines:
+                    continue
                 text = flac_lines[i] if i < len(flac_lines) else flac_lines[0]
-                library[category].append({
-                    "id": len(library[category]),
-                    "text": text,
-                    "audio": str(fpath),
-                    "type": "flac"
-                })
+                library[category].append(
+                    {
+                        "id": len(library[category]),
+                        "text": text,
+                        "audio": str(fpath),
+                        "type": "flac",
+                    }
+                )
 
             # Process WAVs
             wavs = sorted(list(folder.glob("*.wav")), key=lambda x: x.name)
             for i, fpath in enumerate(wavs):
-                if not wav_lines: continue
+                if not wav_lines:
+                    continue
                 text = wav_lines[i] if i < len(wav_lines) else wav_lines[0]
-                library[category].append({
-                    "id": len(library[category]),
-                    "text": text,
-                    "audio": str(fpath),
-                    "type": "wav"
-                })
+                library[category].append(
+                    {
+                        "id": len(library[category]),
+                        "text": text,
+                        "audio": str(fpath),
+                        "type": "wav",
+                    }
+                )
 
         return library
 
@@ -236,7 +239,9 @@ class LuxBackend(TTSBackend):
         ref_text = ref_data["text"]
 
         if not warmup:
-            log.info(f"🎙️ Cloning [{category}] (Source: {Path(ref_audio).name}): {text[:50]}...")
+            log.info(
+                f"🎙️ Cloning [{category}] (Source: {Path(ref_audio).name}): {text[:50]}..."
+            )
 
         try:
             # Encode the reference audio for style transfer
