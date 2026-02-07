@@ -103,10 +103,8 @@ Run **`start.bat`** to launch the application.
 
 * **Trigger:** Middle Mouse Button Click.
 * **Mechanism:** Uses manual screen region detection.
-* **First Run Setup:** Upon the first launch, the bot will take a screenshot. You must draw:
-    1.  A bounding box around the **Quest Text** area.
-    2.  A bounding box around the **NPC Name** area.
-    *(See the demo images above for reference).*
+
+## FAQ & Troubleshooting
 
 ---
 

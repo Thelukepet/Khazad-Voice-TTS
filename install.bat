@@ -52,9 +52,9 @@ echo ==================================================
 echo           SELECT YOUR GPU DRIVER VERSION
 echo ==================================================
 echo.
-echo [1] CUDA 12.1 (Standard - Recommended for most Dwarves)
+echo [1] CUDA 12.1 (Standard - Recommended for most Nvidia Graphics cards)
 echo [2] CUDA 12.8 (Nightly - For the latest RTX 50-Series)
-echo [3] CPU Only  (Slow - Like walking to Mordor)
+echo [3] CPU Only  (Slow - Not recommended for using LuxTTS, will still work with Kokoro)
 echo.
 set /p choice="Enter selection [1, 2, or 3]: "
 
