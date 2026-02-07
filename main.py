@@ -21,11 +21,16 @@ capture_trigger = Event()
 
 
 def on_click(x, y, button, pressed):
+    """Callback for pynput mouse listener."""
     if pressed and button == mouse.Button.middle:
         capture_trigger.set()
 
 
 def main():
+    """
+    Main entry point for Khazad-Voice TTS.
+    Handles mode selection, initialization, and loop execution.
+    """
     print(r"""
     ========================================
        LOTRO NARRATOR - AI VOICE OVER

@@ -11,6 +11,21 @@ SAMPLES_DIR = DATA_DIR / "screenshots"
 REF_AUDIO_DIR = DATA_DIR / "reference_audio"
 NPC_DATA_PATH = DATA_DIR / "npc_data.csv"
 
+# --- WIKI SETTINGS ---
+WIKI_BASE_URL = "https://lotro-wiki.com"
+MISSING_TEXT_INDICATOR = "There is currently no text in this page"
+
+# --- DETECTION SETTINGS ---
+# Thresholds for template matching
+TEMPLATE_THRESHOLD = 0.4
+
+# Offsets for text box extraction (Cascading Logic)
+CORNER_OFFSET_X = 5
+CORNER_OFFSET_Y = 5
+PADDING_ICON_Y = 5
+PADDING_INTERSECT_X = 5
+MIN_BOX_DIM = 50
+
 # Retail Mode Paths
 SCRIPT_LOG = os.path.expanduser(r"~\Documents\The Lord of the Rings Online\Script.log")
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -22,10 +37,10 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # --- AUDIO SETTINGS ---
 SAMPLE_RATE = 24000
-DEFAULT_VOLUME = 0.4
+DEFAULT_VOLUME = 0.3
 
 # --- TTS SETTINGS ---
-TTS_SPEED = 0.8  # Lower speed to prevent cutoffs
+TTS_SPEED = 0.9  # Lower speed to prevent cutoffs
 TTS_WAVE_STEPS = 10  # Quality steps
 
 # --- OCR SETTINGS (Restored) ---
@@ -45,3 +60,7 @@ for p in possible_paths:
 
 # --- LOGGING ---
 LOG_LEVEL = "INFO"
+
+# --- FEATURES ---
+# TODO: reconsider usefulness / accuracy of wiki lookups
+ENABLE_WIKI = False  # Set to True to enable Wiki lookups, False for instant OCR

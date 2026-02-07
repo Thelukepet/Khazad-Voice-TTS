@@ -48,3 +48,4 @@ if %errorlevel% neq 0 (
     echo [INFO] Application closed successfully.
     echo ==================================================
 )
+pause

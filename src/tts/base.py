@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 # > Third-Party Dependencies
 import numpy as np
 
+
 class TTSBackend(ABC):
     """
     Abstract base class for Text-to-Speech backends.

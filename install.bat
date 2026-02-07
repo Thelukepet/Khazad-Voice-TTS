@@ -59,11 +59,11 @@ echo.
 set /p choice="Enter selection [1, 2, or 3]: "
 
 if "%choice%"=="1" (
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 ) else if "%choice%"=="2" (
-    pip install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+    pip install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
 ) else (
-    pip install torch torchvision torchaudio
+    pip install torch torchaudio
 )
 
 :: --- 3. LuxTTS Setup ---
