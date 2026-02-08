@@ -3,14 +3,49 @@
 
 **Khazad Voice TTS** is an external utility designed to provide real-time narration for *The Lord of the Rings Online* (LOTRO). By combining Optical Character Recognition (OCR) with advanced Text-to-Speech (TTS) models, this tool captures quest text from your screen and narrates it aloud using context-aware AI voices.
 
-GPU model demo (LuxTTS)
+<div align="center">
+  <table style="border: none;">
+    <tr>
+      <td align="center" style="border: none;">
+        <strong>GPU Model (LuxTTS)</strong><br>
+        <a href="https://www.youtube.com/watch?v=LlAibQ_TlY4">
+          <img src="https://img.youtube.com/vi/LlAibQ_TlY4/0.jpg" width="400">
+        </a>
+      </td>
+      <td align="center" style="border: none;">
+        <strong>CPU Model (Kokoro82M)</strong><br>
+        <a href="https://www.youtube.com/watch?v=aR_5aRTrMQg">
+          <img src="https://img.youtube.com/vi/aR_5aRTrMQg/0.jpg" width="400">
+        </a>
+      </td>
+    </tr>
+  </table>
+</div>
 
-[![Khazad Voice TTS Showcase](https://img.youtube.com/vi/LlAibQ_TlY4/0.jpg)](https://www.youtube.com/watch?v=LlAibQ_TlY4)
+## Table of Contents
 
-CPU model demo (Kokoro82M)
+* [Key Features](https://www.google.com/search?q=%23key-features)
+* [Prerequisites](https://www.google.com/search?q=%23prerequisites)
+   * [1. Tesseract OCR](https://www.google.com/search?q=%231-tesseract-ocr)
+   * [2. getNPCNames Plugin (Retail Only)](https://www.google.com/search?q=%232-getnpcnames-plugin-retail-mode-only)
 
-[![Khazad Voice TTS Showcase](https://img.youtube.com/vi/aR_5aRTrMQg/0.jpg)](https://www.youtube.com/watch?v=aR_5aRTrMQg)
 
+* [Installation](https://www.google.com/search?q=%23installation)
+* [Configuration & Calibration](https://www.google.com/search?q=%23configuration--calibration-important)
+   * [Retail LOTRO Calibration](https://www.google.com/search?q=%23retail-lotro)
+   * [Echoes of Angmar Calibration](https://www.google.com/search?q=%23echoes-of-angmar)
+
+
+* [Usage & Modes](https://www.google.com/search?q=%23usage--modes)
+   * [1. Retail (Live Servers)](https://www.google.com/search?q=%231-retail-live-servers)
+   * [2. Echoes of Angmar (Classic)](https://www.google.com/search?q=%232-echoes-of-angmar-classic-mode)
+
+
+* [FAQ & Troubleshooting](https://www.google.com/search?q=%23faq--troubleshooting)
+* [Future Roadmap](https://www.google.com/search?q=%23future-roadmap)
+* [Credits](https://www.google.com/search?q=%23credits)
+
+---
 
 ## Key Features
 
@@ -69,36 +104,16 @@ Before running the bot for the first time, you must calibrate it to your screen 
 2.  **Open any Quest Window** by clicking on an NPC. Ensure the window is fully visible.
 3.  Double-click **`calibrate_lotro.bat`** (for Retail LOTRO) or **`calibrate_echoes.bat`** (for Echoes of Angmar) in the project folder. 
 
-
-## Retail LOTRO:
-* Follow the on-screen visual guide. You will be asked to draw boxes around 5 specific anchors:
-   * **Step 1 & 2:** The Left and Right Leaf icons (Title Bar).
-   * **Step 3:** The Top-Left corner of the text body.
-   * **Step 4:** The intersection between the left and right panels (defines width).
-   * **Step 5:** The Filter icon at the bottom (defines height).
-   * **Step 6:** A confirmation box around the actual text.
-
-Follow my YouTube video for a detailed guide on how to draw these boxes accurately:
-
-[![Khazad Voice TTS Calibration Tutorial](https://img.youtube.com/vi/6otQUGYiFx4/0.jpg)](https://www.youtube.com/watch?v=6otQUGYiFx4)
-
-You generally only need to do this once, unless you change your UI skin or game resolution.
+<table border="0"> <tr> <td width="60%" valign="top"> <h3>Retail LOTRO</h3> <p>Follow the on-screen visual guide. You will be asked to draw boxes around 5 specific anchors:</p> <ul> <li><b>Step 1 & 2:</b> The Left and Right Leaf icons (Title Bar).</li> <li><b>Step 3:</b> The Top-Left corner of the text body.</li> <li><b>Step 4:</b> The intersection between the left and right panels (defines width).</li> <li><b>Step 5:</b> The Filter icon at the bottom (defines height).</li> <li><b>Step 6:</b> A confirmation box around the actual text.</li> </ul> <p><i>You generally only need to do this once, unless you change your UI skin or game resolution.</i></p> </td> <td width="40%" valign="top" align="center"> <b>Watch Tutorial</b>
 
 
-## Echoes of Angmar:
-* **Step 1 & 2:** The Left and Right Plant icons (Title Bar).
-* **Step 3 & 4:** The Top-Left and Bottom-Right corners of the text body.
-* **Step 5:** Draw a box around the actual text body (to learn margins).
-* **Step 6:** Draw a box around the NPC Name (Static position).
+<a href="https://www.youtube.com/watch?v=6otQUGYiFx4"> <img src="https://img.youtube.com/vi/6otQUGYiFx4/0.jpg" width="100%" alt="Retail Calibration"> </a> </td> </tr> </table>
 
-Youtube tutorial:
+<table border="0"> <tr> <td width="60%" valign="top"> <h3>Echoes of Angmar</h3> <ul> <li><b>Step 1 & 2:</b> The Left and Right Plant icons (Title Bar).</li> <li><b>Step 3 & 4:</b> The Top-Left and Bottom-Right corners of the text body.</li> <li><b>Step 5:</b> Draw a box around the actual text body (to learn margins).</li> <li><b>Step 6:</b> Draw a box around the NPC Name (Static position).</li> </ul> <p><i>You generally only need to do this once, unless you change your UI skin or game resolution.</i></p> </td> <td width="40%" valign="top" align="center"> <b>Watch Tutorial</b>
 
-[![Khazad Voice TTS Calibration Tutorial](https://img.youtube.com/vi/hYPYav5oWh8/0.jpg)](https://www.youtube.com/watch?v=hYPYav5oWh8)
+<a href="https://www.youtube.com/watch?v=hYPYav5oWh8"> <img src="https://img.youtube.com/vi/hYPYav5oWh8/0.jpg" width="100%" alt="Echoes Calibration"> </a> </td> </tr> </table>
 
-
-Once finished, the bot will save a `retail_layout.json` or `echoes_layout.json` file containing the layout information. 
-
-You generally only need to do this once, unless you change your UI skin or game resolution.
+Once finished, the program will save a `retail_layout.json` or `echoes_layout.json` file containing the layout information. 
 
 ---
 
