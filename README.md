@@ -139,14 +139,19 @@ Run **`start_eoa.bat`**.
 **Q: The bot isn't detecting the quest window in Retail mode.**
 A: Run **`calibrate`** again. Ensure you draw tight boxes around the requested icons. If you change your game resolution or apply a custom UI skin, you must recalibrate.
 
+If that does still not work consistently you can reduce the 'TEMPLATE_THRESHOLD' in the 'src/config.py' from 0.5 to 0.4 to make the program more sensitive when it looks for quest windows on your screen. After changing the value, restart the start.bat.
+
+
 **Q: How do I reset the NPC Voice Memory?**
 A: To wipe the saved voice associations for NPCs (resetting who sounds like what), delete the `npc_memory_retail.json` file from the `data/` folder.
+
 
 **Q: Can I add my own custom voice references?**
 A: Yes! You can add your own voice samples to the library to be used for cloning/generation.
 1.  Navigate to the `data/reference_audio` directory.
 2.  Open the specific Race and Gender folder you want to customize.
 3.  Drop your audio files there. Supported formats: `.wav` and `.flac`.
+
 
 ---
 
