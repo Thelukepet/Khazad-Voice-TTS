@@ -24,26 +24,20 @@
 
 ## Table of Contents
 
-* [Key Features](https://www.google.com/search?q=%23key-features)
-* [Prerequisites](https://www.google.com/search?q=%23prerequisites)
-   * [1. Tesseract OCR](https://www.google.com/search?q=%231-tesseract-ocr)
-   * [2. getNPCNames Plugin (Retail Only)](https://www.google.com/search?q=%232-getnpcnames-plugin-retail-mode-only)
-
-
-* [Installation](https://www.google.com/search?q=%23installation)
-* [Configuration & Calibration](https://www.google.com/search?q=%23configuration--calibration-important)
-   * [Retail LOTRO Calibration](https://www.google.com/search?q=%23retail-lotro)
-   * [Echoes of Angmar Calibration](https://www.google.com/search?q=%23echoes-of-angmar)
-
-
-* [Usage & Modes](https://www.google.com/search?q=%23usage--modes)
-   * [1. Retail (Live Servers)](https://www.google.com/search?q=%231-retail-live-servers)
-   * [2. Echoes of Angmar (Classic)](https://www.google.com/search?q=%232-echoes-of-angmar-classic-mode)
-
-
-* [FAQ & Troubleshooting](https://www.google.com/search?q=%23faq--troubleshooting)
-* [Future Roadmap](https://www.google.com/search?q=%23future-roadmap)
-* [Credits](https://www.google.com/search?q=%23credits)
+* [Key Features](#key-features)
+* [Prerequisites](#prerequisites)
+   * [1. Tesseract OCR](#1-tesseract-ocr)
+   * [2. getNPCNames Plugin (Retail Only)](#2-getnpcnames-plugin-retail-mode-only)
+* [Installation](#installation)
+* [Configuration & Calibration](#configuration--calibration-important)
+   * [Retail LOTRO Calibration](#retail-lotro)
+   * [Echoes of Angmar Calibration](#echoes-of-angmar)
+* [Usage & Modes](#usage--modes)
+   * [1. Retail (Live Servers)](#1-retail-live-servers)
+   * [2. Echoes of Angmar (Classic)](#2-echoes-of-angmar-classic-mode)
+* [FAQ & Troubleshooting](#faq--troubleshooting)
+* [Future Roadmap](#future-roadmap)
+* [Credits](#credits)
 
 ---
 
