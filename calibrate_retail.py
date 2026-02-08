@@ -13,7 +13,7 @@ from PIL import ImageGrab
 # Configuration
 DATA_DIR = Path(__file__).parent / "data"
 TEMPLATES_DIR = Path(__file__).parent / "templates"
-LAYOUT_FILE = DATA_DIR / "user_layout.json"
+LAYOUT_FILE = DATA_DIR / "layout_retail.json"
 
 # Where we SAVE the user's specific calibration
 USER_PATHS = {

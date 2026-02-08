@@ -37,10 +37,10 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # --- AUDIO SETTINGS ---
 SAMPLE_RATE = 24000
-DEFAULT_VOLUME = 0.3
+DEFAULT_VOLUME = 0.4
 
 # --- TTS SETTINGS ---
-TTS_SPEED = 1  # Lower speed to prevent cutoffs
+TTS_SPEED = 1.1  # Lower speed to prevent cutoffs
 TTS_WAVE_STEPS = 10  # Quality steps
 
 # --- OCR SETTINGS (Restored) ---
