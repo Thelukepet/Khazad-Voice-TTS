@@ -38,14 +38,17 @@ if %errorlevel%==0 (
 
 echo [INFO] Using Python: %PYTHON_CMD%
 echo.
-echo [1/5] Igniting the Forge (Creating Virtual Environment)...
+echo [1/6] Igniting the Forge (Creating Virtual Environment)...
 %PYTHON_CMD% -m venv venv
+if %errorlevel% neq 0 goto :error
 
-echo [2/5] Stoking the Fires (Activating Environment)...
+echo [2/6] Stoking the Fires (Activating Environment)...
 call venv\Scripts\activate
 
-echo [3/5] Sharpening the Axe (Updating Setup Tools)...
+echo [3/6] Sharpening the Axe (Updating Setup Tools)...
 python -m pip install --upgrade pip setuptools wheel
+:: Install NLTK immediately to ensure it is present regardless of later conflicts
+python -m pip install nltk
 
 echo.
 echo ==================================================
@@ -65,10 +68,11 @@ if "%choice%"=="1" (
 ) else (
     pip install torch torchaudio
 )
+if %errorlevel% neq 0 goto :error
 
 :: --- 3. LuxTTS Setup ---
 echo.
-echo [4/5] Summoning the Voice (Setting up LuxTTS)...
+echo [4/6] Summoning the Voice (Setting up LuxTTS)...
 
 if not exist "LuxTTS" (
     echo [INFO] LuxTTS not found. Cloning the 'main' branch...
@@ -85,17 +89,41 @@ if not exist "LuxTTS" (
 )
 
 echo Installing LuxTTS dependencies...
+:: We use --no-deps for torch to prevent it from overwriting the CUDA version we just installed
 pip install -r LuxTTS\requirements.txt
+if %errorlevel% neq 0 goto :error
+
+echo Installing LuxTTS package...
 pip install -e LuxTTS
+if %errorlevel% neq 0 goto :error
 
 :: --- 4. Main Requirements ---
 echo.
-echo [5/5] Finalizing the Craft (Installing Main Requirements)...
+echo [5/6] Finalizing the Craft (Installing Main Requirements)...
 pip install -r requirements.txt
+if %errorlevel% neq 0 (
+    echo [WARNING] Main requirements reported an error.
+    echo This is usually a version conflict. NLTK was pre-installed to ensure safety.
+)
+
+:: --- 5. NLTK Data Download ---
+echo.
+echo [6/6] Teaching the Runes (Downloading NLTK Data)...
+python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger')"
 
 echo.
 echo ==================================================
 echo           INSTALLATION COMPLETE!
 echo ==================================================
-echo The Khazad Voice TTS is ready. Run "start.bat" to begin.
+echo The Khazad Voice TTS is ready. Follow the calibrate instructions on the github page.
 pause
+exit /b
+
+:error
+echo.
+echo ==================================================
+echo [ERROR] The installation failed!
+echo Check the error message above.
+echo ==================================================
+pause
+exit /b
