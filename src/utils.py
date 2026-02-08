@@ -23,15 +23,9 @@ from .config import (
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# --- USER CALIBRATION PATHS ---
-LAYOUT_FILE = DATA_DIR / "user_layout.json"
-PATHS = {
-    "start": TEMPLATES_DIR / "user_start.png",
-    "end": TEMPLATES_DIR / "user_end.png",
-    "corner": TEMPLATES_DIR / "user_corner.png",
-    "intersect": TEMPLATES_DIR / "user_intersect.png",
-    "icon": TEMPLATES_DIR / "user_icon.png",
-}
+# --- CONFIGURATION FILES ---
+LAYOUT_RETAIL = DATA_DIR / "layout_retail.json"
+LAYOUT_ECHOES = DATA_DIR / "layout_echoes.json"
 
 
 def setup_logger(name: str) -> logging.Logger:
@@ -51,10 +45,23 @@ def setup_logger(name: str) -> logging.Logger:
 log = setup_logger("UTILS")
 
 
-# --- DATA MANAGEMENT ---
+# --- DATA MANAGEMENT (RESTORED) ---
 
 
 def get_file_paths(mode: str) -> Tuple[Path, Path]:
+    """
+    Generates file paths for coordinates and NPC memory based on the mode.
+
+    Parameters
+    ----------
+    mode : str
+        The game mode ('retail' or 'echoes').
+
+    Returns
+    -------
+    Tuple[Path, Path]
+        (path_to_coords_json, path_to_npc_memory_json)
+    """
     safe_mode = mode.lower().strip()
     return (
         DATA_DIR / f"coords_{safe_mode}.json",
@@ -63,6 +70,9 @@ def get_file_paths(mode: str) -> Tuple[Path, Path]:
 
 
 def load_coords(mode: str) -> dict:
+    """
+    Loads saved coordinates for the specified mode.
+    """
     coords_file, _ = get_file_paths(mode)
     if coords_file.exists():
         try:
@@ -74,12 +84,18 @@ def load_coords(mode: str) -> dict:
 
 
 def save_coords(coords: dict, mode: str):
+    """
+    Saves coordinates to the disk for the specified mode.
+    """
     coords_file, _ = get_file_paths(mode)
     with open(coords_file, "w") as f:
         json.dump(coords, f, indent=4)
 
 
 def load_npc_memory(mode: str) -> dict:
+    """
+    Loads the database of previously seen NPCs (for voice consistency).
+    """
     _, memory_file = get_file_paths(mode)
     if memory_file.exists():
         try:
@@ -91,12 +107,73 @@ def load_npc_memory(mode: str) -> dict:
 
 
 def save_npc_memory(memory: dict, mode: str):
+    """
+    Saves the NPC memory database to disk.
+    """
     _, memory_file = get_file_paths(mode)
     with open(memory_file, "w") as f:
         json.dump(memory, f, indent=4)
 
 
-# --- LOG WATCHER ---
+# --- CONFIGURATION LOADERS ---
+
+
+def get_layout_file(mode: str) -> Path:
+    """Returns the appropriate layout file path based on the game mode."""
+    return LAYOUT_RETAIL if mode == "retail" else LAYOUT_ECHOES
+
+
+def load_user_templates(mode: str = "retail") -> Optional[dict]:
+    """
+    Loads the user-calibrated templates from disk specific to the game mode.
+
+    Parameters
+    ----------
+    mode : str
+        The game mode ('retail' or 'echoes').
+
+    Returns
+    -------
+    dict or None
+        Dictionary of {key: cv2_image} or None if missing.
+    """
+    templates = {}
+
+    if mode == "retail":
+        keys = ["start", "end", "corner", "intersect", "icon"]
+        prefix = "user"
+    else:
+        keys = ["left_plant", "right_plant", "tl_corner", "br_corner"]
+        prefix = "echoes"
+
+    missing = False
+    for key in keys:
+        path = TEMPLATES_DIR / f"{prefix}_{key}.png"
+        if path.exists():
+            templates[key] = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+        else:
+            missing = True
+
+    if missing:
+        return None
+    return templates
+
+
+def load_user_config(mode: str) -> dict:
+    """
+    Loads the calibrated configuration (offsets/NPC box) from the JSON file.
+    """
+    path = get_layout_file(mode)
+    if path.exists():
+        try:
+            with open(path, "r") as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            pass
+    return {}
+
+
+# --- LOG WATCHER (Retail Only) ---
 
 
 def watch_npc_file(callback, log_path: str, ready_event=None):
@@ -135,49 +212,7 @@ def watch_npc_file(callback, log_path: str, ready_event=None):
         time.sleep(0.5)
 
 
-# --- TEMPLATE MATCHING & EXTRACTION ---
-
-
-def load_user_templates() -> dict:
-    """
-    Loads the user-calibrated templates from disk.
-
-    Returns
-    -------
-    dict or None
-        A dictionary of {key: cv2_image} if all templates exist,
-        otherwise None.
-    """
-    loaded = {}
-    missing = False
-    for key, path in PATHS.items():
-        if path.exists():
-            loaded[key] = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
-        else:
-            missing = True
-
-    if missing:
-        return None
-    return loaded
-
-
-def load_user_offsets() -> dict:
-    """
-    Loads the calculated offsets from the user_layout.json file.
-
-    Returns
-    -------
-    dict
-        A dictionary containing offsets like CORNER_OFFSET_X, PADDING_ICON_Y, etc.
-    """
-    if LAYOUT_FILE.exists():
-        try:
-            with open(LAYOUT_FILE, "r") as f:
-                data = json.load(f)
-                return data.get("offsets", {})
-        except:
-            pass
-    return {}
+# --- TEMPLATE MATCHING UTILS ---
 
 
 def match_template_in_roi(
@@ -186,21 +221,10 @@ def match_template_in_roi(
     """
     Performs template matching within a specific Region of Interest (ROI).
 
-    Parameters
-    ----------
-    img_gray : np.ndarray
-        The full grayscale image.
-    template : np.ndarray
-        The template to search for.
-    x, y, w, h : int
-        The bounding box of the ROI to search within.
-
     Returns
     -------
     Tuple[float, int, int]
         (max_val, match_x, match_y).
-        max_val is the confidence score (0.0 to 1.0).
-        match_x, match_y are the global coordinates of the match.
     """
     img_h, img_w = img_gray.shape
     x, y = int(max(0, x)), int(max(0, y))
@@ -215,40 +239,27 @@ def match_template_in_roi(
     return max_val, x + max_loc[0], y + max_loc[1]
 
 
+# --- RETAIL EXTRACTION LOGIC ---
+
+
 def extract_quest_areas(
     full_img_np: np.ndarray,
 ) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
-    Extracts the Quest Title and Body using the user-calibrated geometric search.
-
-    The logic follows a 5-step cascading dependency:
-    1. Title Bar: Finds Start and End leaves.
-    2. Corner: Finds the top-left corner of the text body.
-    3. Intersection: Finds the right boundary.
-    4. Icon: Finds the bottom boundary.
-    5. Crop: Applies calibrated offsets to cut out the text.
-
-    Parameters
-    ----------
-    full_img_np : np.ndarray
-        The full screenshot in BGR format.
-
-    Returns
-    -------
-    Tuple[Optional[Image.Image], Optional[Image.Image]]
-        (title_image, body_image) as PIL Images. Returns (None, None) if detection fails.
+    Extracts the Quest Title and Body using the Retail logic (Cascading Dependency).
     """
     if len(full_img_np.shape) == 3:
         img_gray = cv2.cvtColor(full_img_np, cv2.COLOR_BGR2GRAY)
     else:
         img_gray = full_img_np
 
-    # 1. Load User Calibration
-    tmpls = load_user_templates()
-    offsets = load_user_offsets()
+    # 1. Load User Calibration (Retail)
+    tmpls = load_user_templates("retail")
+    config = load_user_config("retail")
+    offsets = config.get("offsets", {}) if "offsets" in config else config
 
     if not tmpls or not offsets:
-        log.warning("Calibration missing. Please run 'calibrate.bat'.")
+        log.warning("Retail Calibration missing. Please run 'calibrate_retail.bat'.")
         return None, None
 
     h_img, w_img = img_gray.shape
@@ -296,7 +307,7 @@ def extract_quest_areas(
     if val_int <= TEMPLATE_THRESHOLD or val_i <= TEMPLATE_THRESHOLD:
         return None, None
 
-    # 5. Apply User Offsets (The Magic Part)
+    # 5. Apply User Offsets
     off_x = offsets.get("CORNER_OFFSET_X", 5)
     off_y = offsets.get("CORNER_OFFSET_Y", 5)
     pad_ix = offsets.get("PADDING_INTERSECT_X", 5)
@@ -326,52 +337,117 @@ def extract_quest_areas(
     )
 
 
-# --- SCREEN CAPTURE UTILS ---
+# --- ECHOES EXTRACTION LOGIC ---
 
 
-def get_crop_roi_interactive(
-    img_np: np.ndarray, prompt_title: str = "SELECT AREA", full_screen: bool = False
-) -> Optional[Tuple[int, int, int, int]]:
+def extract_echoes_areas(
+    full_img_np: np.ndarray,
+) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
-    Opens an interactive OpenCV window for ROI selection.
+    Extracts Quest Text and NPC Name using Echoes (Classic) logic.
+    1. Anchors (Plants, Corners).
+    2. Margins (Calibrated).
+    3. Static NPC Box.
+    4. Stitches Title+Body.
+    """
+    img_gray = cv2.cvtColor(full_img_np, cv2.COLOR_BGR2GRAY)
 
-    Parameters
-    ----------
-    img_np : np.ndarray
-        The image to select from.
-    prompt_title : str
-        The window title.
-    full_screen : bool
-        Whether to force full screen mode.
+    # 1. Load Data
+    tmpls = load_user_templates("echoes")
+    config = load_user_config("echoes")
+
+    if not tmpls or not config:
+        log.warning("Echoes calibration missing. Run 'calibrate_eoa.bat'")
+        return None, None
+
+    offsets = config.get("offsets", {})
+    npc_box = config.get("npc_box", [0, 0, 0, 0])
+
+    # 2. Find Anchors
+    def find_best(tmpl):
+        res = cv2.matchTemplate(img_gray, tmpl, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        return max_loc, max_val
+
+    pos_lp, val_lp = find_best(tmpls["left_plant"])
+    pos_rp, val_rp = find_best(tmpls["right_plant"])
+    pos_tl, val_tl = find_best(tmpls["tl_corner"])
+    pos_br, val_br = find_best(tmpls["br_corner"])
+
+    if any(v < 0.7 for v in [val_lp, val_rp, val_tl, val_br]):
+        log.warning("Anchors not found in Echoes mode.")
+        return None, None
+
+    # 3. Calculate Quest Title
+    tx = pos_lp[0] + tmpls["left_plant"].shape[1]
+    ty = pos_lp[1]
+    tw = pos_rp[0] - tx
+    th = max(tmpls["left_plant"].shape[0], tmpls["right_plant"].shape[0])
+
+    # 4. Calculate Quest Body
+    bx = pos_tl[0] + offsets.get("body_left_margin", 0)
+    by = pos_tl[1] + offsets.get("body_top_margin", 0)
+    bx_end = pos_br[0] - offsets.get("body_right_padding", 0)
+    by_end = pos_br[1] - offsets.get("body_bottom_padding", 0)
+
+    bw = bx_end - bx
+    bh = by_end - by
+
+    # 5. Crop & Stitch
+    try:
+        # Title
+        crop_title = full_img_np[ty : ty + th, tx : tx + tw]
+
+        # Body
+        crop_body = full_img_np[by : by + bh, bx : bx + bw]
+
+        # NPC (Static)
+        nx, ny, nw, nh = npc_box
+        if nw > 0 and nh > 0:
+            crop_npc = full_img_np[ny : ny + nh, nx : nx + nw]
+        else:
+            crop_npc = np.zeros((50, 200, 3), dtype=np.uint8)
+
+        # Stitch
+        sep_h = 10
+        max_w = max(crop_title.shape[1], crop_body.shape[1])
+        separator = np.full((sep_h, max_w, 3), 255, dtype=np.uint8)
+
+        def resize_w(img, target_w):
+            h, w = img.shape[:2]
+            if w == target_w:
+                return img
+            return cv2.resize(img, (target_w, h))
+
+        if crop_title.shape[1] != max_w:
+            crop_title = resize_w(crop_title, max_w)
+        if crop_body.shape[1] != max_w:
+            crop_body = resize_w(crop_body, max_w)
+
+        stitched_quest = np.vstack([crop_title, separator, crop_body])
+
+        return (
+            Image.fromarray(cv2.cvtColor(stitched_quest, cv2.COLOR_BGR2RGB)),
+            Image.fromarray(cv2.cvtColor(crop_npc, cv2.COLOR_BGR2RGB)),
+        )
+
+    except Exception as e:
+        log.error(f"Echoes Crop Error: {e}")
+        return None, None
+
+
+# --- SCREEN CAPTURE ENTRY POINT ---
+
+
+def capture_screen_areas(mode_prefix: str = "retail") -> Tuple[Any, Any]:
+    """
+    Captures screen and extracts areas based on mode.
 
     Returns
     -------
-    Optional[Tuple[int, int, int, int]]
-        (x, y, w, h) or None if cancelled.
-    """
-    if img_np is None:
-        return None
-    print(f"\n--- {prompt_title} ---")
-    window_name = prompt_title
-    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    if full_screen:
-        cv2.setWindowProperty(
-            window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN
-        )
-        cv2.setWindowProperty(window_name, cv2.WND_PROP_TOPMOST, 1)
-    cv2.imshow(window_name, img_np)
-    cv2.waitKey(1)
-    r = cv2.selectROI(window_name, img_np, fromCenter=False, showCrosshair=True)
-    cv2.destroyAllWindows()
-    if r[2] == 0 or r[3] == 0:
-        return None
-    return int(r[0]), int(r[1]), int(r[2]), int(r[3])
-
-
-def capture_screen_areas(mode_prefix: str = "echoes") -> Tuple[Any, Any]:
-    """
-    Captures the screen and (if in 'echoes' mode) crops using manual ROIs.
-    In 'retail' mode, returns the full screenshot.
+    Tuple[Any, Any]
+        Retail: (Full_Screenshot_PIL, Full_Screenshot_NP)
+        Echoes: (Stitched_Quest_PIL, NPC_Name_PIL)
     """
     try:
         screenshot = ImageGrab.grab()
@@ -385,30 +461,7 @@ def capture_screen_areas(mode_prefix: str = "echoes") -> Tuple[Any, Any]:
     if mode_prefix == "retail":
         return Image.fromarray(screenshot_np), screenshot_np
 
-    all_coords = load_coords(mode_prefix)
-    q_key = f"{mode_prefix}_quest"
-    n_key = f"{mode_prefix}_name"
+    elif mode_prefix == "echoes":
+        return extract_echoes_areas(screenshot_np)
 
-    if q_key not in all_coords or n_key not in all_coords:
-        if q_key not in all_coords:
-            q_roi = get_crop_roi_interactive(screenshot_np, f"SELECT QUEST TEXT", True)
-            if q_roi:
-                all_coords[q_key] = q_roi
-        if n_key not in all_coords:
-            n_roi = get_crop_roi_interactive(screenshot_np, "SELECT NPC NAME", True)
-            if n_roi:
-                all_coords[n_key] = n_roi
-        save_coords(all_coords, mode_prefix)
-
-    qx, qy, qw, qh = all_coords.get(q_key, (0, 0, 0, 0))
-    nx, ny, nw, nh = all_coords.get(n_key, (0, 0, 0, 0))
-
-    if qw == 0 or nw == 0:
-        return None, None
-    q_np = screenshot_np[qy : qy + qh, qx : qx + qw]
-    n_np = screenshot_np[ny : ny + nh, nx : nx + nw]
-
-    return (
-        Image.fromarray(cv2.cvtColor(q_np, cv2.COLOR_BGR2RGB)),
-        Image.fromarray(cv2.cvtColor(n_np, cv2.COLOR_BGR2RGB)),
-    )
+    return None, None
