@@ -65,53 +65,79 @@ Required for Retail mode to identify NPC metadata (Race/Gender) for accurate voi
 
 Before running the bot for the first time, you must calibrate it to your screen resolution and UI layout.
 
-1.  Open LOTRO and log in.
+1.  Open LOTRO / Echoes of Angmar and log in.
 2.  **Open any Quest Window** by clicking on an NPC. Ensure the window is fully visible.
-3.  Double-click **`calibrate.bat`** in the project folder.
-4.  Follow the on-screen visual guide. You will be asked to draw boxes around 5 specific anchors:
-    * **Step 1 & 2:** The Left and Right Leaf icons (Title Bar).
-    * **Step 3:** The Top-Left corner of the text body.
-    * **Step 4:** The intersection between the left and right panels (defines width).
-    * **Step 5:** The Filter icon at the bottom (defines height).
-    * **Step 6:** A confirmation box around the actual text.
+3.  Double-click **`calibrate_lotro.bat`** (for Retail LOTRO) or **`calibrate_echoes.bat`** (for Echoes of Angmar) in the project folder. 
+
+
+## Retail LOTRO:
+* Follow the on-screen visual guide. You will be asked to draw boxes around 5 specific anchors:
+   * **Step 1 & 2:** The Left and Right Leaf icons (Title Bar).
+   * **Step 3:** The Top-Left corner of the text body.
+   * **Step 4:** The intersection between the left and right panels (defines width).
+   * **Step 5:** The Filter icon at the bottom (defines height).
+   * **Step 6:** A confirmation box around the actual text.
 
 Follow my YouTube video for a detailed guide on how to draw these boxes accurately:
 
 [![Khazad Voice TTS Calibration Tutorial](https://img.youtube.com/vi/6otQUGYiFx4/0.jpg)](https://www.youtube.com/watch?v=6otQUGYiFx4)
 
+You generally only need to do this once, unless you change your UI skin or game resolution.
 
-Once finished, the bot will save a `user_layout.json` file. You generally only need to do this once, unless you change your UI skin or game resolution.
+
+## Echoes of Angmar:
+* **Step 1 & 2:** The Left and Right Plant icons (Title Bar).
+* **Step 3 & 4:** The Top-Left and Bottom-Right corners of the text body.
+* **Step 5:** Draw a box around the actual text body (to learn margins).
+* **Step 6:** Draw a box around the NPC Name (Static position).
+
+Youtube tutorial:
+
+[![Khazad Voice TTS Calibration Tutorial](https://img.youtube.com/vi/hYPYav5oWh8/0.jpg)](https://www.youtube.com/watch?v=hYPYav5oWh8)
+
+
+Once finished, the bot will save a `retail_layout.json` or `echoes_layout.json` file containing the layout information. 
+
+You generally only need to do this once, unless you change your UI skin or game resolution.
 
 ---
 
 ## Usage & Modes
 
-Run **`start.bat`** to launch the application.
+To launch the application, run the file corresponding to your game version.
 
 ### 1. Retail (Live Servers)
-*Designed for official game servers.*
+
+Run **`start_lotro.bat`**.
 
 * **Trigger:** Automatic (Log-based).
 * **Mechanism:**
-    1.  Monitors the game's `Script.log` file to detect when an NPC interaction begins.
-    2.  Uses your **Calibration Data** to instantly locate the quest window.
-    3.  Captures and reads the text automatically.
+1. Monitors the game's `Script.log` file to detect when an NPC interaction begins.
+2. Uses your **Calibration Data** to instantly locate the quest window.
+3. Captures and reads the text automatically.
+
+
 * **Note:** Because this uses the calibration data, you are free to move and resize the quest window in-game; the bot will adapt dynamically.
 
 ### 2. Echoes of Angmar (Classic Mode)
-*Designed for private servers or clean/custom user interfaces.*
+
+Run **`start_eoa.bat`**.
 
 * **Trigger:** Middle Mouse Button Click.
-* **Mechanism:** Uses manual screen region detection.
-
-## FAQ & Troubleshooting
+* **Mechanism:**
+1. Open a quest window in-game.
+2. Click the **Middle Mouse Button** anywhere on the screen.
+3. The tool captures the text based on your calibration and narrates it. 
+4. The tool captures and reads the text based on your calibration and narrates it. **_You can freely move the quest window in-game, but the NPC name box (tooltip box) should remain at the same location._**
 
 ---
 
 ## FAQ & Troubleshooting
 
+**Q: The voices are too slow / too silent for me. Go to `src/config.py` and adjust the `DEFAULT_VOLUME` or the `TTS_SPEED` as you like. Save the `config.py` after any changes and restart the `start.bat`**
+
 **Q: The bot isn't detecting the quest window in Retail mode.**
-A: Run **`calibrate.bat`** again. Ensure you draw tight boxes around the requested icons. If you change your game resolution or apply a custom UI skin, you must recalibrate.
+A: Run **`calibrate`** again. Ensure you draw tight boxes around the requested icons. If you change your game resolution or apply a custom UI skin, you must recalibrate.
 
 **Q: How do I reset the NPC Voice Memory?**
 A: To wipe the saved voice associations for NPCs (resetting who sounds like what), delete the `npc_memory_retail.json` file from the `data/` folder.
