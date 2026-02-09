@@ -136,8 +136,7 @@ Run **`start_eoa.bat`**.
 * **Mechanism:**
 1. Open a quest window in-game.
 2. Click the **Middle Mouse Button** anywhere on the screen.
-3. The tool captures the text based on your calibration and narrates it. 
-4. The tool captures and reads the text based on your calibration and narrates it. **_You can freely move the quest window in-game, but the NPC name box (tooltip box) should remain at the same location._**
+3. The tool captures and reads the text based on your calibration and narrates it. **_You can freely move the quest window in-game, but the NPC name box (tooltip box) should remain at the same location._**
 
 ---
 
