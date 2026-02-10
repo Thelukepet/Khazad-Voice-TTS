@@ -35,6 +35,7 @@
 * [Usage & Modes](#usage--modes)
    * [1. Retail (Live Servers)](#1-retail-live-servers)
    * [2. Echoes of Angmar (Classic)](#2-echoes-of-angmar-classic-mode)
+* [🧪 Voice Lab (Custom Voices)](#-voice-lab-custom-voices)
 * [FAQ & Troubleshooting](#faq--troubleshooting)
 * [Future Roadmap](#future-roadmap)
 * [Credits](#credits)
@@ -137,6 +138,27 @@ Run **`start_eoa.bat`**.
 1. Open a quest window in-game.
 2. Click the **Middle Mouse Button** anywhere on the screen.
 3. The tool captures and reads the text based on your calibration and narrates it. **_You can freely move the quest window in-game, but the NPC name box (tooltip box) should remain at the same location._**
+
+
+## 🧪 Voice Lab (Custom Voices)
+
+Want to add a specific voice to the game? The **Voice Lab** is a graphical tool that allows you to test audio samples, verify how they sound with the AI, and automatically install them into the correct game folders. (Inspired by Yatharth Sharma's HuggingFace Space)
+
+**How to use:**
+
+1.  Run **`start_voice_lab.bat`**.
+    * *Note: This may ask to install FFmpeg via Winget on the first run.*
+2.  Wait for the local web interface to launch in your browser.
+3.  **Input Audio:**
+    * **Upload:** Drag and drop a `.wav` or `.mp3` file of a voice you want to clone.
+    * **Microphone:** Record your own voice directly in the browser.
+4.  **Test:** Type a sentence and click **Generate** to hear how the AI clones that voice.
+5.  **Install:**
+    * Select the target **Race** (e.g., Dwarf, Elf) and **Gender**.
+    * Give the voice a unique name.
+    * Click **Add to Library**.
+6.  The tool will automatically convert and place the files. The next time you play, NPCs of that race/gender may randomly be assigned your new custom voice!
+
 
 ---
 
