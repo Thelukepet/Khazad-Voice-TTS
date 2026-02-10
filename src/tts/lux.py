@@ -139,39 +139,52 @@ class LuxBackend(TTSBackend):
             category = folder.name.lower()
             library[category] = []
 
-            # Load transcripts
+            # Load Legacy Bulk Transcripts (Fallback)
             flac_lines = self._read_clean_lines(folder / f"{category}.txt")
             wav_lines = self._read_clean_lines(folder / f"{category}_wav.txt")
 
-            # Process FLACs
-            flacs = sorted(list(folder.glob("*.flac")), key=lambda x: x.name)
-            for i, fpath in enumerate(flacs):
-                if not flac_lines:
-                    continue
-                text = flac_lines[i] if i < len(flac_lines) else flac_lines[0]
-                library[category].append(
-                    {
-                        "id": len(library[category]),
-                        "text": text,
-                        "audio": str(fpath),
-                        "type": "flac",
-                    }
-                )
+            # Helper function to process files
+            def add_voices(pattern, fallback_lines):
+                files = sorted(list(folder.glob(pattern)), key=lambda x: x.name)
+                for i, fpath in enumerate(files):
+                    transcript = None
 
-            # Process WAVs
-            wavs = sorted(list(folder.glob("*.wav")), key=lambda x: x.name)
-            for i, fpath in enumerate(wavs):
-                if not wav_lines:
-                    continue
-                text = wav_lines[i] if i < len(wav_lines) else wav_lines[0]
-                library[category].append(
-                    {
-                        "id": len(library[category]),
-                        "text": text,
-                        "audio": str(fpath),
-                        "type": "wav",
-                    }
-                )
+                    # 1. Check for specific sidecar .txt file (Priority)
+                    sidecar_path = fpath.with_suffix(".txt")
+                    if sidecar_path.exists():
+                        try:
+                            # Read file, remove quotes, and flatten newlines
+                            raw_text = sidecar_path.read_text(encoding="utf-8").strip()
+                            clean_text = re.sub(r"[\"\n]", " ", raw_text).strip()
+                            if len(clean_text) > 1:
+                                transcript = clean_text
+                        except Exception as e:
+                            log.warning(f"Error reading transcript {sidecar_path}: {e}")
+
+                    # 2. Fallback to bulk list
+                    if not transcript and fallback_lines:
+                        if i < len(fallback_lines):
+                            transcript = fallback_lines[i]
+                        else:
+                            # If we run out of unique lines, cycle the first one
+                            transcript = fallback_lines[0]
+
+                    # 3. Add to library if we found text
+                    if transcript:
+                        library[category].append(
+                            {
+                                "id": len(library[category]),
+                                "text": transcript,
+                                "audio": str(fpath),
+                                "type": fpath.suffix.lower().replace(".", ""),
+                            }
+                        )
+
+            # Process FLACs (Legacy + New)
+            add_voices("*.flac", flac_lines)
+
+            # Process WAVs (Legacy + New)
+            add_voices("*.wav", wav_lines)
 
         return library
 

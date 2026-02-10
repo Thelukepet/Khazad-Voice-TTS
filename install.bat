@@ -106,7 +106,7 @@ echo.
 echo [5/6] Installing Main Requirements...
 "%UV_CMD%" pip install -r requirements.txt
 :: Explicitly install extra tools just in case
-"%UV_CMD%" pip install gradio
+"%UV_CMD%" pip install gradio soundfile openai-whisper opencv-python pytesseract lhotse scipy
 
 :: --- 6. NLTK DATA ---
 echo.

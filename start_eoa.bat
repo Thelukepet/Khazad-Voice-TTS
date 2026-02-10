@@ -1,39 +1,59 @@
 @echo off
-title KHAZAD VOICE - ECHOES OF ANGMAR
+title KHAZAD VOICE TTS - ECHOES OF ANGMAR
 color 0E
 
-:: 1. Check Environment
-if not exist venv (
-    echo [ERROR] 'venv' not found. Please run install.bat.
-    pause
-    exit
-)
+:: Ensure we are running in the script's directory
+cd /d "%~dp0"
 
-:: 2. Activate Venv
+echo ----------------------------------------------------------
+echo   [KHAZAD VOICE TTS]  ::  Echoes of Angmar Edition
+echo ----------------------------------------------------------
+echo.
+
+:: 1. CHECK ENV
+if exist venv goto :env_ok
+echo [ERROR] 'venv' not found. Please run install.bat first.
+pause
+exit
+
+:env_ok
+:: 2. ACTIVATE & FIND TOOLS
 call venv\Scripts\activate.bat
 
-:: 3. AUTO-UPDATE SEQUENCE
+:: Find UV (checks global or local)
+set "UV_CMD=pip"
+where uv >nul 2>&1
+if %errorlevel%==0 set "UV_CMD=uv"
+
+:: 3. AUTO-UPDATE
 echo [UPDATE] Checking for updates...
+where git >nul 2>&1
+if %errorlevel% neq 0 goto :launch
+
 git fetch origin main >nul 2>&1
-
-:: Check if we are behind origin/main
 git status -uno | find "behind" >nul
-if %errorlevel%==0 (
-    echo [UPDATE] New version found! Downloading...
-    git pull origin main
+if %errorlevel% neq 0 goto :launch
 
-    if errorlevel 1 (
-        echo [WARNING] Could not update automatically (Local changes detected).
-        timeout /t 3
-    ) else (
-        echo [UPDATE] Syncing dependencies...
-        :: INSTANT CHECK WITH UV
-        uv pip install -q -r requirements.txt
-    )
+echo [UPDATE] Downloading new version...
+git pull origin main
+if %errorlevel% neq 0 (
+    echo [WARNING] Update failed (Local changes detected). Skipping.
+    goto :launch
 )
 
-:: 4. Launch
+echo [UPDATE] Syncing dependencies...
+"%UV_CMD%" pip install -q -r requirements.txt
+
+:launch
+:: 4. START
 echo.
 echo [INFO] Starting Echoes of Angmar Mode...
 python main.py --mode echoes
-pause
+
+if %errorlevel% neq 0 (
+    echo.
+    echo [CRASH] The application closed with an error.
+    pause
+) else (
+    pause
+)
