@@ -110,6 +110,7 @@ def save_npc_memory(memory: dict, mode: str):
     """
     Saves the NPC memory database to disk.
     """
+    # TODO: Split npc_memory into GPU and CPU files to allow users to switch between models
     _, memory_file = get_file_paths(mode)
     with open(memory_file, "w") as f:
         json.dump(memory, f, indent=4)
