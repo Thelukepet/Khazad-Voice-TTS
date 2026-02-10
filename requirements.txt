@@ -1,6 +1,5 @@
 # --- Core Math & Data ---
-# We pin these to ensure Python 3.12 compatibility
-numpy>=1.26.0
+numpy>=1.26.0,<2.0.0
 pandas
 scipy>=1.11.0
 

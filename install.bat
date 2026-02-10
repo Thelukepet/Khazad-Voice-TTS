@@ -1,6 +1,6 @@
 @echo off
-title KHAZAD VOICE TTS - UV INSTALLER
-color 0B
+title KHAZAD VOICE TTS - INSTALLER
+color 0E
 
 echo ==========================================================
 echo                 KHAZAD VOICE TTS
@@ -8,107 +8,105 @@ echo      "Baruk Khazad! The Voice of the Dwarves is upon you!"
 echo ==========================================================
 echo.
 
-:: --- 1. CHECK & INSTALL UV ---
-echo [1/6] Checking for 'uv' (The ultra-fast installer)...
+:: --- 1. Tool Checks (Git & Python) ---
 
-:: Define fallback paths where uv might hide
-set "UV_PATH_1=%USERPROFILE%\.cargo\bin\uv.exe"
-set "UV_PATH_2=%LOCALAPPDATA%\uv\uv.exe"
-set "UV_PATH_3=%USERPROFILE%\.local\bin\uv.exe"
-
-:: Check if uv is already globally available
-uv --version >nul 2>&1
-if %errorlevel%==0 (
-    set "UV_CMD=uv"
-    goto :uv_found
+:: Check for Git
+git --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Git is not installed.
+    echo The Khazad cannot work without their tools.
+    pause
+    exit
 )
 
-:: Check known paths
-if exist "%UV_PATH_1%" set "UV_CMD=%UV_PATH_1%" & goto :uv_found
-if exist "%UV_PATH_2%" set "UV_CMD=%UV_PATH_2%" & goto :uv_found
-if exist "%UV_PATH_3%" set "UV_CMD=%UV_PATH_3%" & goto :uv_found
+:: Try to find Python 3.12 (preferred) or fallback to system python
+set PYTHON_CMD=python
+py -3.12 --version >nul 2>&1
+if %errorlevel%==0 (
+    echo [INFO] Found Python 3.12 via launcher.
+    set PYTHON_CMD=py -3.12
+) else (
+    :: Fallback check
+    python --version >nul 2>&1
+    if !errorlevel! neq 0 (
+        echo [ERROR] Python is not installed or not in PATH.
+        echo Please install Python 3.12 and tick "Add to PATH".
+        pause
+        exit
+    )
+)
 
-:: If not found, INSTALL IT
-echo [INFO] 'uv' not found. Installing it now...
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-
-:: Re-check paths after install
-if exist "%UV_PATH_1%" set "UV_CMD=%UV_PATH_1%" & goto :uv_found
-if exist "%UV_PATH_2%" set "UV_CMD=%UV_PATH_2%" & goto :uv_found
-if exist "%UV_PATH_3%" set "UV_CMD=%UV_PATH_3%" & goto :uv_found
-
-:: Fallback if auto-detection fails completely
-echo [WARNING] Could not locate uv.exe automatically.
-echo Please restart this window or add uv to your PATH manually.
-pause
-exit /b
-
-:uv_found
-echo [INFO] uv is ready at: "%UV_CMD%"
-
-:: --- 2. CREATE VENV ---
+echo [INFO] Using Python: %PYTHON_CMD%
 echo.
-echo [2/6] Forging the Environment...
-:: --allow-existing: Updates the venv if it exists (No "Are you sure?" prompt)
-:: --python 3.12: Ensures we are on the correct version
-"%UV_CMD%" venv venv --python 3.12 --allow-existing
+echo [1/6] Igniting the Forge (Creating Virtual Environment)...
+%PYTHON_CMD% -m venv venv
+if %errorlevel% neq 0 goto :error
 
-:: Activate it so subsequent commands know where to install
+echo [2/6] Stoking the Fires (Activating Environment)...
 call venv\Scripts\activate
 
-:: --- 3. GPU SELECTION ---
+echo [3/6] Sharpening the Axe (Updating Setup Tools)...
+python -m pip install --upgrade pip setuptools wheel
+:: Install NLTK immediately to ensure it is present regardless of later conflicts
+python -m pip install nltk
+
 echo.
 echo ==================================================
 echo           SELECT YOUR GPU DRIVER VERSION
 echo ==================================================
-echo [1] CUDA 12.1 (Standard - Recommended for most Nvidia cards)
-echo [2] CUDA 12.8 (Nightly  - For RTX 50-Series)
-echo [3] CPU Only  (Slow     - Not recommended for LuxTTS)
+echo.
+echo [1] CUDA 12.1 (Standard - Recommended for most Nvidia Graphics cards)
+echo [2] CUDA 12.8 (Nightly - For the latest RTX 50-Series)
+echo [3] CPU Only  (Slow - Not recommended for using LuxTTS, will still work with Kokoro)
 echo.
 set /p choice="Enter selection [1, 2, or 3]: "
 
-echo.
-echo [3/6] Installing PyTorch...
 if "%choice%"=="1" (
-    echo [INFO] Installing Stable CUDA 12.1...
-    "%UV_CMD%" pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 ) else if "%choice%"=="2" (
-    echo [INFO] Installing Nightly CUDA 12.8...
-    "%UV_CMD%" pip install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+    pip install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
 ) else (
-    echo [INFO] Installing CPU Version...
-    "%UV_CMD%" pip install torch torchaudio
+    pip install torch torchaudio
 )
+if %errorlevel% neq 0 goto :error
 
-:: --- 4. LUXTTS SETUP ---
+:: --- 3. LuxTTS Setup ---
 echo.
-echo [4/6] Setting up LuxTTS...
+echo [4/6] Summoning the Voice (Setting up LuxTTS)...
 
 if not exist "LuxTTS" (
-    echo [INFO] Cloning LuxTTS...
+    echo [INFO] LuxTTS not found. Cloning the 'main' branch...
+    :: Added -b main to ensure we get the right branch immediately
     git clone -b main https://github.com/Thelukepet/LuxTTS.git
 ) else (
-    echo [INFO] Updating LuxTTS...
+    echo [INFO] LuxTTS exists. Updating the scrolls...
     cd LuxTTS
+    :: Fetch all updates and force-switch to main if it's currently on master
+    git fetch origin
+    git checkout main
     git pull origin main
     cd ..
 )
 
-echo [INFO] Installing LuxTTS Dependencies...
-"%UV_CMD%" pip install -r LuxTTS\requirements.txt
+echo Installing LuxTTS dependencies...
+:: We use --no-deps for torch to prevent it from overwriting the CUDA version we just installed
+pip install -r LuxTTS\requirements.txt
+if %errorlevel% neq 0 goto :error
 
-echo [INFO] Installing LuxTTS Package...
-:: --no-deps prevents it from overwriting the Torch version we just installed
-"%UV_CMD%" pip install --no-deps -e LuxTTS
+echo Installing LuxTTS package...
+pip install -e LuxTTS
+if %errorlevel% neq 0 goto :error
 
-:: --- 5. MAIN REQUIREMENTS ---
+:: --- 4. Main Requirements ---
 echo.
-echo [5/6] Installing Main Requirements...
-"%UV_CMD%" pip install -r requirements.txt
-:: Explicitly install extra tools just in case
-"%UV_CMD%" pip install gradio soundfile openai-whisper opencv-python pytesseract lhotse scipy
+echo [5/6] Finalizing the Craft (Installing Main Requirements)...
+pip install -r requirements.txt
+if %errorlevel% neq 0 (
+    echo [WARNING] Main requirements reported an error.
+    echo This is usually a version conflict. NLTK was pre-installed to ensure safety.
+)
 
-:: --- 6. NLTK DATA ---
+:: --- 5. NLTK Data Download ---
 echo.
 echo [6/6] Teaching the Runes (Downloading NLTK Data)...
 python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger')"
@@ -117,5 +115,15 @@ echo.
 echo ==================================================
 echo           INSTALLATION COMPLETE!
 echo ==================================================
-echo The Khazad Voice TTS is ready.
+echo The Khazad Voice TTS is ready. Follow the calibrate instructions on the github page.
 pause
+exit /b
+
+:error
+echo.
+echo ==================================================
+echo [ERROR] The installation failed!
+echo Check the error message above.
+echo ==================================================
+pause
+exit /b
