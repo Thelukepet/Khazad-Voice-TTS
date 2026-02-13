@@ -27,7 +27,7 @@ PADDING_INTERSECT_X = 5
 MIN_BOX_DIM = 50
 
 # Retail Mode Paths
-SCRIPT_LOG = os.path.expanduser(r"~\Documents\The Lord of the Rings Online\Script.log")
+SCRIPT_LOG = os.path.join(os.path.expanduser("~"), "Documents", "The Lord of the Rings Online", "Script.log")
 TEMPLATES_DIR = BASE_DIR / "templates"
 
 # --- DEVICE ---
@@ -41,7 +41,7 @@ DEFAULT_VOLUME = 0.4
 
 # --- TTS SETTINGS ---
 TTS_SPEED = 1.1  # Lower speed to prevent cutoffs
-TTS_WAVE_STEPS = 4  # Quality steps
+TTS_WAVE_STEPS = 16  # Quality steps
 
 # --- OCR SETTINGS (Restored) ---
 # We check standard Windows paths to find Tesseract automatically
@@ -51,7 +51,7 @@ possible_paths = [
     r"C:\Users\admin\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",
 ]
 
-TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Default fallback
+TESSERACT_CMD = r"/usr/bin/tesseract"  # Default fallback
 
 for p in possible_paths:
     if os.path.exists(p):
@@ -65,4 +65,4 @@ LOG_LEVEL = "INFO"
 # TODO: reconsider usefulness / accuracy of wiki lookups
 ENABLE_WIKI = False  # Set to True to enable Wiki lookups, False for instant OCR
 
-LUX_VOLUME = 0.4
+LUX_VOLUME = 0.5
