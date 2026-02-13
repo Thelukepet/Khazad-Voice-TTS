@@ -29,7 +29,7 @@
    * [1. Tesseract OCR](#1-tesseract-ocr)
    * [2. getNPCNames Plugin (Retail Only)](#2-getnpcnames-plugin-retail-mode-only)
 * [Installation](#installation)
-* [Configuration & Performance Test](#-configuration--performance-test)
+* [Configuration & Performance Test](#configuration--performance-test)
 * [Calibration (Important)](#calibration-important)
    * [Retail LOTRO](#-retail-lotro)
    * [Echoes of Angmar](#-echoes-of-angmar)
@@ -92,7 +92,7 @@ Required for Retail mode to identify NPC metadata (Race/Gender) for accurate voi
 
 ---
 
-## ⚙️ Configuration & Performance Test
+## Configuration & Performance Test
 
 After installation, run **`configure.bat`** to launch the Configuration Suite. This allows you to tune the engine for your hardware before playing.
 
