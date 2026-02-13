@@ -29,13 +29,14 @@
    * [1. Tesseract OCR](#1-tesseract-ocr)
    * [2. getNPCNames Plugin (Retail Only)](#2-getnpcnames-plugin-retail-mode-only)
 * [Installation](#installation)
-* [Configuration & Calibration](#configuration--calibration-important)
-   * [Retail LOTRO Calibration](#retail-lotro)
-   * [Echoes of Angmar Calibration](#echoes-of-angmar)
+* [Configuration & Performance Test](#-configuration--performance-test)
+* [Calibration (Important)](#calibration-important)
+   * [Retail LOTRO](#-retail-lotro)
+   * [Echoes of Angmar](#-echoes-of-angmar)
 * [Usage & Modes](#usage--modes)
    * [1. Retail (Live Servers)](#1-retail-live-servers)
    * [2. Echoes of Angmar (Classic)](#2-echoes-of-angmar-classic-mode)
-* [🧪 Voice Lab (Custom Voices)](#-voice-lab-custom-voices)
+* [🧪 TTS Tester & Custom Voices](#-tts-tester--custom-voices)
 * [FAQ & Troubleshooting](#faq--troubleshooting)
 * [Future Roadmap](#future-roadmap)
 * [Credits](#credits)
@@ -91,7 +92,38 @@ Required for Retail mode to identify NPC metadata (Race/Gender) for accurate voi
 
 ---
 
-## Configuration & Calibration (Important)
+## ⚙️ Configuration & Performance Test
+
+After installation, run **`configure.bat`** to launch the Configuration Suite. This allows you to tune the engine for your hardware before playing.
+
+### 1. System Configuration
+Use this tab to adjust volume, speed, and quality settings.
+
+![Configuration Suite Screenshot](data/screenshots/configuration_suite.png)
+
+* **CPU Users (Kokoro):**
+    * Stick to the **CPU Mode** panel.
+* **GPU Users (LuxTTS):**
+    * Use the **GPU Mode** panel.
+    * **Diffusion Steps:** Default is `6`. Lower to `4` for speed, raise to `10` for higher audio fidelity.
+    * Set **Chunk Size** to `1 (Ultra Fast)` if the speed is still too slow after lowering the Diffusion Steps.
+* **Detection:**
+    * If you did not install Tesseract in the default `C:/` drive, enter your custom path here.
+
+### 2. Performance Check (LuxTTS)
+If you are using the GPU model, switch to the **TTS Tester** tab to verify your system speed.
+
+![LuxTTS Tester Screenshot](data/screenshots/tts_tester.png)
+
+1.  Select a sample text and click **Generate Preview**.
+2.  **Check Speed:** The first generation may take a moment to load the model. Subsequent generations should take **1-3 seconds**.
+3.  If generation takes **> 5 seconds**, go back to Configuration and **lower the Diffusion Steps**.
+
+*Once you are happy with the settings, close the window and proceed to Calibration.*
+
+---
+
+## Calibration (Important)
 
 Before running the bot for the first time, you must calibrate it to your screen resolution and UI layout.
 
@@ -140,25 +172,24 @@ Run **`start_eoa.bat`**.
 3. The tool captures and reads the text based on your calibration and narrates it. **_You can freely move the quest window in-game, but the NPC name box (tooltip box) should remain at the same location._**
 
 
-## 🧪 Voice Lab (Custom Voices)
+## 🧪 TTS Tester & Custom Voices
 
-Want to add a specific voice to the game? The **Voice Lab** is a graphical tool that allows you to test audio samples, verify how they sound with the AI, and automatically install them into the correct game folders. (Inspired by Yatharth Sharma's HuggingFace Space)
+Want to add a specific voice to the game? The **Configuration Suite** allows you to test audio samples, verify how they sound with the AI, and automatically install them into the correct game folders.
 
 **How to use:**
 
-1.  Run **`start_voice_lab.bat`**.
+1.  Run **`configure.bat`**.
     * *Note: This may ask to install FFmpeg via Winget on the first run.*
-2.  Wait for the local web interface to launch in your browser.
+2.  Switch to the **TTS Tester & Voice Adder** tab.
 3.  **Input Audio:**
-    * **Upload:** Drag and drop a `.wav` or `.mp3` file of a voice you want to clone.
-    * **Microphone:** Record your own voice directly in the browser.
+    * **Upload:** Drag and drop a `.wav` or `.mp3` file of a voice you want to clone. Should be at least 4 seconds long and ideally around 20 seconds. Longer audio samples will be trimmed to 20s.
+    * **Library:** Or select an existing voice from the library to test.
 4.  **Test:** Type a sentence and click **Generate** to hear how the AI clones that voice.
 5.  **Install:**
-    * Select the target **Race** (e.g., Dwarf, Elf) and **Gender**.
+    * Select the target **Category** (e.g., dwarf_male).
     * Give the voice a unique name.
-    * Click **Add to Library**.
-6.  The tool will automatically convert and place the files. The next time you play, NPCs of that race/gender may randomly be assigned your new custom voice!
-
+    * Click **Save Voice**.
+6.  The tool will automatically convert, trim, and place the files. The next time you play, NPCs of that category may randomly use your new voice!
 
 ---
 
@@ -166,34 +197,26 @@ Want to add a specific voice to the game? The **Voice Lab** is a graphical tool 
 
 **Q: The voices are too slow / too silent for me.**
 
-* Go to `src/config.py` and adjust the `DEFAULT_VOLUME` or the `TTS_SPEED` as you like. Save the `config.py` after any changes and restart the `start.bat`**
+* Run **`configure.bat`** and adjust the **Volume** and **TTS Speed** sliders. You can test the changes immediately in the "Tester" tab.
 
 **Q: The bot isn't detecting the quest window in Retail mode.**
 
-* Run **`calibrate`** again. Ensure you draw tight boxes around the requested icons. If you change your game resolution or apply a custom UI skin, you must recalibrate.
-
-* If that does still not work consistently you can reduce the 'TEMPLATE_THRESHOLD' in the 'src/config.py' from 0.5 to 0.4 to make the program more sensitive when it looks for quest windows on your screen. After changing the value, restart the start.bat.
-
+* Run **`calibrate_lotro.bat`** again. Ensure you draw tight boxes around the requested icons.
+* If that does not work consistently, run `configure.bat` and lower the **Detection Sensitivity (Threshold)** slider (e.g., to 0.4).
 
 **Q: How do I reset the NPC Voice Memory?**
 
 * To wipe the saved voice associations for NPCs (resetting who sounds like what), delete the `npc_memory_retail.json` file from the `data/` folder.
 
-
 **Q: Can I add my own custom voice references?**
 
-* Yes! You can add your own voice samples to the library to be used for cloning/generation.
-1.  Navigate to the `data/reference_audio` directory.
-2.  Open the specific Race and Gender folder you want to customize.
-3.  Drop your audio files there. Supported formats: `.wav` and `.flac`.
-
-
+* Yes! Use the **TTS Tester & Voice Adder** in `configure.bat`. It handles the file placement and transcription for you.
 ---
 
 ## Future Roadmap
 
 * **Narrator & NPC Voice Splitting**: Intelligent detection to distinguish between spoken dialogue (quoted text) and descriptive text (unquoted).
-* **Configuration UI**: A user-friendly interface to adjust reading speed, audio quality, and emotion settings without editing code.
+* ☑️ **Configuration UI & TTS Tester (added in V1.3)**: A user-friendly interface to adjust reading speed, audio quality and testing new Voices
 * **Media Hotkeys**: Global shortcuts to stop the current audio or re-play the previous line.
 * **Quest History Plugin**: An in-game LOTRO plugin to display the last ~10 narrated quests.
 

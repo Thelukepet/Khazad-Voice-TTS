@@ -66,6 +66,7 @@ class LuxBackend(TTSBackend):
         self.tts = LuxTTS("YatharthS/LuxTTS", device="cuda")
         self.samplerate = 48000
         self.voice_library = self._load_voice_library()
+        self.prompt_cache = {}
 
         total_voices = sum(len(v) for v in self.voice_library.values())
         log.info(f"✅ LuxTTS Ready. Loaded {total_voices} reference voices.")
@@ -264,10 +265,17 @@ class LuxBackend(TTSBackend):
             )
 
         try:
-            # Encode the reference audio for style transfer
-            encoded_prompt = self.tts.encode_prompt(
-                ref_audio, text=ref_text, rms=0.01, duration=1000
-            )
+            if voice_id in self.prompt_cache:
+                encoded_prompt = self.prompt_cache[voice_id]
+            else:
+                # Not in cache? Compute and store it.
+                encoded_prompt = self.tts.encode_prompt(
+                    ref_data["audio"],
+                    text=ref_data["text"],
+                    rms=0.01,
+                    duration=1000
+                )
+                self.prompt_cache[voice_id] = encoded_prompt
 
             # Generate speech
             wav_tensor = self.tts.generate_speech(

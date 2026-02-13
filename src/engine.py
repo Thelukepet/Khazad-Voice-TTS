@@ -13,7 +13,12 @@ import nltk
 from .utils import setup_logger, save_npc_memory, load_npc_memory, extract_quest_areas
 from .ocr import run_ocr, run_name_ocr, run_title_ocr
 from .audio import play_audio
-from .config import DEFAULT_VOLUME, ENABLE_WIKI  # <--- Import Flag
+try:
+    from .config import DEFAULT_VOLUME, LUX_VOLUME, ENABLE_WIKI
+except ImportError:
+    # Fallback if config hasn't been updated by the tool yet
+    from .config import DEFAULT_VOLUME, ENABLE_WIKI
+    LUX_VOLUME = DEFAULT_VOLUME
 from . import wiki
 
 log = setup_logger("ENGINE")
@@ -240,6 +245,10 @@ class NarratorEngine:
             text, audio, sr = item
             print(f"▶️ Speaking: {text[:60]}...")
             if len(audio) > 0:
-                play_audio(audio, sr, volume=DEFAULT_VOLUME)
+                if type(self.tts).__name__ == "LuxBackend":
+                    vol = LUX_VOLUME
+                else:
+                    vol = DEFAULT_VOLUME
+                play_audio(audio, sr, volume=vol)
                 time.sleep(0.1)
         print("--- 🔴 PLAYBACK ENDED ---\n")

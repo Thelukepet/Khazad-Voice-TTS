@@ -26,4 +26,4 @@ pytesseract
 nltk
 beautifulsoup4
 pynput
-gradio
+gradio>=4.0.0

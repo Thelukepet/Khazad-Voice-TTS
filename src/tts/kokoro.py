@@ -9,7 +9,7 @@ from kokoro import KPipeline
 
 # > Local Dependencies
 from src.utils import setup_logger
-from src.config import SAMPLE_RATE
+from src.config import SAMPLE_RATE, TTS_SPEED
 from .base import TTSBackend
 
 log = setup_logger(__name__)
@@ -127,7 +127,7 @@ class KokoroBackend(TTSBackend):
         np.ndarray
             The generated audio waveform as a float32 numpy array.
         """
-        generator = self.pipeline(text, voice=voice_id, speed=1.1, split_pattern=r"\n+")
+        generator = self.pipeline(text, voice=voice_id, speed=TTS_SPEED, split_pattern=r"\n+")
 
         chunks = [audio for _, _, audio in generator if audio is not None]
 
