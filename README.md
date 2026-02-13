@@ -240,7 +240,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 * **Narrator & NPC Voice Splitting**: Intelligent detection to distinguish between spoken dialogue (quoted text) and descriptive text (unquoted).
 * ☑️ **Configuration UI & TTS Tester (added in V1.3)**: A user-friendly interface to adjust reading speed, audio quality and testing new Voices
-* **Media Hotkeys**: Global shortcuts to stop the current audio or re-play the previous line.
+* 🔧(WIP) **Media Hotkeys**: Global shortcuts to stop the current audio or re-play the previous line. --> **`Currently supports F12 key to stop current TTS`**
 * **Quest History Plugin**: An in-game LOTRO plugin to display the last ~10 narrated quests.
 
 ---
