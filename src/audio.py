@@ -71,7 +71,6 @@ def play_audio(
 
         # 3. Start Playback (Non-blocking)
         sd.play(final_audio, samplerate)
-        speaker.play(final_audio, samplerate=samplerate)
 
         # 5. Smart Sleep Loop (Interruptible)
         start_time = time.time()
