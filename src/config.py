@@ -2,6 +2,8 @@
 
 # > Standard Library
 import os
+import shutil
+import platform
 from pathlib import Path
 
 # --- PATHS ---
@@ -44,19 +46,39 @@ TTS_SPEED = 1.1  # Lower speed to prevent cutoffs
 TTS_WAVE_STEPS = 4  # Quality steps default is max performance, can be changed in the configure.bat / configure.sh
 
 # --- OCR SETTINGS ---
-# We check standard Windows paths to find Tesseract automatically
-possible_paths = [
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-    r"C:\Users\admin\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",
-]
+# 1. Priority: Check System PATH
+# This finds tesseract automatically on Linux/Gentoo (usually /usr/bin/tesseract)
+# and on Windows if the user added it to their environment variables.
+TESSERACT_CMD = shutil.which("tesseract")
 
-TESSERACT_CMD =  r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Default value in the configure.bat  / configure.sh file
+# 2. Fallback: Check standard installation directories if not in PATH
+if TESSERACT_CMD is None:
+    if platform.system() == "Windows":
+        possible_paths = [
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+            # Dynamic check for User AppData (Local\Programs)
+            os.path.join(os.getenv('LOCALAPPDATA', ''), r"Programs\Tesseract-OCR\tesseract.exe"),
+        ]
+        
+        # Default Windows string (needed by pytesseract if detection fails)
+        TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
-for p in possible_paths:
-    if os.path.exists(p):
-        TESSERACT_CMD = p
-        break
+        for p in possible_paths:
+            if os.path.exists(p):
+                TESSERACT_CMD = p
+                break
+    else:
+        # Linux fallback (if shutil.which failed for some reason)
+        linux_paths = ["/usr/bin/tesseract", "/usr/local/bin/tesseract"]
+        for p in linux_paths:
+            if os.path.exists(p):
+                TESSERACT_CMD = p
+                break
+
+# Final Safety: If still None, just use the command string and hope the OS finds it
+if TESSERACT_CMD is None:
+    TESSERACT_CMD = "tesseract"
 
 # --- LOGGING ---
 LOG_LEVEL = "INFO"
