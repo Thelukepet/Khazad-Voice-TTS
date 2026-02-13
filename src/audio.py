@@ -72,7 +72,7 @@ def play_audio(
         # 3. Start Playback (Non-blocking)
         sd.play(final_audio, samplerate)
 
-        # 4. Smart Sleep Loop (Interruptible)
+        # 5. Smart Sleep Loop (Interruptible)
         start_time = time.time()
         while time.time() - start_time < duration:
             # Check if F12 was pressed
