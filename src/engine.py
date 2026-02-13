@@ -12,7 +12,8 @@ import nltk
 # > Local Dependencies
 from .utils import setup_logger, save_npc_memory, load_npc_memory, extract_quest_areas
 from .ocr import run_ocr, run_name_ocr, run_title_ocr
-from .audio import play_audio
+from .audio import play_audio, stop_audio
+
 try:
     from .config import DEFAULT_VOLUME, LUX_VOLUME, ENABLE_WIKI
 except ImportError:
@@ -37,12 +38,14 @@ class NarratorEngine:
         The initialized Text-to-Speech backend (e.g., Kokoro, Lux).
     mode : str
         The operation mode ('echoes' for manual, 'retail' for auto).
+    backend_id: str
+        The backend identifier (e.g., 'kokoro', 'lux').
     memory : dict
         A runtime cache of NPC-to-Voice mappings to ensure consistency.
     audio_queue : queue.Queue
         A thread-safe queue for buffering generated audio chunks.
-    is_playing : bool
-        Flag to track playback state.
+    stop_event : threading.Event
+       An event to signal the engine to stop processing.
     """
 
     def __init__(self, db, tts_backend, mode="echoes"):
@@ -61,10 +64,32 @@ class NarratorEngine:
         self.db = db
         self.tts = tts_backend
         self.mode = mode
-        self.memory = load_npc_memory(self.mode)
-        log.info(f"🧠 Loaded Memory for mode: {self.mode}")
+
+        self.backend_id = getattr(self.tts, "backend_id", "lux")
+
+        self.memory = load_npc_memory(self.mode, self.backend_id)
+        log.info(f"🧠 Loaded Memory for mode: {self.mode} | Backend: {self.backend_id}")
+
         self.audio_queue = queue.Queue()
-        self.is_playing = False
+        self.stop_event = threading.Event()
+
+    def stop(self):
+        """
+        Immediate stop: Wipes the queue, kills the producer, and kills audio hardware.
+        """
+        log.info("🛑 Stop requested. Interrupting playback...")
+
+        # 1. Signal threads to stop
+        self.stop_event.set()
+
+        # 2. Kill the active audio stream immediately
+        stop_audio()
+
+        # 3. Wipe the pending queue
+        with self.audio_queue.mutex:
+            self.audio_queue.queue.clear()
+
+        log.info("🛑 Audio queue wiped and playback stopped.")
 
     def process_capture(self, quest_img_pil, name_img_pil):
         """
@@ -187,7 +212,16 @@ class NarratorEngine:
         """
         key = npc_name.lower()
         if key in self.memory:
-            return self.memory[key]["voice_id"]
+            voice_id = self.memory[key]["voice_id"]
+
+            # If we are on Kokoro (CPU) but found a Lux ID (contains '|'), force a re-roll.
+            if self.backend_id == "kokoro" and "|" in voice_id:
+                log.warning(f"⚠️ Found invalid Lux ID '{voice_id}' for Kokoro backend. Re-assigning voice.")
+            elif self.backend_id == "lux" and "|" not in voice_id and voice_id != "default":
+                # If on Lux but found a Kokoro ID (no pipe), allow re-roll logic (optional)
+                pass
+            else:
+                return voice_id
 
         gender, race, matched_name = self.db.lookup(npc_name)
         if not gender or not race:
@@ -219,36 +253,53 @@ class NarratorEngine:
         voice_id : str
             The target voice ID for synthesis.
         """
+        # Reset stop event for new playback
+        self.stop_event.clear()
+
         def producer():
             clean_lines = [s.strip() for s in sentences if s.strip()]
-            if type(self.tts).__name__ == "LuxBackend":
+            if self.backend_id == "lux":
                 chunk_size = 2
                 for i in range(0, len(clean_lines), chunk_size):
-                    batch = clean_lines[i : i + chunk_size]
+                    if self.stop_event.is_set(): return
+                    batch = clean_lines[i: i + chunk_size]
                     full_text = " ".join(batch)
                     if full_text:
                         audio = self.tts.generate(full_text, voice_id)
+                        if self.stop_event.is_set(): return
                         self.audio_queue.put((full_text, audio, self.tts.samplerate))
             else:
                 for line in clean_lines:
+                    if self.stop_event.is_set(): return
                     audio = self.tts.generate(line, voice_id)
+                    if self.stop_event.is_set(): return
                     self.audio_queue.put((line, audio, self.tts.samplerate))
+
             self.audio_queue.put(None)
 
         threading.Thread(target=producer, daemon=True).start()
 
         print("\n--- 🟢 PLAYBACK STARTED ---")
-        while True:
-            item = self.audio_queue.get()
+        while not self.stop_event.is_set():
+            try:
+                # Polling wait to keep loop responsive
+                item = self.audio_queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+
             if item is None:
                 break
+
             text, audio, sr = item
+
+            if self.stop_event.is_set():
+                break
+
             print(f"▶️ Speaking: {text[:60]}...")
             if len(audio) > 0:
-                if type(self.tts).__name__ == "LuxBackend":
-                    vol = LUX_VOLUME
-                else:
-                    vol = DEFAULT_VOLUME
-                play_audio(audio, sr, volume=vol)
+                vol = LUX_VOLUME if self.backend_id == "lux" else DEFAULT_VOLUME
+                play_audio(audio, sr, volume=vol, stop_event=self.stop_event)
+
                 time.sleep(0.1)
+
         print("--- 🔴 PLAYBACK ENDED ---\n")

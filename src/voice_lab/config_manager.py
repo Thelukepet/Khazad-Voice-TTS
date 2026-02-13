@@ -57,8 +57,7 @@ def get_current_settings() -> Dict[str, Union[float, int, str]]:
     if ENGINE_PATH.exists():
         with open(ENGINE_PATH, "r", encoding="utf-8") as f:
             content = f.read()
-            chunk_match = re.search(r'if type\(self\.tts\)\.__name__ == "LuxBackend":\s+chunk_size\s*=\s*(\d+)',
-                                    content)
+            chunk_match = re.search(r'if self\.backend_id == "lux":\s+chunk_size\s*=\s*(\d+)', content)
             settings["chunk_size"] = int(chunk_match.group(1)) if chunk_match else 2
 
     return settings
@@ -71,7 +70,7 @@ def save_settings(
     steps: int,
     thresh: float,
     tesseract: str,
-    chunk_size: int
+    chunk_size: int,
 ) -> Tuple[str, float, int]:
     """
     Writes new settings back to the config.py and engine.py files.
@@ -133,13 +132,13 @@ def save_settings(
         with open(ENGINE_PATH, "r", encoding="utf-8") as f:
             content = f.read()
 
-        pattern = r'(if type\(self\.tts\)\.__name__ == "LuxBackend":\s+chunk_size\s*=\s*)(\d+)'
+        pattern = r'(if self\.backend_id == "lux":\s+chunk_size\s*=\s*)(\d+)'
         if re.search(pattern, content):
             content = re.sub(pattern, f'\\g<1>{int(chunk_size)}', content)
             with open(ENGINE_PATH, "w", encoding="utf-8") as f:
                 f.write(content)
             log_msgs.append(f"✅ Engine.py updated (Chunk Size: {chunk_size}).")
         else:
-            log_msgs.append("⚠️ Could not update Chunk Size in engine.py.")
+            log_msgs.append("⚠️ Could not update Chunk Size in engine.py (Pattern mismatch).")
 
     return "\n".join(log_msgs), speed, steps

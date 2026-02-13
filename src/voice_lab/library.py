@@ -93,11 +93,9 @@ def refresh_library() -> None:
 
                 # 3. Add to library if we found text
                 if transcript:
-                    samples.append({
-                        "name": fpath.name,
-                        "path": str(fpath),
-                        "text": transcript
-                    })
+                    samples.append(
+                        {"name": fpath.name, "path": str(fpath), "text": transcript}
+                    )
 
         add_voices("*.flac", flac_lines)
         add_voices("*.wav", wav_lines)
@@ -195,7 +193,9 @@ def trim_audio(audio_path: str, max_duration: float = 20.0) -> Optional[str]:
         return audio_path
 
 
-def save_voice(ref_audio: str, folder_name: str, voice_name: str, transcript: str) -> str:
+def save_voice(
+    ref_audio: str, folder_name: str, voice_name: str, transcript: str
+) -> str:
     """
     Saves a new voice sample to the library.
 
@@ -224,7 +224,12 @@ def save_voice(ref_audio: str, folder_name: str, voice_name: str, transcript: st
     if not ref_audio or not voice_name:
         return "Missing info."
 
-    clean_name = "".join(c for c in voice_name if c.isalnum() or c in (' ', '_')).strip().replace(" ", "_").lower()
+    clean_name = (
+        "".join(c for c in voice_name if c.isalnum() or c in (" ", "_"))
+        .strip()
+        .replace(" ", "_")
+        .lower()
+    )
     target_dir = AUDIO_DIR / folder_name
 
     try:

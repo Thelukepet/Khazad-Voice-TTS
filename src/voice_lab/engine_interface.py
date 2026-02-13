@@ -34,6 +34,7 @@ def load_whisper() -> Any:
     if whisper_model is None:
         print("Loading Whisper (Base)...")
         import whisper
+
         whisper_model = whisper.load_model("base", device="cpu")
     return whisper_model
 
@@ -94,7 +95,7 @@ def generate_preview(
     ref_transcript: str,
     speed: float,
     steps_override: int,
-    trim_func: Callable[[str, float], str]
+    trim_func: Callable[[str, float], str],
 ) -> Tuple[int, np.ndarray]:
     """
     Generates a TTS audio preview using LuxTTS.
@@ -130,17 +131,14 @@ def generate_preview(
         duration_ms = int((len(data) / sr) * 1000)
 
         encoded_prompt = tts.encode_prompt(
-            audio_path,
-            text=ref_transcript,
-            rms=0.01,
-            duration=duration_ms
+            audio_path, text=ref_transcript, rms=0.01, duration=duration_ms
         )
         wav = tts.generate_speech(
             target_text,
             encoded_prompt,
             speed=speed,
             num_steps=steps_override,
-            t_shift=0.9
+            t_shift=0.9,
         )
 
         if hasattr(wav, "detach"):

@@ -6,6 +6,7 @@ import re
 import random
 import time
 from pathlib import Path
+from typing import Tuple, Dict, List
 
 # > Third-party Libraries
 import numpy as np
@@ -21,31 +22,14 @@ log = setup_logger(__name__)
 class LuxBackend(TTSBackend):
     """
     High-quality Voice Cloning Backend using LuxTTS (GPU only).
-    Requires a 'LuxTTS' folder in the project root.
-
-    Attributes
-    ----------
-    tts : LuxTTS
-        The LuxTTS model instance.
-    voice_library : dict
-        A dictionary mapping categories (e.g. 'elf_male') to lists of reference audio files.
-    samplerate : int
-        Audio sample rate (48000 Hz for LuxTTS).
     """
 
     def __init__(self):
         """
         Initializes the LuxTTS model on the GPU and loads the voice library.
-
-        Raises
-        ------
-        ImportError
-            If the LuxTTS submodule is missing or cannot be imported.
         """
         log.info(f"Loading LuxTTS Model on {DEVICE}...")
 
-        # --- Import Logic Fix ---
-        # Navigate up from src/tts/lux.py -> src/tts -> src -> root
         project_root = Path(__file__).resolve().parent.parent.parent
         lux_path = project_root / "LuxTTS"
 
@@ -53,7 +37,6 @@ class LuxBackend(TTSBackend):
             sys.path.append(str(lux_path))
 
         try:
-            # Try direct import first, then fallback to folder structure import
             try:
                 from zipvoice.luxvoice import LuxTTS
             except ImportError:
@@ -63,6 +46,7 @@ class LuxBackend(TTSBackend):
                 f"Could not import LuxTTS. Checked '{lux_path}'. Error: {e}"
             )
 
+        self.backend_id = "lux"  # Explicit ID for memory separation
         self.tts = LuxTTS("YatharthS/LuxTTS", device="cuda")
         self.samplerate = 48000
         self.voice_library = self._load_voice_library()
@@ -76,14 +60,12 @@ class LuxBackend(TTSBackend):
     def _warmup(self):
         """
         Runs a short, silent generation to compile PyTorch CUDA graphs.
-        This prevents lag on the very first generation.
         """
         log.info("🔥 Warming up LuxTTS (takes ~10s for first run)...")
         try:
             if "narrator" in self.voice_library:
                 voice_id = "narrator|0"
             elif self.voice_library:
-                # Pick the first available voice
                 first_cat = list(self.voice_library.keys())[0]
                 voice_id = f"{first_cat}|0"
             else:
@@ -97,37 +79,14 @@ class LuxBackend(TTSBackend):
         except Exception as e:
             log.warning(f"⚠️ Warmup failed (non-critical): {e}")
 
-    def _read_clean_lines(self, txt_path: Path) -> list[str]:
-        """
-        Reads a text file and removes quotes and whitespace.
-
-        Parameters
-        ----------
-        txt_path : Path
-            Path to the text file.
-
-        Returns
-        -------
-        list[str]
-            List of cleaned lines from the file.
-        """
+    def _read_clean_lines(self, txt_path: Path) -> List[str]:
         if not txt_path.exists():
             return []
-
         with open(txt_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
-
         return [re.sub(r"\"", "", line).strip() for line in lines if line.strip()]
 
-    def _load_voice_library(self) -> dict:
-        """
-        Scans the 'data/reference_audio' directory for .wav/.flac files and transcripts.
-
-        Returns
-        -------
-        dict
-            Structure: { 'category': [ {'id': 0, 'audio': path, 'text': transcript}, ... ] }
-        """
+    def _load_voice_library(self) -> Dict:
         library = {}
         if not REF_AUDIO_DIR.exists():
             log.warning(f"Reference Audio dir not found: {REF_AUDIO_DIR}")
@@ -140,37 +99,29 @@ class LuxBackend(TTSBackend):
             category = folder.name.lower()
             library[category] = []
 
-            # Load Legacy Bulk Transcripts (Fallback)
             flac_lines = self._read_clean_lines(folder / f"{category}.txt")
             wav_lines = self._read_clean_lines(folder / f"{category}_wav.txt")
 
-            # Helper function to process files
             def add_voices(pattern, fallback_lines):
                 files = sorted(list(folder.glob(pattern)), key=lambda x: x.name)
                 for i, fpath in enumerate(files):
                     transcript = None
-
-                    # 1. Check for specific sidecar .txt file (Priority)
                     sidecar_path = fpath.with_suffix(".txt")
                     if sidecar_path.exists():
                         try:
-                            # Read file, remove quotes, and flatten newlines
                             raw_text = sidecar_path.read_text(encoding="utf-8").strip()
                             clean_text = re.sub(r"[\"\n]", " ", raw_text).strip()
                             if len(clean_text) > 1:
                                 transcript = clean_text
-                        except Exception as e:
-                            log.warning(f"Error reading transcript {sidecar_path}: {e}")
+                        except Exception:
+                            pass
 
-                    # 2. Fallback to bulk list
                     if not transcript and fallback_lines:
                         if i < len(fallback_lines):
                             transcript = fallback_lines[i]
                         else:
-                            # If we run out of unique lines, cycle the first one
                             transcript = fallback_lines[0]
 
-                    # 3. Add to library if we found text
                     if transcript:
                         library[category].append(
                             {
@@ -181,70 +132,31 @@ class LuxBackend(TTSBackend):
                             }
                         )
 
-            # Process FLACs (Legacy + New)
             add_voices("*.flac", flac_lines)
-
-            # Process WAVs (Legacy + New)
             add_voices("*.wav", wav_lines)
 
         return library
 
-    def pick_voice(self, gender: str, race: str) -> tuple[str, str]:
-        """
-        Selects a reference audio file for voice cloning.
-
-        Parameters
-        ----------
-        gender : str
-            NPC gender.
-        race : str
-            NPC race.
-
-        Returns
-        -------
-        tuple[str, str]
-            (voice_id, category_key). voice_id format is 'category|index'.
-        """
+    def pick_voice(self, gender: str, race: str) -> Tuple[str, str]:
         g_clean = (gender or "").lower().strip()
         r_clean = (race or "").lower().strip()
 
-        # Construct category key (e.g., 'dwarf_male')
         if "narrator" in r_clean or "narrator" in g_clean:
             key = "narrator"
         else:
             key = f"{r_clean}_{g_clean}"
 
-        # Fallback logic
         if key not in self.voice_library or not self.voice_library[key]:
             if "narrator" in self.voice_library and self.voice_library["narrator"]:
                 key = "narrator"
             else:
                 return "default", "fallback"
 
-        # Pick a random sample from the category for variety
         sample = random.choice(self.voice_library[key])
         voice_id = f"{key}|{sample['id']}"
-
         return voice_id, key
 
     def generate(self, text: str, voice_id: str, warmup: bool = False) -> np.ndarray:
-        """
-        Clones the reference voice to speak the given text.
-
-        Parameters
-        ----------
-        text : str
-            Text to speak.
-        voice_id : str
-            Format: 'category|index' (e.g., 'elf_female|3').
-        warmup : bool, optional
-            If True, suppresses log output.
-
-        Returns
-        -------
-        np.ndarray
-            Audio waveform.
-        """
         if "|" not in voice_id:
             return np.array([], dtype=np.float32)
 
@@ -256,19 +168,13 @@ class LuxBackend(TTSBackend):
             log.error(f"Invalid voice_id: {voice_id}")
             return np.array([], dtype=np.float32)
 
-        ref_audio = ref_data["audio"]
-        ref_text = ref_data["text"]
-
         if not warmup:
-            log.info(
-                f"🎙️ Cloning [{category}] (Source: {Path(ref_audio).name}): {text[:50]}..."
-            )
+            log.info(f"🎙️ Cloning [{category}] (Source: {Path(ref_data['audio']).name})...")
 
         try:
             if voice_id in self.prompt_cache:
                 encoded_prompt = self.prompt_cache[voice_id]
             else:
-                # Not in cache? Compute and store it.
                 encoded_prompt = self.tts.encode_prompt(
                     ref_data["audio"],
                     text=ref_data["text"],
@@ -277,7 +183,6 @@ class LuxBackend(TTSBackend):
                 )
                 self.prompt_cache[voice_id] = encoded_prompt
 
-            # Generate speech
             wav_tensor = self.tts.generate_speech(
                 text,
                 encoded_prompt,
@@ -286,7 +191,6 @@ class LuxBackend(TTSBackend):
                 t_shift=0.9
             )
 
-            # Handle Tensor vs Numpy array
             if hasattr(wav_tensor, "detach"):
                 wav = wav_tensor.detach().cpu().numpy().squeeze()
             else:

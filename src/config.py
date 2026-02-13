@@ -41,7 +41,7 @@ DEFAULT_VOLUME = 0.4
 
 # --- TTS SETTINGS ---
 TTS_SPEED = 1.1  # Lower speed to prevent cutoffs
-TTS_WAVE_STEPS = 6  # Quality steps
+TTS_WAVE_STEPS = 4  # Quality steps
 
 # --- OCR SETTINGS (Restored) ---
 # We check standard Windows paths to find Tesseract automatically
