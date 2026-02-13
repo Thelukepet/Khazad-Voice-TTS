@@ -41,7 +41,7 @@ DEFAULT_VOLUME = 0.4
 
 # --- TTS SETTINGS ---
 TTS_SPEED = 1.1  # Lower speed to prevent cutoffs
-TTS_WAVE_STEPS = 10  # Quality steps
+TTS_WAVE_STEPS = 4  # Quality steps
 
 # --- OCR SETTINGS (Restored) ---
 # We check standard Windows paths to find Tesseract automatically
@@ -64,3 +64,5 @@ LOG_LEVEL = "INFO"
 # --- FEATURES ---
 # TODO: reconsider usefulness / accuracy of wiki lookups
 ENABLE_WIKI = False  # Set to True to enable Wiki lookups, False for instant OCR
+
+LUX_VOLUME = 0.4

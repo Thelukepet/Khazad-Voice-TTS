@@ -2,6 +2,7 @@
 
 # > Standard Library
 import random
+from typing import Tuple
 
 # > Third-party Libraries
 import numpy as np
@@ -9,7 +10,7 @@ from kokoro import KPipeline
 
 # > Local Dependencies
 from src.utils import setup_logger
-from src.config import SAMPLE_RATE
+from src.config import SAMPLE_RATE, TTS_SPEED
 from .base import TTSBackend
 
 log = setup_logger(__name__)
@@ -26,6 +27,8 @@ class KokoroBackend(TTSBackend):
         The loaded Kokoro inference pipeline.
     samplerate : int
         Audio sample rate (24000 Hz).
+    backend_id : str
+        Identifier for the backend ('kokoro').
     """
 
     # Voice mapping constants
@@ -65,12 +68,10 @@ class KokoroBackend(TTSBackend):
     def __init__(self):
         """
         Initializes the Kokoro pipeline on the CPU.
-
-        Note: This may download ~300MB of model weights on the first run.
         """
         log.info("Loading Kokoro Voice Model...")
         try:
-            # STRICT ENFORCEMENT: Always force device="cpu" as requested.
+            self.backend_id = "kokoro"  # Explicit ID for memory separation
             self.pipeline = KPipeline(lang_code="a", device="cpu")
             self.samplerate = SAMPLE_RATE
             log.info("✅ Voice Model Ready (CPU Mode).")
@@ -78,21 +79,9 @@ class KokoroBackend(TTSBackend):
             log.error(f"Failed to initialize Kokoro: {e}")
             raise
 
-    def pick_voice(self, gender: str, race: str) -> tuple[str, str]:
+    def pick_voice(self, gender: str, race: str) -> Tuple[str, str]:
         """
         Selects a predefined Kokoro voice profile based on race and gender.
-
-        Parameters
-        ----------
-        gender : str
-            The gender of the NPC (e.g., 'Male', 'Female').
-        race : str
-            The race of the NPC (e.g., 'Elf', 'Dwarf').
-
-        Returns
-        -------
-        tuple[str, str]
-            (voice_id, category_key).
         """
         g_clean = (gender or "male").lower().strip()
         r_clean = (race or "man").strip()
@@ -104,7 +93,6 @@ class KokoroBackend(TTSBackend):
 
         key = f"{r_key} {g_clean}"
 
-        # Fallback if specific combo doesn't exist
         if key in self.VOICES:
             voice = random.choice(self.VOICES[key])
             return voice, key
@@ -114,20 +102,8 @@ class KokoroBackend(TTSBackend):
     def generate(self, text: str, voice_id: str) -> np.ndarray:
         """
         Generates audio using Kokoro.
-
-        Parameters
-        ----------
-        text : str
-            The text to synthesize.
-        voice_id : str
-            The target speaker ID (e.g., 'am_echo').
-
-        Returns
-        -------
-        np.ndarray
-            The generated audio waveform as a float32 numpy array.
         """
-        generator = self.pipeline(text, voice=voice_id, speed=1.1, split_pattern=r"\n+")
+        generator = self.pipeline(text, voice=voice_id, speed=TTS_SPEED, split_pattern=r"\n+")
 
         chunks = [audio for _, _, audio in generator if audio is not None]
 

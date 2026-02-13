@@ -8,7 +8,7 @@ import argparse
 from threading import Event
 
 # > Third party imports
-from pynput import mouse
+from pynput import mouse, keyboard  # Added keyboard
 
 # > Local dependencies
 from src.utils import setup_logger, capture_screen_areas, watch_npc_file
@@ -26,13 +26,14 @@ def on_click(x, y, button, pressed):
     if pressed and button == mouse.Button.middle:
         capture_trigger.set()
 
-
 def main():
     """
     Main entry point for Khazad-Voice TTS.
     """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["retail", "echoes"], help="Game mode to start in")
+    parser.add_argument(
+        "--mode", choices=["retail", "echoes"], help="Game mode to start in"
+    )
     args = parser.parse_args()
 
     print(r"""
@@ -61,7 +62,6 @@ def main():
         sys.exit(1)
 
     # 3. Determine Mode
-    # If passed via CLI (bat file), use it. Otherwise prompt (fallback).
     if args.mode:
         current_mode = args.mode
     else:
@@ -73,11 +73,21 @@ def main():
 
     engine = NarratorEngine(db, tts, mode=current_mode)
 
+    # --- KEYBOARD LISTENER (F12 STOP) ---
+    def on_key_release(key):
+        if key == keyboard.Key.f12:
+            engine.stop()
+
+    kb_listener = keyboard.Listener(on_release=on_key_release)
+    kb_listener.start()
+    # -----------------------------------
+
     # 4. Start Logic
     if current_mode == "retail":
         print("\n[RETAIL MODE STARTED]")
         print(f"Watching Log: {SCRIPT_LOG}")
-        print("1. Ensure 'getNPCNames' LOTRO plugin is installed and loaded for your character.")
+        print("1. Ensure 'getNPCNames' plugin is installed.")
+        print("2. Press F12 to STOP current playback.")
 
         def npc_found_callback(npc_name):
             time.sleep(0.3)
@@ -91,7 +101,8 @@ def main():
         watcher_thread.start()
 
         try:
-            while True: time.sleep(1)
+            while True:
+                time.sleep(1)
         except KeyboardInterrupt:
             print("Exiting...")
 
@@ -100,6 +111,7 @@ def main():
         print("\n[ECHOES MODE STARTED]")
         print("1. Open Quest Window.")
         print("2. MIDDLE CLICK to narrate.")
+        print("3. Press F12 to STOP current playback.")
 
         listener = mouse.Listener(on_click=on_click)
         listener.start()
@@ -109,7 +121,7 @@ def main():
                 if capture_trigger.is_set():
                     capture_trigger.clear()
                     print("⏳ Capturing...")
-                    time.sleep(0.5)
+                    time.sleep(0.25)
 
                     q_img, n_img = capture_screen_areas(mode_prefix="echoes")
 
@@ -122,6 +134,7 @@ def main():
                 time.sleep(0.1)
         except KeyboardInterrupt:
             listener.stop()
+            kb_listener.stop()
 
 
 if __name__ == "__main__":

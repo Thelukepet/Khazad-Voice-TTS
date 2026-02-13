@@ -1,14 +1,29 @@
-numpy
+# --- Core Math & Data ---
+numpy>=1.26.0,<2.0.0
 pandas
-opencv-python
-pytesseract
+scipy>=1.11.0
+
+# --- Audio & Processing ---
 sounddevice
-nltk
-scipy
-pynput
-kokoro>=0.3.4
 soundfile
+# We force librosa newer than 0.10.0 to prevent the llvmlite crash
+librosa>=0.10.0
+# Numba powers librosa; we force a modern version for Py 3.12
+numba>=0.60.0
+
+# --- AI & ML ---
+torch
+torchaudio
 transformers
 accelerate
+kokoro>=0.3.4
+
+# --- Vision & OCR ---
+opencv-python
+pytesseract
+
+# --- Utils & UI ---
 nltk
 beautifulsoup4
+pynput
+gradio>=4.0.0

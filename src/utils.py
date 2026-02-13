@@ -6,7 +6,7 @@ import json
 import time
 import logging
 from pathlib import Path
-from typing import List, Union, Tuple, Optional, Any
+from typing import List, Union, Tuple, Optional, Any, Dict
 
 # > Third-party Libraries
 import cv2
@@ -29,7 +29,19 @@ LAYOUT_ECHOES = DATA_DIR / "layout_echoes.json"
 
 
 def setup_logger(name: str) -> logging.Logger:
-    """Configures a standard logger outputting to console."""
+    """
+    Configures a standard logger outputting to console.
+
+    Parameters
+    ----------
+    name : str
+        Name of the logger.
+
+    Returns
+    -------
+    logging.Logger
+        Configured logger instance.
+    """
     logger = logging.getLogger(name)
     logger.setLevel(LOG_LEVEL)
     if not logger.handlers:
@@ -45,12 +57,13 @@ def setup_logger(name: str) -> logging.Logger:
 log = setup_logger("UTILS")
 
 
-# --- DATA MANAGEMENT (RESTORED) ---
+# --- DATA MANAGEMENT ---
 
 
 def get_file_paths(mode: str) -> Tuple[Path, Path]:
     """
-    Generates file paths for coordinates and NPC memory based on the mode.
+    Generates legacy file paths for coordinates (used by calibration).
+    Note: NPC memory handling is now managed by `get_memory_file_path`.
 
     Parameters
     ----------
@@ -60,7 +73,7 @@ def get_file_paths(mode: str) -> Tuple[Path, Path]:
     Returns
     -------
     Tuple[Path, Path]
-        (path_to_coords_json, path_to_npc_memory_json)
+        (path_to_coords_json, legacy_memory_path)
     """
     safe_mode = mode.lower().strip()
     return (
@@ -69,9 +82,38 @@ def get_file_paths(mode: str) -> Tuple[Path, Path]:
     )
 
 
-def load_coords(mode: str) -> dict:
+def get_memory_file_path(mode: str, backend: str) -> Path:
+    """
+    Constructs the path for the NPC memory file based on mode and backend.
+    This ensures Kokoro (CPU) and LuxTTS (GPU) maintain separate voice databases.
+
+    Parameters
+    ----------
+    mode : str
+        Game mode ('retail' or 'echoes').
+    backend : str
+        TTS backend ('lux' or 'kokoro').
+
+    Returns
+    -------
+    Path
+        The full path to the json file.
+    """
+    return DATA_DIR / f"npc_memory_{mode.lower()}_{backend.lower()}.json"
+
+def load_coords(mode: str) -> Dict:
     """
     Loads saved coordinates for the specified mode.
+
+    Parameters
+    ----------
+    mode : str
+        Game mode.
+
+    Returns
+    -------
+    dict
+        Dictionary of coordinates.
     """
     coords_file, _ = get_file_paths(mode)
     if coords_file.exists():
@@ -86,17 +128,51 @@ def load_coords(mode: str) -> dict:
 def save_coords(coords: dict, mode: str):
     """
     Saves coordinates to the disk for the specified mode.
+
+    Parameters
+    ----------
+    coords : dict
+        Coordinates to save.
+    mode : str
+        Game mode.
     """
     coords_file, _ = get_file_paths(mode)
     with open(coords_file, "w") as f:
         json.dump(coords, f, indent=4)
 
 
-def load_npc_memory(mode: str) -> dict:
+def load_npc_memory(mode: str, backend: str = "lux") -> Dict:
     """
-    Loads the database of previously seen NPCs (for voice consistency).
+    Loads the database of previously seen NPCs for the specific engine backend.
+
+    Parameters
+    ----------
+    mode : str
+        Game mode ('retail' or 'echoes').
+    backend : str
+        TTS backend name ('lux' or 'kokoro').
+
+    Returns
+    -------
+    dict
+        Memory database.
     """
-    _, memory_file = get_file_paths(mode)
+    memory_file = get_memory_file_path(mode, backend)
+
+    # Fallback to legacy file if new backend-specific file doesn't exist yet
+    # This prevents data loss for existing users updating to the new version.
+    if not memory_file.exists() and backend == "lux":
+        _, legacy_path = get_file_paths(mode)
+        if legacy_path.exists():
+            log.info(f"Migrating legacy memory file to {memory_file}")
+            try:
+                with open(legacy_path, "r") as f:
+                    data = json.load(f)
+                save_npc_memory(data, mode, backend)
+                return data
+            except json.JSONDecodeError:
+                pass
+
     if memory_file.exists():
         try:
             with open(memory_file, "r") as f:
@@ -106,11 +182,20 @@ def load_npc_memory(mode: str) -> dict:
     return {}
 
 
-def save_npc_memory(memory: dict, mode: str):
+def save_npc_memory(memory: dict, mode: str, backend: str = "lux"):
     """
-    Saves the NPC memory database to disk.
+    Saves the NPC memory database to disk, specific to the backend.
+
+    Parameters
+    ----------
+    memory : dict
+        Data to save.
+    mode : str
+        Game mode.
+    backend : str
+        TTS backend ('lux' or 'kokoro').
     """
-    _, memory_file = get_file_paths(mode)
+    memory_file = get_memory_file_path(mode, backend)
     with open(memory_file, "w") as f:
         json.dump(memory, f, indent=4)
 
@@ -119,11 +204,23 @@ def save_npc_memory(memory: dict, mode: str):
 
 
 def get_layout_file(mode: str) -> Path:
-    """Returns the appropriate layout file path based on the game mode."""
+    """
+    Returns the appropriate layout file path based on the game mode.
+
+    Parameters
+    ----------
+    mode : str
+        Game mode.
+
+    Returns
+    -------
+    Path
+        Path to layout json.
+    """
     return LAYOUT_RETAIL if mode == "retail" else LAYOUT_ECHOES
 
 
-def load_user_templates(mode: str = "retail") -> Optional[dict]:
+def load_user_templates(mode: str = "retail") -> Optional[Dict]:
     """
     Loads the user-calibrated templates from disk specific to the game mode.
 
@@ -159,9 +256,19 @@ def load_user_templates(mode: str = "retail") -> Optional[dict]:
     return templates
 
 
-def load_user_config(mode: str) -> dict:
+def load_user_config(mode: str) -> Dict:
     """
     Loads the calibrated configuration (offsets/NPC box) from the JSON file.
+
+    Parameters
+    ----------
+    mode : str
+        Game mode.
+
+    Returns
+    -------
+    dict
+        User configuration data.
     """
     path = get_layout_file(mode)
     if path.exists():
@@ -179,6 +286,15 @@ def load_user_config(mode: str) -> dict:
 def watch_npc_file(callback, log_path: str, ready_event=None):
     """
     Tails the LOTRO script.log. When a new line appears, triggers callback.
+
+    Parameters
+    ----------
+    callback : function
+        Function to call with the new line text.
+    log_path : str
+        Path to the script.log file.
+    ready_event : threading.Event, optional
+        Event to set when the watcher is ready.
     """
     watcher_log = setup_logger("WATCHER")
     while not os.path.exists(log_path):
@@ -209,17 +325,24 @@ def watch_npc_file(callback, log_path: str, ready_event=None):
                         callback(name)
         except Exception as exc:
             watcher_log.exception(f"Watcher error: {exc}")
-        time.sleep(0.5)
-
 
 # --- TEMPLATE MATCHING UTILS ---
 
 
 def match_template_in_roi(
-    img_gray: np.ndarray, template: np.ndarray, x: int, y: int, w: int, h: int
+        img_gray: np.ndarray, template: np.ndarray, x: int, y: int, w: int, h: int
 ) -> Tuple[float, int, int]:
     """
     Performs template matching within a specific Region of Interest (ROI).
+
+    Parameters
+    ----------
+    img_gray : np.ndarray
+        Source grayscale image.
+    template : np.ndarray
+        Template image to match.
+    x, y, w, h : int
+        ROI coordinates.
 
     Returns
     -------
@@ -233,7 +356,7 @@ def match_template_in_roi(
     if w < template.shape[1] or h < template.shape[0]:
         return 0.0, 0, 0
 
-    roi = img_gray[y : y + h, x : x + w]
+    roi = img_gray[y: y + h, x: x + w]
     res = cv2.matchTemplate(roi, template, cv2.TM_CCOEFF_NORMED)
     _, max_val, _, max_loc = cv2.minMaxLoc(res)
     return max_val, x + max_loc[0], y + max_loc[1]
@@ -243,10 +366,20 @@ def match_template_in_roi(
 
 
 def extract_quest_areas(
-    full_img_np: np.ndarray,
+        full_img_np: np.ndarray,
 ) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
     Extracts the Quest Title and Body using the Retail logic (Cascading Dependency).
+
+    Parameters
+    ----------
+    full_img_np : np.ndarray
+        Full screen screenshot in numpy array format (BGR).
+
+    Returns
+    -------
+    Tuple[Image, Image]
+        (Title Image, Body Image) or (None, None) if detection fails.
     """
     if len(full_img_np.shape) == 3:
         img_gray = cv2.cvtColor(full_img_np, cv2.COLOR_BGR2GRAY)
@@ -328,8 +461,8 @@ def extract_quest_areas(
         body_h = h_img - body_y
 
     # Crop
-    title_crop = full_img_np[title_y : title_y + title_h, title_x : title_x + title_w]
-    body_crop = full_img_np[body_y : body_y + body_h, body_x : body_x + body_w]
+    title_crop = full_img_np[title_y: title_y + title_h, title_x: title_x + title_w]
+    body_crop = full_img_np[body_y: body_y + body_h, body_x: body_x + body_w]
 
     return (
         Image.fromarray(cv2.cvtColor(title_crop, cv2.COLOR_BGR2RGB)),
@@ -341,7 +474,7 @@ def extract_quest_areas(
 
 
 def extract_echoes_areas(
-    full_img_np: np.ndarray,
+        full_img_np: np.ndarray,
 ) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
     Extracts Quest Text and NPC Name using Echoes (Classic) logic.
@@ -349,6 +482,16 @@ def extract_echoes_areas(
     2. Margins (Calibrated).
     3. Static NPC Box.
     4. Stitches Title+Body.
+
+    Parameters
+    ----------
+    full_img_np : np.ndarray
+        Screenshot.
+
+    Returns
+    -------
+    Tuple[Image, Image]
+        (Stitched Text Image, NPC Name Image).
     """
     img_gray = cv2.cvtColor(full_img_np, cv2.COLOR_BGR2GRAY)
 
@@ -396,15 +539,15 @@ def extract_echoes_areas(
     # 5. Crop & Stitch
     try:
         # Title
-        crop_title = full_img_np[ty : ty + th, tx : tx + tw]
+        crop_title = full_img_np[ty: ty + th, tx: tx + tw]
 
         # Body
-        crop_body = full_img_np[by : by + bh, bx : bx + bw]
+        crop_body = full_img_np[by: by + bh, bx: bx + bw]
 
         # NPC (Static)
         nx, ny, nw, nh = npc_box
         if nw > 0 and nh > 0:
-            crop_npc = full_img_np[ny : ny + nh, nx : nx + nw]
+            crop_npc = full_img_np[ny: ny + nh, nx: nx + nw]
         else:
             crop_npc = np.zeros((50, 200, 3), dtype=np.uint8)
 
@@ -442,6 +585,11 @@ def extract_echoes_areas(
 def capture_screen_areas(mode_prefix: str = "retail") -> Tuple[Any, Any]:
     """
     Captures screen and extracts areas based on mode.
+
+    Parameters
+    ----------
+    mode_prefix : str
+        Game mode ('retail' or 'echoes').
 
     Returns
     -------

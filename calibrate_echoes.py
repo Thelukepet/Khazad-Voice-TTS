@@ -83,7 +83,9 @@ def draw_instructions(img: np.ndarray, text: str, example_path: Path = None) -> 
                 x_offset = w - new_w - 50
                 y_offset = (banner_height - new_h) // 2
 
-                img[y_offset: y_offset + new_h, x_offset: x_offset + new_w] = ex_resized
+                img[y_offset : y_offset + new_h, x_offset : x_offset + new_w] = (
+                    ex_resized
+                )
                 cv2.putText(
                     img,
                     "Look for this:",
@@ -99,7 +101,7 @@ def draw_instructions(img: np.ndarray, text: str, example_path: Path = None) -> 
 
 
 def select_roi(
-        clean_img: np.ndarray, title: str, instruction: str, example_key: str = None
+    clean_img: np.ndarray, title: str, instruction: str, example_key: str = None
 ) -> tuple:
     """
     Opens the visual selection window using OpenCV's selectROI.
@@ -126,7 +128,7 @@ def select_roi(
 
 def save_template(img: np.ndarray, bbox: tuple, path: Path) -> None:
     x, y, w, h = bbox
-    crop = img[y: y + h, x: x + w]
+    crop = img[y : y + h, x : x + w]
     gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
     cv2.imwrite(str(path), gray)
     print(f"   ✅ Saved to {path.name}")
@@ -157,41 +159,48 @@ def main():
     r_lp = select_roi(
         img_bgr, "Step 1", "Select LEFT PLANT (Title Start)", "left_plant"
     )
-    if not r_lp: return
+    if not r_lp:
+        return
     save_template(img_bgr, r_lp, USER_PATHS["left_plant"])
 
     # --- STEP 2: RIGHT PLANT ---
     r_rp = select_roi(
         img_bgr, "Step 2", "Select RIGHT PLANT (Title End)", "right_plant"
     )
-    if not r_rp: return
+    if not r_rp:
+        return
     save_template(img_bgr, r_rp, USER_PATHS["right_plant"])
 
     # --- STEP 3: TOP-LEFT CORNER ---
     r_tl = select_roi(
         img_bgr, "Step 3", "Select TOP-LEFT CORNER (Start of Body)", "tl_corner"
     )
-    if not r_tl: return
+    if not r_tl:
+        return
     save_template(img_bgr, r_tl, USER_PATHS["tl_corner"])
 
     # --- STEP 4: BOTTOM-RIGHT CORNER ---
     r_br = select_roi(
         img_bgr, "Step 4", "Select BOTTOM-RIGHT CORNER (End of Body)", "br_corner"
     )
-    if not r_br: return
+    if not r_br:
+        return
     save_template(img_bgr, r_br, USER_PATHS["br_corner"])
 
     # --- STEP 5: BODY TEXT (REFERENCE) ---
     r_text = select_roi(
-        img_bgr, "Step 5", "Draw a box around the ACTUAL TEXT BODY (To learn margins)", None
+        img_bgr,
+        "Step 5",
+        "Draw a box around the ACTUAL TEXT BODY (To learn margins)",
+        None,
     )
-    if not r_text: return
+    if not r_text:
+        return
 
     # --- STEP 6: NPC NAME (STATIC) ---
-    r_npc = select_roi(
-        img_bgr, "Step 6", "Select the NPC NAME (Static Position)", None
-    )
-    if not r_npc: return
+    r_npc = select_roi(img_bgr, "Step 6", "Select the NPC NAME (Static Position)", None)
+    if not r_npc:
+        return
 
     # --- CALCULATE & SAVE ---
 
@@ -205,7 +214,7 @@ def main():
         "body_left_margin": int(bx - tx),
         "body_top_margin": int(by - ty),
         "body_right_padding": int(brx - (bx + bw)),
-        "body_bottom_padding": int(bry - (by + bh))
+        "body_bottom_padding": int(bry - (by + bh)),
     }
 
     # 2. NPC Calculation (Static)
@@ -214,7 +223,7 @@ def main():
     data = {
         "resolution": f"{img_bgr.shape[1]}x{img_bgr.shape[0]}",
         "offsets": offsets,
-        "npc_box": [int(nx), int(ny), int(nw), int(nh)]
+        "npc_box": [int(nx), int(ny), int(nw), int(nh)],
     }
 
     with open(LAYOUT_FILE, "w") as f:
