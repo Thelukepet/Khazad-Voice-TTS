@@ -8,6 +8,7 @@ from threading import Event
 
 # > Third-party Libraries
 import sounddevice as sd
+import soundcard as sc
 import numpy as np
 
 # > Local Dependencies
@@ -69,10 +70,13 @@ def play_audio(
         # 2. Calculate Duration
         duration = len(final_audio) / samplerate
 
-        # 3. Start Playback (Non-blocking)
-        sd.play(final_audio, samplerate)
+        # 3. Get System Default Speaker
+        speaker = sc.default_speaker()
 
-        # 4. Smart Sleep Loop (Interruptible)
+        # 4. Start Playback (Non-blocking)
+        speaker.play(final_audio, samplerate=samplerate)
+
+        # 5. Smart Sleep Loop (Interruptible)
         start_time = time.time()
         while time.time() - start_time < duration:
             # Check if F12 was pressed

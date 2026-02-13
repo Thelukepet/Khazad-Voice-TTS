@@ -4,6 +4,7 @@ pandas
 scipy>=1.11.0
 
 # --- Audio & Processing ---
+soundcard
 sounddevice
 soundfile
 # We force librosa newer than 0.10.0 to prevent the llvmlite crash
