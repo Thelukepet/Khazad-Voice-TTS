@@ -29,7 +29,7 @@
    * [1. Tesseract OCR](#1-tesseract-ocr)
    * [2. getNPCNames Plugin (Retail Only)](#2-getnpcnames-plugin-retail-mode-only)
 * [Installation](#installation)
-* [Configuration & Performance Test](#configuration--performance-test)
+* [Configuration & Performance Test](#-configuration--performance-test)
 * [Calibration (Important)](#calibration-important)
    * [Retail LOTRO](#-retail-lotro)
    * [Echoes of Angmar](#-echoes-of-angmar)
@@ -55,6 +55,8 @@
 * **Dual Game Support:**
     * Compatible with **Official Servers (Retail)** via automatic detection.
     * Compatible with **Private Servers (Echoes of Angmar/Classic)** via manual selection.
+* **Cross-Platform:**
+    * Runs natively on **Windows** and **Linux**.
 
 ---
 
@@ -64,12 +66,22 @@ Before installing, ensure the following dependencies are set up on your system.
 
 ### 1. Tesseract OCR
 Required for converting screen captures into text.
-* **Download:** [UB-Mannheim Tesseract Wiki](https://github.com/UB-Mannheim/tesseract/wiki) (Download the Windows installer).
-* **Installation Path:** The application expects Tesseract to be installed at the default location:
-    ```text
-    C:\Program Files\Tesseract-OCR\tesseract.exe
-    ```
-* **Guide:** [How to install Tesseract on Windows](https://linuxhint.com/install-tesseract-windows/)
+
+* **Windows:**
+    * **Download:** [UB-Mannheim Tesseract Wiki](https://github.com/UB-Mannheim/tesseract/wiki) (Download the Windows installer).
+    * **Installation Path:** The application expects Tesseract to be installed at the default location:
+      ```text
+      C:\Program Files\Tesseract-OCR\tesseract.exe
+      ```
+    * **Guide:** [How to install Tesseract on Windows](https://linuxhint.com/install-tesseract-windows/)
+
+* **Linux:**
+    * Install via your package manager:
+      ```bash
+      sudo apt install tesseract-ocr  # Debian/Ubuntu
+      sudo dnf install tesseract      # Fedora
+      sudo pacman -S tesseract        # Arch
+      ```
 
 ### 2. getNPCNames Plugin (Retail Mode Only)
 Required for Retail mode to identify NPC metadata (Race/Gender) for accurate voice selection.
@@ -84,7 +96,9 @@ Required for Retail mode to identify NPC metadata (Race/Gender) for accurate voi
 **Note:** Please ensure you have at least **10GB of free disk space** for dependencies and TTS models.
 
 1.  Clone or download this repository.
-2.  Run **`install.bat`**.
+2.  Run the installer for your OS:
+    * **Windows:** Double-click **`install.bat`**.
+    * **Linux:** Run **`./install.sh`** in your terminal.
 3.  Follow the on-screen prompts:
     * The script will verify **Python 3.12** and **Git** installation.
     * Select your GPU architecture (CUDA version) when prompted to ensure the correct PyTorch drivers are downloaded.
@@ -92,9 +106,12 @@ Required for Retail mode to identify NPC metadata (Race/Gender) for accurate voi
 
 ---
 
-## Configuration & Performance Test
+## ⚙️ Configuration & Performance Test
 
-After installation, run **`configure.bat`** to launch the Configuration Suite. This allows you to tune the engine for your hardware before playing.
+After installation, launch the Configuration Suite to tune the engine for your hardware.
+
+* **Windows:** Run **`configure.bat`**
+* **Linux:** Run **`./configure.sh`**
 
 ### 1. System Configuration
 Use this tab to adjust volume, speed, and quality settings.
@@ -108,7 +125,7 @@ Use this tab to adjust volume, speed, and quality settings.
     * **Diffusion Steps:** Default is `6`. Lower to `4` for speed, raise to `10` for higher audio fidelity.
     * Set **Chunk Size** to `1 (Ultra Fast)` if the speed is still too slow after lowering the Diffusion Steps.
 * **Detection:**
-    * If you did not install Tesseract in the default `C:/` drive, enter your custom path here.
+    * If you did not install Tesseract in the default `C:/` drive (Windows), enter your custom path here. Linux users generally do not need to change this if installed via package manager.
 
 ### 2. Performance Check (LuxTTS)
 If you are using the GPU model, switch to the **TTS Tester** tab to verify your system speed.
@@ -129,7 +146,12 @@ Before running the bot for the first time, you must calibrate it to your screen 
 
 1.  Open LOTRO / Echoes of Angmar and log in.
 2.  **Open any Quest Window** by clicking on an NPC. Ensure the window is fully visible.
-3.  Double-click **`calibrate_lotro.bat`** (for Retail LOTRO) or **`calibrate_echoes.bat`** (for Echoes of Angmar) in the project folder. 
+3.  Run the calibration script for your version:
+
+| Game Version | Windows Command | Linux Command |
+| :--- | :--- | :--- |
+| **Retail LOTRO** | Double-click `calibrate_lotro.bat` | Run `./calibrate_lotro.sh` |
+| **Echoes of Angmar** | Double-click `calibrate_eoa.bat` | Run `./calibrate_eoa.sh` |
 
 <table border="0"> <tr> <td width="60%" valign="top"> <h3>Retail LOTRO</h3> <p>Follow the on-screen visual guide. You will be asked to draw boxes around 5 specific anchors:</p> <ul> <li><b>Step 1 & 2:</b> The Left and Right Leaf icons (Title Bar).</li> <li><b>Step 3:</b> The Top-Left corner of the text body.</li> <li><b>Step 4:</b> The intersection between the left and right panels (defines width).</li> <li><b>Step 5:</b> The Filter icon at the bottom (defines height).</li> <li><b>Step 6:</b> A confirmation box around the actual text.</li> </ul> <p><i>You generally only need to do this once, unless you change your UI skin or game resolution.</i></p> </td> <td width="40%" valign="top" align="center"> <b>Watch Tutorial</b>
 
@@ -150,27 +172,27 @@ To launch the application, run the file corresponding to your game version.
 
 ### 1. Retail (Live Servers)
 
-Run **`start_lotro.bat`**.
+* **Windows:** `start_lotro.bat`
+* **Linux:** `./start_lotro.sh`
 
-* **Trigger:** Automatic (Log-based).
-* **Mechanism:**
+**Mechanism:**
 1. Monitors the game's `Script.log` file to detect when an NPC interaction begins.
 2. Uses your **Calibration Data** to instantly locate the quest window.
 3. Captures and reads the text automatically.
-
 
 * **Note:** Because this uses the calibration data, you are free to move and resize the quest window in-game; the bot will adapt dynamically.
 
 ### 2. Echoes of Angmar (Classic Mode)
 
-Run **`start_eoa.bat`**.
+* **Windows:** `start_eoa.bat`
+* **Linux:** `./start_eoa.sh`
 
-* **Trigger:** Middle Mouse Button Click.
-* **Mechanism:**
+**Mechanism:**
 1. Open a quest window in-game.
 2. Click the **Middle Mouse Button** anywhere on the screen.
 3. The tool captures and reads the text based on your calibration and narrates it. **_You can freely move the quest window in-game, but the NPC name box (tooltip box) should remain at the same location._**
 
+---
 
 ## 🧪 TTS Tester & Custom Voices
 
@@ -178,8 +200,8 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 **How to use:**
 
-1.  Run **`configure.bat`**.
-    * *Note: This may ask to install FFmpeg via Winget on the first run.*
+1.  Run **`configure.bat`** (or `./configure.sh`).
+    * *Note: This may ask to install FFmpeg via Winget/package manager on the first run.*
 2.  Switch to the **TTS Tester & Voice Adder** tab.
 3.  **Input Audio:**
     * **Upload:** Drag and drop a `.wav` or `.mp3` file of a voice you want to clone. Should be at least 4 seconds long and ideally around 20 seconds. Longer audio samples will be trimmed to 20s.
@@ -197,12 +219,12 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 **Q: The voices are too slow / too silent for me.**
 
-* Run **`configure.bat`** and adjust the **Volume** and **TTS Speed** sliders. You can test the changes immediately in the "Tester" tab.
+* Run the configuration script and adjust the **Volume** and **TTS Speed** sliders. You can test the changes immediately in the "Tester" tab.
 
 **Q: The bot isn't detecting the quest window in Retail mode.**
 
-* Run **`calibrate_lotro.bat`** again. Ensure you draw tight boxes around the requested icons.
-* If that does not work consistently, run `configure.bat` and lower the **Detection Sensitivity (Threshold)** slider (e.g., to 0.4).
+* Run the calibration script again. Ensure you draw tight boxes around the requested icons.
+* If that does not work consistently, run configuration and lower the **Detection Sensitivity (Threshold)** slider (e.g., to 0.4).
 
 **Q: How do I reset the NPC Voice Memory?**
 
@@ -210,7 +232,8 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 **Q: Can I add my own custom voice references?**
 
-* Yes! Use the **TTS Tester & Voice Adder** in `configure.bat`. It handles the file placement and transcription for you.
+* Yes! Use the **TTS Tester & Voice Adder** in the configuration suite. It handles the file placement and transcription for you.
+
 ---
 
 ## Future Roadmap
@@ -229,3 +252,6 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 * **LuxTTS:** GPU backend adapted from [LuxTTS](https://github.com/ysharma3501/LuxTTS) by Yatharth Sharma.
 * **Qwen3-TTS:** [Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) model used for creating the .flac reference audio files.
 * **XTTS-v2:** [coqui/XTTS-v2](https://huggingface.co/coqui/XTTS-v2) model used to generate the .wav reference audio files using the standard TTS speakers.
+
+## Contributions
+* **Linux Port:** Thanks to [Marco Di Fresco](https://github.com/marcodifresco) for porting the application to Linux (Bash scripts and cross-platform compatibility).

@@ -41,9 +41,9 @@ DEFAULT_VOLUME = 0.4
 
 # --- TTS SETTINGS ---
 TTS_SPEED = 1.1  # Lower speed to prevent cutoffs
-TTS_WAVE_STEPS = 16  # Quality steps
+TTS_WAVE_STEPS = 4  # Quality steps default is max performance, can be changed in the configure.bat / configure.sh
 
-# --- OCR SETTINGS (Restored) ---
+# --- OCR SETTINGS ---
 # We check standard Windows paths to find Tesseract automatically
 possible_paths = [
     r"C:\Program Files\Tesseract-OCR\tesseract.exe",
@@ -51,7 +51,7 @@ possible_paths = [
     r"C:\Users\admin\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",
 ]
 
-TESSERACT_CMD = r"/usr/bin/tesseract"  # Default fallback
+TESSERACT_CMD =  r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Default value in the configure.bat  / configure.sh file
 
 for p in possible_paths:
     if os.path.exists(p):
