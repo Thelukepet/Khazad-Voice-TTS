@@ -8,7 +8,9 @@ from threading import Event
 
 # > Third-party Libraries
 import sounddevice as sd
+import soundcard as sc
 import numpy as np
+import threading
 
 # > Local Dependencies
 from .config import DEFAULT_VOLUME
@@ -69,22 +71,27 @@ def play_audio(
         # 2. Calculate Duration
         duration = len(final_audio) / samplerate
 
-        # 3. Start Playback (Non-blocking)
-        sd.play(final_audio, samplerate)
+        # 3. Force Stereo
+        if isinstance(final_audio, np.ndarray) and final_audio.ndim == 1:
+            final_audio = np.column_stack((final_audio, final_audio))
 
-        # 5. Smart Sleep Loop (Interruptible)
-        start_time = time.time()
-        while time.time() - start_time < duration:
-            # Check if F12 was pressed
-            if stop_event is not None and stop_event.is_set():
-                sd.stop()  # Kill hardware stream immediately
-                return
+        # 4. Playback with Interrupt Support
+        # We use soundcard's player context manager.
+        default_speaker = sc.default_speaker()
 
-            # Sleep in small chunks to remain responsive
-            time.sleep(0.05)
+        # Calculate chunk size (e.g., 0.1 seconds) for responsiveness
+        chunk_size = int(samplerate * 0.1)
 
-        # Ensure stream is totally finished before returning (optional but safe)
-        sd.stop()
+        with default_speaker.player(samplerate=samplerate) as player:
+            # Loop through the audio in small chunks
+            for i in range(0, len(final_audio), chunk_size):
+                # Check for F12 Stop Signal
+                if stop_event is not None and stop_event.is_set():
+                    return # Exit function immediately (stops audio)
+
+                # Play the current chunk
+                chunk = final_audio[i : i + chunk_size]
+                player.play(chunk)
 
     except Exception as e:
         log.error(f"Audio Playback Error: {e}")
@@ -94,7 +101,8 @@ def stop_audio() -> None:
     """
     Forcefully stops the sounddevice stream.
     """
-    try:
-        sd.stop()
-    except Exception as e:
-        log.error(f"Failed to stop audio: {e}")
+    #try:
+    #    sd.stop()
+    #except Exception as e:
+    #    log.error(f"Failed to stop audio: {e}")
+    pass
