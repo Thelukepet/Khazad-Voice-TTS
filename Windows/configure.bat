@@ -11,7 +11,7 @@ echo    "Forge your settings. Config your settings for CPU or GPU."
 echo ==========================================================
 echo.
 
-if not exist venv (
+if not exist ..\venv (
     echo [ERROR] Virtual environment not found. Run install.bat first.
     pause
     exit
@@ -48,7 +48,7 @@ echo [OK] FFmpeg found.
 
 :: --- 2. LAUNCH APP ---
 echo [INFO] Activating environment...
-call venv\Scripts\activate
+call ..\venv\Scripts\activate
 
 echo.
 echo [INFO] Ensuring Lab Dependencies are installed...

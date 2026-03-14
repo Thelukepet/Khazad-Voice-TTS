@@ -33,6 +33,7 @@
 * [Calibration (Important)](#calibration-important)
    * [Retail LOTRO](#-retail-lotro)
    * [Echoes of Angmar](#-echoes-of-angmar)
+   * [Static Quest Window Mode](#static-quest-window-mode)
 * [Usage & Modes](#usage--modes)
    * [1. Retail (Live Servers)](#1-retail-live-servers)
    * [2. Echoes of Angmar (Classic)](#2-echoes-of-angmar-classic-mode)
@@ -97,8 +98,8 @@ Required for Retail mode to identify NPC metadata (Race/Gender) for accurate voi
 
 1.  Clone or download this repository.
 2.  Run the installer for your OS:
-    * **Windows:** Double-click **`install.bat`**.
-    * **Linux:** Run **`./install.sh`** in your terminal.
+    * **Windows:** Double-click **`Windows/install.bat`**.
+    * **Linux:** Run **`./Linux/install.sh`** in your terminal.
 3.  Follow the on-screen prompts:
     * The script will verify **Python 3.12** and **Git** installation.
     * Select your GPU architecture (CUDA version) when prompted to ensure the correct PyTorch drivers are downloaded.
@@ -110,8 +111,8 @@ Required for Retail mode to identify NPC metadata (Race/Gender) for accurate voi
 
 After installation, launch the Configuration Suite to tune the engine for your hardware.
 
-* **Windows:** Run **`configure.bat`**
-* **Linux:** Run **`./configure.sh`**
+* **Windows:** Run **`Windows/configure.bat`**
+* **Linux:** Run **`./Linux/configure.sh`**
 
 ### 1. System Configuration
 Use this tab to adjust volume, speed, and quality settings.
@@ -150,8 +151,8 @@ Before running the bot for the first time, you must calibrate it to your screen 
 
 | Game Version | Windows Command | Linux Command |
 | :--- | :--- | :--- |
-| **Retail LOTRO** | Double-click `calibrate_lotro.bat` | Run `./calibrate_lotro.sh` |
-| **Echoes of Angmar** | Double-click `calibrate_eoa.bat` | Run `./calibrate_eoa.sh` |
+| **Retail LOTRO** | Double-click `Windows/calibrate_lotro.bat` | Run `./Linux/calibrate_lotro.sh` |
+| **Echoes of Angmar** | Double-click `Windows/calibrate_eoa.bat` | Run `./Linux/calibrate_eoa.sh` |
 
 <table border="0"> <tr> <td width="60%" valign="top"> <h3>Retail LOTRO</h3> <p>Follow the on-screen visual guide. You will be asked to draw boxes around 5 specific anchors:</p> <ul> <li><b>Step 1 & 2:</b> The Left and Right Leaf icons (Title Bar).</li> <li><b>Step 3:</b> The Top-Left corner of the text body.</li> <li><b>Step 4:</b> The intersection between the left and right panels (defines width).</li> <li><b>Step 5:</b> The Filter icon at the bottom (defines height).</li> <li><b>Step 6:</b> A confirmation box around the actual text.</li> </ul> <p><i>You generally only need to do this once, unless you change your UI skin or game resolution.</i></p> </td> <td width="40%" valign="top" align="center"> <b>Watch Tutorial</b>
 
@@ -164,6 +165,19 @@ Before running the bot for the first time, you must calibrate it to your screen 
 
 Once finished, the program will save a `retail_layout.json` or `echoes_layout.json` file containing the layout information. 
 
+### Static Quest Window Mode
+
+**If template matching doesn't work on your screen resolution or UI skin**, you can use the **Static Quest Window Mode**. This lets you manually draw a bounding box around the quest text area once, and the bot will always read from that fixed location.
+
+1.  Open LOTRO with a quest window visible.
+2.  Run the static calibration:
+    * **Windows:** Double-click **`Windows/calibrate_static.bat`**
+    * **Linux:** Run **`./Linux/calibrate_static.sh`**
+3.  Draw a box around the quest text body area (the main text content, not the title bar).
+4.  The tool will automatically update `config.py` to use static mode with your coordinates.
+
+**To switch back to auto mode:** Edit `config.py` and change `QUEST_WINDOW_MODE = "static"` to `QUEST_WINDOW_MODE = "auto"`.
+
 ---
 
 ## Usage & Modes
@@ -172,8 +186,8 @@ To launch the application, run the file corresponding to your game version.
 
 ### 1. Retail (Live Servers)
 
-* **Windows:** `start_lotro.bat`
-* **Linux:** `./start_lotro.sh`
+* **Windows:** `Windows/start_lotro.bat`
+* **Linux:** `./Linux/start_lotro.sh`
 
 **Mechanism:**
 1. Monitors the game's `Script.log` file to detect when an NPC interaction begins.
@@ -184,8 +198,8 @@ To launch the application, run the file corresponding to your game version.
 
 ### 2. Echoes of Angmar (Classic Mode)
 
-* **Windows:** `start_eoa.bat`
-* **Linux:** `./start_eoa.sh`
+* **Windows:** `Windows/start_eoa.bat`
+* **Linux:** `./Linux/start_eoa.sh`
 
 **Mechanism:**
 1. Open a quest window in-game.
@@ -200,7 +214,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 **How to use:**
 
-1.  Run **`configure.bat`** (or `./configure.sh`).
+1.  Run **`Windows/configure.bat`** (or `./Linux/configure.sh`).
     * *Note: This may ask to install FFmpeg via Winget/package manager on the first run.*
 2.  Switch to the **TTS Tester & Voice Adder** tab.
 3.  **Input Audio:**
@@ -225,6 +239,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 * Run the calibration script again. Ensure you draw tight boxes around the requested icons.
 * If that does not work consistently, run configuration and lower the **Detection Sensitivity (Threshold)** slider (e.g., to 0.4).
+* **Alternative:** Try the **Static Quest Window Mode** (`Windows/calibrate_static.bat` or `./Linux/calibrate_static.sh`) to manually define the quest text area.
 
 **Q: How do I reset the NPC Voice Memory?**
 

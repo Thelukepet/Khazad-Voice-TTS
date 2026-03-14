@@ -11,8 +11,9 @@ import numpy as np
 from PIL import ImageGrab
 
 # --- CONFIGURATION ---
-DATA_DIR = Path(__file__).parent / "data"
-TEMPLATES_DIR = Path(__file__).parent / "templates"
+BASE_DIR = Path(__file__).parent.parent  # Points to project root (not src/)
+DATA_DIR = BASE_DIR / "data"
+TEMPLATES_DIR = BASE_DIR / "templates"
 LAYOUT_FILE = DATA_DIR / "layout_echoes.json"
 
 # Ensure folders exist
@@ -206,7 +207,7 @@ def main():
 
     # 1. Body Calculation
     tx, ty, _, _ = r_tl  # TL Corner Pos
-    bx, by, bw, bh = r_text  # Text Pos
+    bx, by, _, _ = r_text  # Text Pos
     brx, bry, _, _ = r_br  # BR Corner Pos
 
     # Calculate margins relative to the anchors

@@ -19,6 +19,8 @@ from .config import (
     LOG_LEVEL,
     TEMPLATES_DIR,
     TEMPLATE_THRESHOLD,
+    QUEST_WINDOW_MODE,
+    QUEST_WINDOW_BOX,
 )
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -369,7 +371,8 @@ def extract_quest_areas(
         full_img_np: np.ndarray,
 ) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
-    Extracts the Quest Title and Body using the Retail logic (Cascading Dependency).
+    Extracts the Quest Title and Body using the Retail logic.
+    Supports both 'auto' (template matching) and 'static' (fixed box) modes.
 
     Parameters
     ----------
@@ -386,7 +389,39 @@ def extract_quest_areas(
     else:
         img_gray = full_img_np
 
-    # 1. Load User Calibration (Retail)
+    h_img, w_img = img_gray.shape
+
+    # STATIC MODE: Use fixed bounding box from config
+    if QUEST_WINDOW_MODE == "static":
+        box = QUEST_WINDOW_BOX
+        if len(box) != 4:
+            log.warning("QUEST_WINDOW_BOX must be [x, y, width, height]")
+            return None, None
+
+        body_x, body_y, body_w, body_h = box
+        body_x, body_y = int(body_x), int(body_y)
+        body_w, body_h = int(body_w), int(body_h)
+
+        # Validate bounds
+        if body_w <= 0 or body_h <= 0:
+            log.warning("Invalid static box dimensions")
+            return None, None
+
+        if body_x + body_w > w_img:
+            body_w = w_img - body_x
+        if body_y + body_h > h_img:
+            body_h = h_img - body_y
+
+        # Crop body area
+        body_crop = full_img_np[body_y: body_y + body_h, body_x: body_x + body_w]
+        body_pil = Image.fromarray(cv2.cvtColor(body_crop, cv2.COLOR_BGR2RGB))
+
+        # For static mode, we don't extract title (no template matching)
+        # Return None for title, body for OCR
+        log.info(f"📦 Static mode: body box [{body_x}, {body_y}, {body_w}, {body_h}]")
+        return None, body_pil
+
+    # AUTO MODE: Use template matching (original logic)
     tmpls = load_user_templates("retail")
     config = load_user_config("retail")
     offsets = config.get("offsets", {}) if "offsets" in config else config
@@ -394,8 +429,6 @@ def extract_quest_areas(
     if not tmpls or not offsets:
         log.warning("Retail Calibration missing. Please run 'calibrate_retail.bat'.")
         return None, None
-
-    h_img, w_img = img_gray.shape
 
     # 2. Match Start/End Leaves (Title Bar)
     res_s = cv2.matchTemplate(img_gray, tmpls["start"], cv2.TM_CCOEFF_NORMED)

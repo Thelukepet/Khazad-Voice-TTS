@@ -11,8 +11,9 @@ import numpy as np
 from PIL import ImageGrab
 
 # Configuration
-DATA_DIR = Path(__file__).parent / "data"
-TEMPLATES_DIR = Path(__file__).parent / "templates"
+BASE_DIR = Path(__file__).parent.parent  # Points to project root (not src/)
+DATA_DIR = BASE_DIR / "data"
+TEMPLATES_DIR = BASE_DIR / "templates"
 LAYOUT_FILE = DATA_DIR / "layout_retail.json"
 
 # Where we SAVE the user's specific calibration

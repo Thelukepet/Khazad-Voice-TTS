@@ -147,13 +147,15 @@ class NarratorEngine:
         npc_name : str
             The name of the NPC detected from the game logs.
         """
-        # RETAIL MODE (Auto)
+        # RETAIL MODE (Auto/Static)
         log.info(f"Detecting Quest Window for: {npc_name}...")
 
         # 1. Extraction
         title_pil, body_pil = extract_quest_areas(full_screen_np)
 
-        if not title_pil or not body_pil:
+        # In static mode, title_pil may be None (we only extract body)
+        # In auto mode, both should be present
+        if not body_pil:
             log.info("🙈 NPC in log, but valid Quest Window not found.")
             return
 
@@ -167,9 +169,10 @@ class NarratorEngine:
         final_text = full_ocr_text
         source_label = "OCR (Default)"
         source_type = TextSourceType.OCR
+        quest_title = None
 
         # 3. Wiki Logic (Conditional)
-        if ENABLE_WIKI:
+        if ENABLE_WIKI and title_pil is not None:
             # OCR Title only if we need Wiki
             quest_title = run_title_ocr(title_pil)
             log.info(f"📜 Quest Title: '{quest_title}'")
@@ -194,6 +197,8 @@ class NarratorEngine:
                     source_label = f"OCR (Low Wiki Acc: {accuracy:.1f}%)"
             else:
                 source_label = "OCR (No Wiki Data)"
+        elif ENABLE_WIKI and title_pil is None:
+            log.info("⏩ Skipping Wiki Lookup (Static mode - no title)")
         else:
             log.info("⏩ Skipping Wiki Lookup (Config Disabled)")
 
@@ -209,7 +214,7 @@ class NarratorEngine:
                 for i, s in enumerate(final_sentences)
             ],
             npc_name=npc_name,
-            quest_title=quest_title if ENABLE_WIKI else None,
+            quest_title=quest_title,
             source_label=source_label
         )
 
