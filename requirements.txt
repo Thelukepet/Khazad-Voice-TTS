@@ -28,3 +28,7 @@ nltk
 beautifulsoup4
 pynput
 gradio>=4.0.0
+
+# --- Testing ---
+pytest>=8.0.0
+pytest-cov

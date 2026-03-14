@@ -182,14 +182,14 @@ def load_npc_memory(mode: str, backend: str = "lux") -> Dict:
     return {}
 
 
-def save_npc_memory(memory: dict, mode: str, backend: str = "lux"):
+def save_npc_memory(memory: Dict, mode: str, backend: str = "lux"):
     """
     Saves the NPC memory database to disk, specific to the backend.
 
     Parameters
     ----------
-    memory : dict
-        Data to save.
+    memory : Dict
+        Data to save (dict of {npc_key: NPC dict}).
     mode : str
         Game mode.
     backend : str
