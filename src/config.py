@@ -66,3 +66,12 @@ LOG_LEVEL = "INFO"
 ENABLE_WIKI = False  # Set to True to enable Wiki lookups, False for instant OCR
 
 LUX_VOLUME = 0.5
+
+# --- QUEST WINDOW DETECTION MODES ---
+# "auto" = use template matching (requires calibration)
+# "static" = use fixed bounding box coordinates (user-defined)
+QUEST_WINDOW_MODE = "auto"
+
+# For static mode: [x, y, width, height] of quest window body area
+# Set these via calibrate_static.bat after drawing bounding box
+QUEST_WINDOW_BOX = [496, 329, 429, 538]

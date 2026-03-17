@@ -1,4 +1,6 @@
 @echo off
+cd /d "%~dp0.."
+
 title KHAZAD VOICE - RETAIL MODE
 color 0E
 

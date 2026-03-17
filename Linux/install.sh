@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Change working directory to the project root
+cd "$(dirname "$0")/.."
+
 # Set Terminal Title
 echo -ne "\033]0;KHAZAD VOICE TTS - INSTALLER\007"
 

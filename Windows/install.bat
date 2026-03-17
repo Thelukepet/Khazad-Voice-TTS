@@ -1,4 +1,9 @@
 @echo off
+setlocal enabledelayedexpansion
+
+:: Change working directory to the project root so all paths resolve correctly
+cd /d "%~dp0.."
+
 title KHAZAD VOICE TTS - INSTALLER
 color 0E
 

@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Change working directory to the project root
+cd "$(dirname "$0")/.."
+
 # --- 1. Script Setup & Colors ---
 set -e # Exit immediately if a command fails.
 
@@ -12,7 +15,7 @@ echo -ne "\033]0;KHAZAD VOICE - ECHOES OF ANGMAR\007"
 
 # --- 2. Check for Environment ---
 if [ ! -d "venv" ]; then
-    echo -e "${RED}[ERROR]${NC} 'venv' folder not found. Please run './install.sh' first."
+    echo -e "${RED}[ERROR]${NC} 'venv' folder not found. Please run './Linux/install.sh' first."
     read -p "Press Enter to exit..."
     exit 1
 fi
@@ -20,7 +23,7 @@ fi
 # --- 3. Launch Application in Echoes of Angmar Mode ---
 echo -e "${CYAN}[INFO]${NC} Starting Echoes of Angmar Mode..."
 
-# Activate the virtual environment
+# Activate the virtual environment (Removed ../ prefix)
 source venv/bin/activate
 
 # Run the main Python script with the '--mode echoes' argument

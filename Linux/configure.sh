@@ -19,7 +19,7 @@ echo -e "${CYAN}==========================================================${NC}"
 echo ""
 
 # --- Check for Venv ---
-if [ ! -d "venv" ]; then
+if [ ! -d "../venv" ]; then
     echo -e "${RED}[ERROR] Virtual environment not found. Run install.sh first.${NC}"
     echo "Note: Do not copy a 'venv' folder from Windows; it must be recreated on Linux."
     read -rp "Press Enter to exit..."
@@ -77,7 +77,7 @@ echo -e "${GREEN}[OK] FFmpeg found.${NC}"
 # --- 2. LAUNCH APP ---
 echo -e "${GREEN}[INFO] Activating environment...${NC}"
 # Linux venv structure uses /bin/activate, not \Scripts\activate
-source venv/bin/activate
+source ../venv/bin/activate
 
 echo ""
 echo -e "${GREEN}[INFO] Ensuring Lab Dependencies are installed...${NC}"
