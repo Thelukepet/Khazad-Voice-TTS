@@ -1,129 +1,155 @@
 @echo off
-title KHAZAD VOICE TTS - INSTALLER
-color 0E
+setlocal enabledelayedexpansion
 
-echo ==========================================================
-echo                 KHAZAD VOICE TTS
-echo      "Baruk Khazad! The Voice of the Dwarves is upon you!"
-echo ==========================================================
-echo.
+:: ---------------------------------------------------------------------------
+:: KHAZAD VOICE TTS INSTALLER - AUTOMATED INSTALLATION SCRIPT
+::
+:: This script automatically installs all required dependencies for Khazad Voice TTS.
+:: It handles CUDA detection, Python version selection, and dependency installation.
+::
+:: Usage: Run this script from the root directory of the project.
+:: ---------------------------------------------------------------------------
 
-:: --- 1. Tool Checks (Git & Python) ---
+:: Set the project directory
+set "PROJECT_DIR=%CD%"
 
-:: Check for Git
-git --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [ERROR] Git is not installed.
-    echo The Khazad cannot work without their tools.
+:: Check if we're in the correct directory
+if not exist "voice-tts\voice-tts.py" (
+    echo [ERROR] Please run this script from the root directory of the project.
+    echo [ERROR] Expected to find 'voice-tts\voice-tts.py' but it doesn't exist.
     pause
-    exit
+    exit /b 1
 )
 
-:: Try to find Python 3.12 (preferred) or fallback to system python
-set PYTHON_CMD=python
-py -3.12 --version >nul 2>&1
-if %errorlevel%==0 (
-    echo [INFO] Found Python 3.12 via launcher.
-    set PYTHON_CMD=py -3.12
+echo ====================================================================
+echo KHAZAD VOICE TTS - AUTOMATED INSTALLATION
+echo ====================================================================
+echo.
+echo This script will automatically install all required dependencies.
+echo Please wait while we detect your system configuration...
+echo.
+
+:: Step 1: Check if Python is installed
+echo [1/7] Checking for Python installation...
+python --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] Python is not installed. Please install Python 3.10 or 3.11.
+    echo [INFO] Download from: https://www.python.org/downloads/
+    echo [INFO] Make sure to check "Add Python to PATH" during installation.
+    pause
+    exit /b 1
+)
+
+:: Get Python version and path
+for /f "tokens=*" %%i in ('python -c "import sys; print(sys.version)"') do set "PYTHON_VERSION=%%i"
+for /f "tokens=*" %%i in ('python -c "import sys; print(sys.executable)"') do set "PYTHON_PATH=%%i"
+
+echo [INFO] Python detected: !PYTHON_VERSION!
+echo [INFO] Python path: !PYTHON_PATH!
+
+:: Step 2: Detect CUDA availability
+echo [2/7] Detecting CUDA availability...
+set "CUDA_AVAILABLE=0"
+
+:: Check for CUDA by trying to import torch and checking cuda availability
+python -c "import torch; print(torch.cuda.is_available())" >nul 2>&1
+if errorlevel 1 (
+    echo [INFO] CUDA not detected or PyTorch not installed.
+    echo [INFO] Will install CPU version of PyTorch.
+    set "CUDA_AVAILABLE=0"
 ) else (
-    :: Fallback check
-    python --version >nul 2>&1
-    if !errorlevel! neq 0 (
-        echo [ERROR] Python is not installed or not in PATH.
-        echo Please install Python 3.12 and tick "Add to PATH".
-        pause
-        exit
+    python -c "import torch; exit(0 if torch.cuda.is_available() else 1)" >nul 2>&1
+    if errorlevel 1 (
+        echo [INFO] PyTorch installed but CUDA not available.
+        echo [INFO] Will install CPU version of PyTorch.
+        set "CUDA_AVAILABLE=0"
+    ) else (
+        echo [SUCCESS] CUDA detected!
+        set "CUDA_AVAILABLE=1"
     )
 )
 
-echo [INFO] Using Python: %PYTHON_CMD%
-echo.
-echo [1/6] Igniting the Forge (Creating Virtual Environment)...
-%PYTHON_CMD% -m venv venv
-if %errorlevel% neq 0 goto :error
+:: Step 3: Detect NVIDIA GPU
+echo [3/7] Detecting NVIDIA GPU...
+set "NVIDIA_GPU=0"
 
-echo [2/6] Stoking the Fires (Activating Environment)...
-call venv\Scripts\activate
-
-echo [3/6] Sharpening the Axe (Updating Setup Tools)...
-python -m pip install --upgrade pip setuptools wheel
-:: Install NLTK immediately to ensure it is present regardless of later conflicts
-python -m pip install nltk
-
-echo.
-echo ==================================================
-echo           SELECT YOUR GPU DRIVER VERSION
-echo ==================================================
-echo.
-echo [1] CUDA 12.1 (Standard - Recommended for most Nvidia Graphics cards)
-echo [2] CUDA 12.8 (Nightly - For the latest RTX 50-Series)
-echo [3] CPU Only  (Slow - Not recommended for using LuxTTS, will still work with Kokoro)
-echo.
-set /p choice="Enter selection [1, 2, or 3]: "
-
-if "%choice%"=="1" (
-    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
-) else if "%choice%"=="2" (
-    pip install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+:: Check for NVIDIA GPU using nvidia-smi or torch
+python -c "import torch; exit(0 if torch.cuda.is_available() else 1)" >nul 2>&1
+if errorlevel 1 (
+    echo [INFO] No NVIDIA GPU detected.
+    echo [INFO] Will use CPU processing.
+    set "NVIDIA_GPU=0"
 ) else (
-    pip install torch torchaudio
-)
-if %errorlevel% neq 0 goto :error
-
-:: --- 3. LuxTTS Setup ---
-echo.
-echo [4/6] Summoning the Voice (Setting up LuxTTS)...
-
-if not exist "LuxTTS" (
-    echo [INFO] LuxTTS not found. Cloning the 'main' branch...
-    :: Added -b main to ensure we get the right branch immediately
-    git clone -b main https://github.com/Thelukepet/LuxTTS.git
-) else (
-    echo [INFO] LuxTTS exists. Updating the scrolls...
-    cd LuxTTS
-    :: Fetch all updates and force-switch to main if it's currently on master
-    git fetch origin
-    git checkout main
-    git pull origin main
-    cd ..
+    echo [SUCCESS] NVIDIA GPU detected!
+    set "NVIDIA_GPU=1"
 )
 
-echo Installing LuxTTS dependencies...
-:: We use --no-deps for torch to prevent it from overwriting the CUDA version we just installed
-pip install -r LuxTTS\requirements.txt
-if %errorlevel% neq 0 goto :error
+:: Step 4: Select requirements file
+echo [4/7] Selecting requirements file...
+set "REQ_FILE=requirements.txt"
 
-echo Installing LuxTTS package...
-pip install -e LuxTTS
-if %errorlevel% neq 0 goto :error
+if "!CUDA_AVAILABLE!"=="1" (
+    echo [INFO] CUDA available.
+    if "!NVIDIA_GPU!"=="1" (
+        echo [INFO] NVIDIA GPU detected.
+        if exist "requirements_nvidia.txt" (
+            set "REQ_FILE=requirements_nvidia.txt"
+            echo [INFO] Using NVIDIA requirements.
+        ) else (
+            set "REQ_FILE=requirements_cuda.txt"
+            echo [INFO] Using CUDA requirements.
+        )
+    ) else (
+        set "REQ_FILE=requirements_cuda.txt"
+        echo [INFO] Using CUDA requirements.
+    )
+) else (
+    echo [INFO] No CUDA detected.
+    set "REQ_FILE=requirements.txt"
+    echo [INFO] Using standard requirements.
+)
 
-:: --- 4. Main Requirements ---
-echo.
-echo [5/6] Finalizing the Craft (Installing Main Requirements)...
-pip install -r requirements.txt
-if %errorlevel% neq 0 (
+:: Step 5: Install NLTK (pre-install to avoid version conflicts)
+echo [5/7] Installing NLTK (pre-install)...
+"%PYTHON%" -m pip install nltk==3.9.1 -q
+if errorlevel 1 (
+    echo [WARNING] NLTK installation failed.
+    echo [INFO] This is usually a version conflict. NLTK was pre-installed to ensure safety.
+) else (
+    echo [SUCCESS] NLTK installed successfully.
+)
+
+:: Step 6: Install main requirements
+echo [6/7] Installing main requirements...
+"%PYTHON%" -m pip install -r "%CD%\requirements.txt" -q
+if errorlevel 1 (
     echo [WARNING] Main requirements reported an error.
-    echo This is usually a version conflict. NLTK was pre-installed to ensure safety.
+    echo [INFO] This is usually a version conflict. NLTK was pre-installed to ensure safety.
+    echo [INFO] Please check the requirements.txt file and install manually if needed.
+) else (
+    echo [SUCCESS] Main requirements installed successfully.
 )
 
-:: --- 5. NLTK Data Download ---
-echo.
-echo [6/6] Teaching the Runes (Downloading NLTK Data)...
-python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger')"
+:: Step 7: Install CUDA-specific requirements (if applicable)
+if "!CUDA_AVAILABLE!"=="1" (
+    echo [7/7] Installing CUDA-specific requirements...
+    "%PYTHON%" -m pip install -r "%CD%\requirements_cuda.txt" -q
+    if errorlevel 1 (
+        echo [WARNING] CUDA requirements reported an error.
+        echo [INFO] This is usually a version conflict. Please check the requirements_cuda.txt file.
+        echo [INFO] You may need to install CUDA-specific packages manually.
+    ) else (
+        echo [SUCCESS] CUDA requirements installed successfully.
+    )
+) else (
+    echo [7/7] Skipping CUDA-specific requirements (CUDA not available).
+)
 
+:: Installation complete
 echo.
-echo ==================================================
-echo           INSTALLATION COMPLETE!
-echo ==================================================
-echo The Khazad Voice TTS is ready. Follow the calibrate instructions on the github page.
-pause
-exit /b
-
-:error
+echo ====================================================================
+echo INSTALLATION COMPLETE!
+echo ====================================================================
 echo.
-echo ==================================================
-echo [ERROR] The installation failed!
-echo Check the error message above.
-echo ==================================================
-pause
-exit /b
+echo Summary:
+echo -
