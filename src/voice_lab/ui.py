@@ -158,11 +158,11 @@ def create_ui() -> gr.Blocks:
                         with gr.Group(visible=True) as grp_library:
                             lib_category = gr.Dropdown(
                                 choices=lib.get_library_categories(),
-                                label="Category",
+                                label="STEP 1: Pick a voice category",
                                 interactive=True,
                             )
                             lib_sample = gr.Dropdown(
-                                choices=[], label="Select Sample File", interactive=True
+                                choices=[], label="STEP 2: Select Sample File", interactive=True
                             )
                             btn_load_lib = gr.Button("Load Voice Data", size="sm")
 
@@ -221,11 +221,11 @@ def create_ui() -> gr.Blocks:
                                 label="Test Steps",
                             )
 
-                        test_btn = gr.Button("Generate Preview (first generated result will take longer because it loads the model)", variant="primary")
+                        test_btn = gr.Button("STEP 3: Generate Preview (first generated result will take longer)", variant="primary")
                         audio_output = gr.Audio(label="Result")
                         status_msg = gr.Markdown("")
 
-                gr.Markdown("### Save to Library")
+                gr.Markdown("### STEP 4: Save to Library")
                 with gr.Row():
                     folder_dropdown = gr.Dropdown(
                         choices=lib.get_voice_folders(),

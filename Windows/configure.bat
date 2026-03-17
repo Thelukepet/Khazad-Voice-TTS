@@ -1,9 +1,8 @@
 @echo off
+cd /d "%~dp0.."
+
 title KHAZAD VOICE - CONFIGURATION & LAB
 color 0B
-
-:: Ensure we run from the script folder
-cd /d "%~dp0"
 
 echo ==========================================================
 echo              KHAZAD VOICE CONFIGURATION
@@ -11,7 +10,7 @@ echo    "Forge your settings. Config your settings for CPU or GPU."
 echo ==========================================================
 echo.
 
-if not exist ..\venv (
+if not exist venv (
     echo [ERROR] Virtual environment not found. Run install.bat first.
     pause
     exit
@@ -26,7 +25,7 @@ if %errorlevel% neq 0 (
     echo The Voice Lab requires FFmpeg to process audio files.
     echo.
     set /p install_choice="Install FFmpeg automatically via Winget? (y/n): "
-    if /i "%install_choice%"=="y" (
+    if /i "!install_choice!"=="y" (
         winget install -e --id Gyan.FFmpeg
         if %errorlevel% neq 0 (
             echo [ERROR] Install failed. Please install FFmpeg manually.
@@ -48,7 +47,7 @@ echo [OK] FFmpeg found.
 
 :: --- 2. LAUNCH APP ---
 echo [INFO] Activating environment...
-call ..\venv\Scripts\activate
+call venv\Scripts\activate
 
 echo.
 echo [INFO] Ensuring Lab Dependencies are installed...
