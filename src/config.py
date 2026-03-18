@@ -18,6 +18,7 @@ MISSING_TEXT_INDICATOR = "There is currently no text in this page"
 # --- DETECTION SETTINGS ---
 # Thresholds for template matching
 TEMPLATE_THRESHOLD = 0.5
+STATIC_TEMPLATE_THRESHOLD = 0.7
 
 # Offsets for text box extraction (Cascading Logic)
 CORNER_OFFSET_X = 5

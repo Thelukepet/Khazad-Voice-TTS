@@ -19,6 +19,7 @@ from .config import (
     LOG_LEVEL,
     TEMPLATES_DIR,
     TEMPLATE_THRESHOLD,
+    STATIC_TEMPLATE_THRESHOLD,
     QUEST_WINDOW_MODE,
     QUEST_WINDOW_BOX,
 )
@@ -398,27 +399,49 @@ def extract_quest_areas(
             log.warning("QUEST_WINDOW_BOX must be [x, y, width, height]")
             return None, None
 
-        body_x, body_y, body_w, body_h = box
-        body_x, body_y = int(body_x), int(body_y)
-        body_w, body_h = int(body_w), int(body_h)
+        # Note the exact casing to avoid File Not Found errors on Linux
+        templates_to_check = [
+            "quest.png",  #
+            "questIcon1.PNG",  #
+            "questIcon2.PNG",  #
+            "nextObjective.PNG"  #
+        ]
 
-        # Validate bounds
-        if body_w <= 0 or body_h <= 0:
-            log.warning("Invalid static box dimensions")
+        window_detected = False
+        for template_name in templates_to_check:
+            template_file = TEMPLATES_DIR / template_name
+
+            if not template_file.exists():
+                continue
+
+            template = cv2.imread(str(template_file), cv2.IMREAD_GRAYSCALE)
+            if template is None:
+                continue
+
+            # Perform pattern matching
+            res = cv2.matchTemplate(img_gray, template, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, _ = cv2.minMaxLoc(res)
+
+            if max_val >= STATIC_TEMPLATE_THRESHOLD:  # Higher default value to 0.7
+                window_detected = True
+                log.info(f"✅ Static mode: Quest window detected via {template_name}")
+                break
+
+        if not window_detected:
+            log.info("🙈 Static mode: Quest window not detected. Returning None.")
             return None, None
+        # ----------------------------------------
 
-        if body_x + body_w > w_img:
-            body_w = w_img - body_x
-        if body_y + body_h > h_img:
-            body_h = h_img - body_y
+        # Proceed with extracting the defined static box
+        body_x, body_y, body_w, body_h = box
 
-        # Crop body area
-        body_crop = full_img_np[body_y: body_y + body_h, body_x: body_x + body_w]
+        # Crop the body area
+        body_crop = full_img_np[body_y:body_y + body_h, body_x:body_x + body_w]
         body_pil = Image.fromarray(cv2.cvtColor(body_crop, cv2.COLOR_BGR2RGB))
 
-        # For static mode, we don't extract title (no template matching)
-        # Return None for title, body for OCR
         log.info(f"📦 Static mode: body box [{body_x}, {body_y}, {body_w}, {body_h}]")
+
+        # In static mode, title is usually not extracted via templates
         return None, body_pil
 
     # AUTO MODE: Use template matching (original logic)
