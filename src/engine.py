@@ -1,26 +1,28 @@
 # Imports
 
 # > Standard Library
-import time
 import queue
 import threading
+import time
 from datetime import datetime
 
 # > Third Party Dependencies
 import cv2
 import nltk
 
-# > Local Dependencies
-from .utils import setup_logger, save_npc_memory, load_npc_memory, extract_quest_areas
-from .ocr import run_ocr, run_name_ocr, run_title_ocr
 from .audio import play_audio, stop_audio
-from .models import NPC, QuestText, QuestTextLine, VoiceSelection, TextSourceType
+from .models import NPC, QuestText, QuestTextLine, TextSourceType, VoiceSelection
+from .ocr import run_name_ocr, run_ocr, run_title_ocr
+
+# > Local Dependencies
+from .utils import extract_quest_areas, load_npc_memory, save_npc_memory, setup_logger
 
 try:
-    from .config import DEFAULT_VOLUME, LUX_VOLUME, ENABLE_WIKI
+    from .config import DEFAULT_VOLUME, ENABLE_WIKI, LUX_VOLUME
 except ImportError:
     # Fallback if config hasn't been updated by the tool yet
     from .config import DEFAULT_VOLUME, ENABLE_WIKI
+
     LUX_VOLUME = DEFAULT_VOLUME
 from . import wiki
 
@@ -74,6 +76,9 @@ class NarratorEngine:
 
         self.audio_queue = queue.Queue()
         self.stop_event = threading.Event()
+        self._suppress_until = (
+            0.0  # cooldown timestamp to prevent auto-retrigger after stop
+        )
 
     def stop(self):
         """
@@ -90,6 +95,10 @@ class NarratorEngine:
         # 3. Wipe the pending queue
         with self.audio_queue.mutex:
             self.audio_queue.queue.clear()
+
+        # 4. Suppress auto-retrigger for 2 seconds (prevents watcher from
+        #    immediately re-firing after F12 wipe)
+        self._suppress_until = time.time() + 2.0
 
         log.info("🛑 Audio queue wiped and playback stopped.")
 
@@ -116,8 +125,10 @@ class NarratorEngine:
         quest_text = QuestText(
             timestamp=datetime.now(),
             raw_ocr_text=" ".join(sentences),
-            lines=[QuestTextLine(text=s, line_number=i) for i, s in enumerate(sentences)],
-            source_label="OCR"
+            lines=[
+                QuestTextLine(text=s, line_number=i) for i, s in enumerate(sentences)
+            ],
+            source_label="OCR",
         )
 
         log.info("Reading NPC Name...")
@@ -210,12 +221,17 @@ class NarratorEngine:
             timestamp=datetime.now(),
             raw_ocr_text=full_ocr_text,
             lines=[
-                QuestTextLine(text=s, line_number=i, source=source_type, confidence=accuracy if source_type == TextSourceType.WIKI else None)
+                QuestTextLine(
+                    text=s,
+                    line_number=i,
+                    source=source_type,
+                    confidence=accuracy if source_type == TextSourceType.WIKI else None,
+                )
                 for i, s in enumerate(final_sentences)
             ],
             npc_name=npc_name,
             quest_title=quest_title,
-            source_label=source_label
+            source_label=source_label,
         )
 
         # 5. Playback
@@ -252,8 +268,14 @@ class NarratorEngine:
 
             # If we are on Kokoro (CPU) but found a Lux ID (contains '|'), force a re-roll.
             if self.backend_id == "kokoro" and "|" in voice_id:
-                log.warning(f"⚠️ Found invalid Lux ID '{voice_id}' for Kokoro backend. Re-assigning voice.")
-            elif self.backend_id == "lux" and "|" not in voice_id and voice_id != "default":
+                log.warning(
+                    f"⚠️ Found invalid Lux ID '{voice_id}' for Kokoro backend. Re-assigning voice."
+                )
+            elif (
+                self.backend_id == "lux"
+                and "|" not in voice_id
+                and voice_id != "default"
+            ):
                 # If on Lux but found a Kokoro ID (no pipe), allow re-roll logic (optional)
                 pass
             else:
@@ -266,7 +288,7 @@ class NarratorEngine:
                     npc_name=matched_name,
                     race=race,
                     gender=gender,
-                    is_default=is_default
+                    is_default=is_default,
                 )
 
         # New NPC - look up in database
@@ -292,7 +314,7 @@ class NarratorEngine:
             npc_name=matched_name,
             race=race,
             gender=gender,
-            is_default=is_default
+            is_default=is_default,
         )
 
     def _start_streaming(self, quest_text: QuestText, voice_selection: VoiceSelection):
@@ -315,6 +337,11 @@ class NarratorEngine:
         # implemented, quoted text will use NPC voice and non-quoted text
         # will use a separate narrator voice.
         """
+        # Guard: if stop was recently requested, suppress this auto-trigger
+        if time.time() < self._suppress_until:
+            log.info("⏸️ Suppressed auto-trigger (recent F12 stop)")
+            return
+
         # Reset stop event for new playback
         self.stop_event.clear()
 
@@ -329,19 +356,27 @@ class NarratorEngine:
             if self.backend_id == "lux":
                 chunk_size = 2
                 for i in range(0, len(clean_lines), chunk_size):
-                    if self.stop_event.is_set(): return
-                    batch = clean_lines[i: i + chunk_size]
+                    if self.stop_event.is_set():
+                        return
+                    batch = clean_lines[i : i + chunk_size]
                     full_text = " ".join(line.text for line in batch)
                     if full_text:
                         audio = self.tts.generate(full_text, voice_id)
-                        if self.stop_event.is_set(): return
-                        self.audio_queue.put((full_text, audio, self.tts.samplerate, batch))
+                        if self.stop_event.is_set():
+                            return
+                        self.audio_queue.put(
+                            (full_text, audio, self.tts.samplerate, batch)
+                        )
             else:
                 for line in clean_lines:
-                    if self.stop_event.is_set(): return
+                    if self.stop_event.is_set():
+                        return
                     audio = self.tts.generate(line.text, voice_id)
-                    if self.stop_event.is_set(): return
-                    self.audio_queue.put((line.text, audio, self.tts.samplerate, [line]))
+                    if self.stop_event.is_set():
+                        return
+                    self.audio_queue.put(
+                        (line.text, audio, self.tts.samplerate, [line])
+                    )
 
             self.audio_queue.put(None)
 

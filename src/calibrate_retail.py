@@ -1,8 +1,8 @@
 # Imports
 
 # > Standard Library
-import time
 import json
+import time
 from pathlib import Path
 
 # > Third-party Libraries
@@ -15,6 +15,7 @@ BASE_DIR = Path(__file__).parent.parent  # Points to project root (not src/)
 DATA_DIR = BASE_DIR / "data"
 TEMPLATES_DIR = BASE_DIR / "templates"
 LAYOUT_FILE = DATA_DIR / "layout_retail.json"
+CONFIG_FILE = BASE_DIR / "src" / "config.py"
 
 # Where we SAVE the user's specific calibration
 USER_PATHS = {
@@ -294,9 +295,29 @@ def main():
     with open(LAYOUT_FILE, "w") as f:
         json.dump(layout_data, f, indent=4)
 
+    try:
+        config_lines = CONFIG_FILE.read_text(encoding="utf-8").splitlines(keepends=True)
+        updated = []
+        for line in config_lines:
+            stripped = line.strip()
+            if stripped.startswith("QUEST_WINDOW_MODE"):
+                # Preserve any inline comment
+                comment = ""
+                if "#" in line:
+                    comment = "  # Auto-detected after retail calibration"
+                updated.append(f'QUEST_WINDOW_MODE = "auto"{comment}\n')
+            else:
+                updated.append(line)
+        CONFIG_FILE.write_text("".join(updated), encoding="utf-8")
+        print("   ✅ Config updated: QUEST_WINDOW_MODE = auto")
+    except Exception as exc:
+        print(f"   ⚠️  Could not update config.py: {exc}")
+        print("   → Please set QUEST_WINDOW_MODE = 'auto' manually in src/config.py")
+
     print("\n=================================================")
     print("✅ CALIBRATION SUCCESS!")
     print(f"Saved to: {LAYOUT_FILE}")
+    print("Mode switched to AUTO — quest window can now be moved freely.")
     print("=================================================")
 
 

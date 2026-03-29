@@ -1,12 +1,13 @@
 # Imports
 
 # > Standard Library
-import os
+import ctypes
 import json
-import time
 import logging
+import os
+import time
 from pathlib import Path
-from typing import List, Union, Tuple, Optional, Any, Dict
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # > Third-party Libraries
 import cv2
@@ -15,13 +16,16 @@ from PIL import Image, ImageGrab
 
 # > Local Dependencies
 from .config import (
+    BASE_RESOLUTION,
     DATA_DIR,
+    DEBUG_TEMPLATE_SCORES,
+    DEFAULT_ECHOES_OFFSETS,
+    DEFAULT_RETAIL_OFFSETS,
     LOG_LEVEL,
-    TEMPLATES_DIR,
-    TEMPLATE_THRESHOLD,
-    STATIC_TEMPLATE_THRESHOLD,
-    QUEST_WINDOW_MODE,
     QUEST_WINDOW_BOX,
+    QUEST_WINDOW_MODE,
+    TEMPLATE_THRESHOLD,
+    TEMPLATES_DIR,
 )
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -29,6 +33,194 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # --- CONFIGURATION FILES ---
 LAYOUT_RETAIL = DATA_DIR / "layout_retail.json"
 LAYOUT_ECHOES = DATA_DIR / "layout_echoes.json"
+
+# --- RESOLUTION DETECTION & TEMPLATE SCALING ---
+
+# Cached resolution values (populated on first call to get_screen_resolution)
+_cached_resolution: Optional[Tuple[int, int]] = None
+_cached_scale_factor: Optional[float] = None
+
+
+def get_screen_resolution() -> Tuple[int, int]:
+    """
+    Returns the actual screen resolution in pixels,
+    accounting for Windows DPI scaling.
+
+    Uses ctypes to call GetDeviceCaps for the physical resolution,
+    falling back to PIL/ImageGrab if ctypes is unavailable.
+    """
+    global _cached_resolution
+    if _cached_resolution is not None:
+        return _cached_resolution
+
+    try:
+        import ctypes.wintypes
+
+        hdc = ctypes.windll.user32.GetDC(0)
+        # LOGPIXELSX = 88, LOGPIXELSY = 90 — DPI in each axis
+        HORZRES = ctypes.windll.gdi32.GetDeviceCaps(hdc, 8)  # Desktop width
+        VERTRES = ctypes.windll.gdi32.GetDeviceCaps(hdc, 10)  # Desktop height
+        LOGPIXELSX = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)
+        ctypes.windll.user32.ReleaseDC(0, hdc)
+
+        if LOGPIXELSX > 0 and HORZRES > 0:
+            # Scale virtual pixels by DPI ratio to get physical pixels
+            _cached_resolution = (
+                int(HORZRES * LOGPIXELSX / 96),
+                int(VERTRES * LOGPIXELSX / 96),
+            )
+            log.info(
+                f"🖥️ Physical resolution: {_cached_resolution[0]}x{_cached_resolution[1]} "
+                f"(DPI scale: {LOGPIXELSX / 96:.2f}x)"
+            )
+            return _cached_resolution
+    except Exception:
+        pass
+
+    # Fallback: use PIL screen size
+    try:
+        from PIL import ImageGrab
+
+        img = ImageGrab.grab()
+        _cached_resolution = (img.size[0], img.size[1])
+        log.info(
+            f"🖥️ Resolution (PIL fallback): {_cached_resolution[0]}x{_cached_resolution[1]}"
+        )
+        return _cached_resolution
+    except Exception:
+        pass
+
+    # Last resort: assume base resolution
+    _cached_resolution = BASE_RESOLUTION
+    log.warning(
+        f"⚠️ Could not detect resolution, assuming {BASE_RESOLUTION[0]}x{BASE_RESOLUTION[1]}"
+    )
+    return _cached_resolution
+
+
+def get_scale_factor() -> float:
+    """
+    Returns the scale factor relative to the base resolution (2560x1440).
+
+    LOTRO's UI scales linearly with resolution, so we use width ratio:
+        1080p -> 1920/2560 = 0.75
+        1440p -> 2560/2560 = 1.0
+        4K     -> 3840/2560 = 1.5
+    """
+    global _cached_scale_factor
+    if _cached_scale_factor is not None:
+        return _cached_scale_factor
+
+    res = get_screen_resolution()
+    _cached_scale_factor = res[0] / BASE_RESOLUTION[0]
+    log.info(
+        f"📏 Scale factor: {_cached_scale_factor:.3f}x (base: {BASE_RESOLUTION[0]}x{BASE_RESOLUTION[1]})"
+    )
+    return _cached_scale_factor
+
+
+def load_scaled_template(
+    template_path: Path,
+    target_resolution: Optional[Tuple[int, int]] = None,
+) -> np.ndarray:
+    """
+    Loads a template image and scales it to match the target resolution.
+
+    Parameters
+    ----------
+    template_path : Path
+        Path to the template image file.
+    target_resolution : tuple, optional
+        Target (width, height). Defaults to detected screen resolution.
+
+    Returns
+    -------
+    np.ndarray
+        Grayscale template, scaled to the target resolution.
+    """
+    if target_resolution is None:
+        target_resolution = get_screen_resolution()
+
+    template = cv2.imread(str(template_path), cv2.IMREAD_GRAYSCALE)
+    if template is None:
+        raise FileNotFoundError(f"Template not found: {template_path}")
+
+    scale = target_resolution[0] / BASE_RESOLUTION[0]
+
+    # Skip scaling if we're already at (or very close to) base resolution
+    if abs(scale - 1.0) < 0.01:
+        return template
+
+    h, w = template.shape[:2]
+    new_w = max(5, int(w * scale))
+    new_h = max(5, int(h * scale))
+
+    # Use INTER_AREA for downscale (anti-aliasing), INTER_CUBIC for upscale
+    interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC
+    scaled = cv2.resize(template, (new_w, new_h), interpolation=interpolation)
+
+    log.debug(
+        f"📐 Scaled template {template_path.name}: "
+        f"{w}x{h} -> {new_w}x{new_h} (scale: {scale:.3f})"
+    )
+    return scaled
+
+
+def match_template_fallback(
+    img_gray: np.ndarray,
+    template: np.ndarray,
+    base_threshold: float = 0.5,
+) -> Tuple[float, int, int]:
+    """
+    Tries template matching at multiple scale factors around the computed one.
+    Returns the best match found.
+
+    Used as a safety net when the initial single-scale match fails.
+    Scale sweep: [0.85, 0.90, 0.95, 1.00, 1.05, 1.10, 1.15]
+    Threshold relaxes by 0.05 each iteration.
+
+    Parameters
+    ----------
+    img_gray : np.ndarray
+        Source grayscale image.
+    template : np.ndarray
+        Template image (already scaled to detected resolution).
+    base_threshold : float
+        Starting match threshold.
+
+    Returns
+    -------
+    Tuple[float, int, int]
+        (max_val, match_x, match_y). Returns (0.0, 0, 0) if nothing matches.
+    """
+    h, w = template.shape[:2]
+    img_h, img_w = img_gray.shape
+
+    best_val = 0.0
+    best_x, best_y = 0, 0
+
+    for scale in [0.85, 0.90, 0.95, 1.00, 1.05, 1.10, 1.15]:
+        new_w = max(5, int(w * scale))
+        new_h = max(5, int(h * scale))
+
+        if new_w > img_w or new_h > img_h:
+            continue
+
+        interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC
+        scaled_tmpl = cv2.resize(template, (new_w, new_h), interpolation=interpolation)
+
+        result = cv2.matchTemplate(img_gray, scaled_tmpl, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+
+        if max_val > best_val:
+            best_val = max_val
+            best_x, best_y = max_loc
+
+        # Early exit if we already have a strong match
+        if max_val >= base_threshold:
+            break
+
+    return best_val, best_x, best_y
 
 
 def setup_logger(name: str) -> logging.Logger:
@@ -103,6 +295,7 @@ def get_memory_file_path(mode: str, backend: str) -> Path:
         The full path to the json file.
     """
     return DATA_DIR / f"npc_memory_{mode.lower()}_{backend.lower()}.json"
+
 
 def load_coords(mode: str) -> Dict:
     """
@@ -225,7 +418,13 @@ def get_layout_file(mode: str) -> Path:
 
 def load_user_templates(mode: str = "retail") -> Optional[Dict]:
     """
-    Loads the user-calibrated templates from disk specific to the game mode.
+    Loads calibrated templates for the given game mode.
+
+    Resolution-aware logic:
+    1. If user-calibrated templates (user_*.png / echoes_*.png) exist → load
+       them as-is (they were captured at the user's native resolution).
+    2. If user templates are missing → load the default templates shipped
+       with the app and auto-scale them to the detected screen resolution.
 
     Parameters
     ----------
@@ -235,33 +434,70 @@ def load_user_templates(mode: str = "retail") -> Optional[Dict]:
     Returns
     -------
     dict or None
-        Dictionary of {key: cv2_image} or None if missing.
+        Dictionary of {key: cv2_image} or None if both sources are missing.
     """
-    templates = {}
-
+    # Mapping: template key → user filename prefix and default filename
     if mode == "retail":
         keys = ["start", "end", "corner", "intersect", "icon"]
-        prefix = "user"
+        user_prefix = "user"
+        default_files = {
+            "start": "start_leaf.png",
+            "end": "end_leaf.png",
+            "corner": "body_upper_left_corner.png",
+            "intersect": "intersection.png",
+            "icon": "filter_icon.png",
+        }
     else:
         keys = ["left_plant", "right_plant", "tl_corner", "br_corner"]
-        prefix = "echoes"
+        user_prefix = "echoes"
+        default_files = {
+            "left_plant": "example_echoes_left_plant.png",
+            "right_plant": "example_echoes_right_plant.png",
+            "tl_corner": "example_echoes_tl_corner.png",
+            "br_corner": "example_echoes_br_corner.png",
+        }
 
-    missing = False
+    # --- Step 1: Try loading user-calibrated templates ---
+    templates = {}
+    all_present = True
     for key in keys:
-        path = TEMPLATES_DIR / f"{prefix}_{key}.png"
+        path = TEMPLATES_DIR / f"{user_prefix}_{key}.png"
         if path.exists():
             templates[key] = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
         else:
-            missing = True
+            all_present = False
 
-    if missing:
-        return None
+    if all_present:
+        log.debug(f"📐 Using user-calibrated templates for {mode}")
+        return templates
+
+    # --- Step 2: Fall back to auto-scaled default templates ---
+    log.info(
+        f"📐 User templates missing for {mode} — "
+        f"auto-scaling defaults to detected resolution"
+    )
+    templates = {}
+    for key in keys:
+        default_path = TEMPLATES_DIR / default_files[key]
+        if not default_path.exists():
+            log.warning(f"⚠️ Default template missing: {default_path.name}")
+            return None
+        try:
+            templates[key] = load_scaled_template(default_path)
+        except FileNotFoundError:
+            log.warning(f"⚠️ Could not load default template: {default_path.name}")
+            return None
+
+    log.info(f"📐 Loaded {len(templates)} auto-scaled default templates for {mode}")
     return templates
 
 
 def load_user_config(mode: str) -> Dict:
     """
     Loads the calibrated configuration (offsets/NPC box) from the JSON file.
+
+    If the layout file is missing, returns default offsets scaled to the
+    current screen resolution so auto-detection works out-of-the-box.
 
     Parameters
     ----------
@@ -271,16 +507,44 @@ def load_user_config(mode: str) -> Dict:
     Returns
     -------
     dict
-        User configuration data.
+        User configuration data with 'offsets' key.
     """
     path = get_layout_file(mode)
     if path.exists():
         try:
             with open(path, "r") as f:
-                return json.load(f)
+                config = json.load(f)
+                if "offsets" in config:
+                    # Scale offsets if the layout was calibrated at a different
+                    # resolution than the current screen (e.g. calibrated at
+                    # 1440p but now running at 1080p or 4K).
+                    stored_res = config.get("resolution", "")
+                    if stored_res:
+                        try:
+                            stored_w = int(stored_res.split("x")[0])
+                            current_w = get_screen_resolution()[0]
+                            if stored_w != current_w:
+                                ratio = current_w / stored_w
+                                config["offsets"] = {
+                                    k: int(v * ratio)
+                                    for k, v in config["offsets"].items()
+                                }
+                                log.info(
+                                    f"📐 Scaled {mode} offsets by {ratio:.3f}x "
+                                    f"(layout was {stored_res})"
+                                )
+                        except (ValueError, IndexError):
+                            pass
+                    return config
         except json.JSONDecodeError:
             pass
-    return {}
+
+    # No layout file or missing offsets — return scaled defaults
+    defaults = DEFAULT_RETAIL_OFFSETS if mode == "retail" else DEFAULT_ECHOES_OFFSETS
+    scale = get_scale_factor()
+    scaled = {k: int(v * scale) for k, v in defaults.items()}
+    log.info(f"📐 No layout file for {mode} — using scaled default offsets: {scaled}")
+    return {"offsets": scaled}
 
 
 # --- LOG WATCHER (Retail Only) ---
@@ -329,11 +593,12 @@ def watch_npc_file(callback, log_path: str, ready_event=None):
         except Exception as exc:
             watcher_log.exception(f"Watcher error: {exc}")
 
+
 # --- TEMPLATE MATCHING UTILS ---
 
 
 def match_template_in_roi(
-        img_gray: np.ndarray, template: np.ndarray, x: int, y: int, w: int, h: int
+    img_gray: np.ndarray, template: np.ndarray, x: int, y: int, w: int, h: int
 ) -> Tuple[float, int, int]:
     """
     Performs template matching within a specific Region of Interest (ROI).
@@ -359,7 +624,7 @@ def match_template_in_roi(
     if w < template.shape[1] or h < template.shape[0]:
         return 0.0, 0, 0
 
-    roi = img_gray[y: y + h, x: x + w]
+    roi = img_gray[y : y + h, x : x + w]
     res = cv2.matchTemplate(roi, template, cv2.TM_CCOEFF_NORMED)
     _, max_val, _, max_loc = cv2.minMaxLoc(res)
     return max_val, x + max_loc[0], y + max_loc[1]
@@ -368,97 +633,53 @@ def match_template_in_roi(
 # --- RETAIL EXTRACTION LOGIC ---
 
 
-def extract_quest_areas(
-        full_img_np: np.ndarray,
+def _extract_retail_auto(
+    img_gray: np.ndarray,
+    full_img_np: np.ndarray,
+    tmpls: Dict,
+    offsets: Dict,
+    h_img: int,
+    w_img: int,
 ) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
-    Extracts the Quest Title and Body using the Retail logic.
-    Supports both 'auto' (template matching) and 'static' (fixed box) modes.
+    Core auto-detection logic for retail quest window extraction.
+
+    Uses template matching to find the quest window at any screen position,
+    then applies layout offsets to extract the title and body text areas.
+
+    Called by both auto mode and static mode (when templates are available)
+    to avoid code duplication and ensure consistent behavior.
 
     Parameters
     ----------
+    img_gray : np.ndarray
+        Full screenshot in grayscale.
     full_img_np : np.ndarray
-        Full screen screenshot in numpy array format (BGR).
+        Full screenshot in BGR format.
+    tmpls : dict
+        Template images dict from load_user_templates().
+    offsets : dict
+        Layout offsets dict from load_user_config().
+    h_img, w_img : int
+        Screen dimensions.
 
     Returns
     -------
-    Tuple[Image, Image]
+    Tuple[Image, Image] or Tuple[None, None]
         (Title Image, Body Image) or (None, None) if detection fails.
     """
-    if len(full_img_np.shape) == 3:
-        img_gray = cv2.cvtColor(full_img_np, cv2.COLOR_BGR2GRAY)
-    else:
-        img_gray = full_img_np
-
-    h_img, w_img = img_gray.shape
-
-    # STATIC MODE: Use fixed bounding box from config
-    if QUEST_WINDOW_MODE == "static":
-        box = QUEST_WINDOW_BOX
-        if len(box) != 4:
-            log.warning("QUEST_WINDOW_BOX must be [x, y, width, height]")
-            return None, None
-
-        # Note the exact casing to avoid File Not Found errors on Linux
-        templates_to_check = [
-            "quest.png",  #
-            "questIcon1.PNG",  #
-            "questIcon2.PNG",  #
-            "nextObjective.PNG"  #
-        ]
-
-        window_detected = False
-        for template_name in templates_to_check:
-            template_file = TEMPLATES_DIR / template_name
-
-            if not template_file.exists():
-                continue
-
-            template = cv2.imread(str(template_file), cv2.IMREAD_GRAYSCALE)
-            if template is None:
-                continue
-
-            # Perform pattern matching
-            res = cv2.matchTemplate(img_gray, template, cv2.TM_CCOEFF_NORMED)
-            _, max_val, _, _ = cv2.minMaxLoc(res)
-
-            if max_val >= STATIC_TEMPLATE_THRESHOLD:  # Higher default value to 0.7
-                window_detected = True
-                log.info(f"✅ Static mode: Quest window detected via {template_name}")
-                break
-
-        if not window_detected:
-            log.info("🙈 Static mode: Quest window not detected. Returning None.")
-            return None, None
-        # ----------------------------------------
-
-        # Proceed with extracting the defined static box
-        body_x, body_y, body_w, body_h = box
-
-        # Crop the body area
-        body_crop = full_img_np[body_y:body_y + body_h, body_x:body_x + body_w]
-        body_pil = Image.fromarray(cv2.cvtColor(body_crop, cv2.COLOR_BGR2RGB))
-
-        log.info(f"📦 Static mode: body box [{body_x}, {body_y}, {body_w}, {body_h}]")
-
-        # In static mode, title is usually not extracted via templates
-        return None, body_pil
-
-    # AUTO MODE: Use template matching (original logic)
-    tmpls = load_user_templates("retail")
-    config = load_user_config("retail")
-    offsets = config.get("offsets", {}) if "offsets" in config else config
-
-    if not tmpls or not offsets:
-        log.warning("Retail Calibration missing. Please run 'calibrate_retail.bat'.")
-        return None, None
-
-    # 2. Match Start/End Leaves (Title Bar)
+    # Match Start/End Leaves (Title Bar)
     res_s = cv2.matchTemplate(img_gray, tmpls["start"], cv2.TM_CCOEFF_NORMED)
     _, val_s, _, loc_s = cv2.minMaxLoc(res_s)
 
     res_e = cv2.matchTemplate(img_gray, tmpls["end"], cv2.TM_CCOEFF_NORMED)
     _, val_e, _, loc_e = cv2.minMaxLoc(res_e)
+
+    if DEBUG_TEMPLATE_SCORES:
+        log.debug(
+            f"Template scores — start_leaf: {val_s:.3f}, end_leaf: {val_e:.3f} "
+            f"(threshold: {TEMPLATE_THRESHOLD})"
+        )
 
     if val_s <= TEMPLATE_THRESHOLD or val_e <= TEMPLATE_THRESHOLD:
         return None, None
@@ -471,32 +692,50 @@ def extract_quest_areas(
     title_h = tmpls["start"].shape[0]
     title_bot = title_y + title_h
 
-    # 3. Match Corner (Body Top-Left)
-    # Search strictly below title
+    # Match Corner (Body Top-Left) — search strictly below title
     val_c, cx, cy = match_template_in_roi(
         img_gray, tmpls["corner"], 0, title_bot, w_img, h_img - title_bot
     )
 
+    if DEBUG_TEMPLATE_SCORES:
+        log.debug(
+            f"Template scores — corner: {val_c:.3f} at ({cx}, {cy}) "
+            f"(threshold: {TEMPLATE_THRESHOLD})"
+        )
+
     if val_c <= TEMPLATE_THRESHOLD:
         return None, None
 
-    # 4. Match Intersection (Width Definer) & Icon (Height Definer)
-
-    # Intersect: Right of Corner
-    # We use MIN_BOX_DIM (50) as a minimum width assumption
+    # Match Intersection (Width) & Icon (Height)
     val_int, ix, iy = match_template_in_roi(
-        img_gray, tmpls["intersect"], cx + 50, cy - 20, w_img - (cx + 50), h_img - cy
+        img_gray,
+        tmpls["intersect"],
+        cx + 50,
+        cy - 20,
+        w_img - (cx + 50),
+        h_img - cy,
     )
 
-    # Icon: Below Corner
     val_i, icx, icy = match_template_in_roi(
-        img_gray, tmpls["icon"], 0, cy + 50, w_img, h_img - (cy + 50)
+        img_gray,
+        tmpls["icon"],
+        0,
+        cy + 50,
+        w_img,
+        h_img - (cy + 50),
     )
+
+    if DEBUG_TEMPLATE_SCORES:
+        log.debug(
+            f"Template scores — intersect: {val_int:.3f} at ({ix}, {iy}), "
+            f"icon: {val_i:.3f} at ({icx}, {icy}) "
+            f"(threshold: {TEMPLATE_THRESHOLD})"
+        )
 
     if val_int <= TEMPLATE_THRESHOLD or val_i <= TEMPLATE_THRESHOLD:
         return None, None
 
-    # 5. Apply User Offsets
+    # Apply Layout Offsets
     off_x = offsets.get("CORNER_OFFSET_X", 5)
     off_y = offsets.get("CORNER_OFFSET_Y", 5)
     pad_ix = offsets.get("PADDING_INTERSECT_X", 5)
@@ -517,8 +756,8 @@ def extract_quest_areas(
         body_h = h_img - body_y
 
     # Crop
-    title_crop = full_img_np[title_y: title_y + title_h, title_x: title_x + title_w]
-    body_crop = full_img_np[body_y: body_y + body_h, body_x: body_x + body_w]
+    title_crop = full_img_np[title_y : title_y + title_h, title_x : title_x + title_w]
+    body_crop = full_img_np[body_y : body_y + body_h, body_x : body_x + body_w]
 
     return (
         Image.fromarray(cv2.cvtColor(title_crop, cv2.COLOR_BGR2RGB)),
@@ -526,11 +765,93 @@ def extract_quest_areas(
     )
 
 
+def extract_quest_areas(
+    full_img_np: np.ndarray,
+) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
+    """
+    Extracts the Quest Title and Body using the Retail logic.
+    Supports both 'auto' (template matching) and 'static' (fixed box) modes.
+
+    Modes
+    -----
+    - auto   : Template matching finds the quest window at any screen position.
+               Triggered automatically by the NPC log watcher.
+    - static : Fixed bounding box (QUEST_WINDOW_BOX). The user is responsible
+               for keeping the quest window at the calibrated position.
+               Triggered manually by the hotkey (middle mouse button).
+
+    Parameters
+    ----------
+    full_img_np : np.ndarray
+        Full screen screenshot in numpy array format (BGR).
+
+    Returns
+    -------
+    Tuple[Image, Image]
+        (Title Image, Body Image) or (None, None) if detection fails.
+    """
+    if len(full_img_np.shape) == 3:
+        img_gray = cv2.cvtColor(full_img_np, cv2.COLOR_BGR2GRAY)
+    else:
+        img_gray = full_img_np
+
+    h_img, w_img = img_gray.shape
+
+    # --- STATIC MODE ---
+    # Simple fixed-box extraction. Assumes the quest window has not moved
+    # since calibration. The user triggers capture manually via hotkey.
+    if QUEST_WINDOW_MODE == "static":
+        box = QUEST_WINDOW_BOX
+        if len(box) != 4:
+            log.warning("QUEST_WINDOW_BOX must be [x, y, width, height]")
+            return None, None
+
+        body_x, body_y, body_w, body_h = box
+
+        # Validate coordinates
+        if body_x < 0 or body_y < 0 or body_w <= 0 or body_h <= 0:
+            log.warning(f"Invalid QUEST_WINDOW_BOX coordinates: {box}")
+            return None, None
+
+        # Clamp to screen bounds to prevent crashes
+        if body_x + body_w > w_img:
+            body_w = w_img - body_x
+        if body_y + body_h > h_img:
+            body_h = h_img - body_y
+
+        log.info(
+            f"📦 Static mode: coordinates [{body_x}, {body_y}, {body_w}, {body_h}]"
+        )
+
+        body_crop = full_img_np[body_y : body_y + body_h, body_x : body_x + body_w]
+        body_pil = Image.fromarray(cv2.cvtColor(body_crop, cv2.COLOR_BGR2RGB))
+
+        return None, body_pil
+
+    # --- AUTO MODE ---
+    # Template matching finds the quest window anywhere on screen.
+    # Returns (None, None) if the window is not visible. The log watcher
+    # trigger means this only runs when an NPC interaction just happened,
+    # so a miss simply means the window isn't open yet.
+    tmpls = load_user_templates("retail")
+    config = load_user_config("retail")
+    offsets = config.get("offsets", {}) if "offsets" in config else config
+
+    if not tmpls or not offsets:
+        log.warning("Retail Calibration missing. Please run 'calibrate_retail.bat'.")
+        return None, None
+
+    result = _extract_retail_auto(img_gray, full_img_np, tmpls, offsets, h_img, w_img)
+    if result == (None, None):
+        log.info("Auto mode: Quest window not found on screen - skipping")
+    return result
+
+
 # --- ECHOES EXTRACTION LOGIC ---
 
 
 def extract_echoes_areas(
-        full_img_np: np.ndarray,
+    full_img_np: np.ndarray,
 ) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
     Extracts Quest Text and NPC Name using Echoes (Classic) logic.
@@ -595,15 +916,15 @@ def extract_echoes_areas(
     # 5. Crop & Stitch
     try:
         # Title
-        crop_title = full_img_np[ty: ty + th, tx: tx + tw]
+        crop_title = full_img_np[ty : ty + th, tx : tx + tw]
 
         # Body
-        crop_body = full_img_np[by: by + bh, bx: bx + bw]
+        crop_body = full_img_np[by : by + bh, bx : bx + bw]
 
         # NPC (Static)
         nx, ny, nw, nh = npc_box
         if nw > 0 and nh > 0:
-            crop_npc = full_img_np[ny: ny + nh, nx: nx + nw]
+            crop_npc = full_img_np[ny : ny + nh, nx : nx + nw]
         else:
             crop_npc = np.zeros((50, 200, 3), dtype=np.uint8)
 
