@@ -13,8 +13,7 @@ from pynput import keyboard, mouse
 # > Local Dependencies
 from src.config import (
     NPC_NAME_MAX_AGE,
-    QUEST_TRIGGER_KEY,
-    QUEST_TRIGGER_MODE,
+    QUEST_WINDOW_MODE,
     SCRIPT_LOG,
 )
 from src.db import NPCDatabase
@@ -26,7 +25,7 @@ log = setup_logger("MAIN")
 
 # Shared events for cross-thread signalling
 capture_trigger = Event()  # Echoes mode: middle-click
-retail_capture_trigger = Event()  # Retail manual mode: middle-click
+retail_capture_trigger = Event()  # Retail static mode: middle-click
 
 
 def on_click(x, y, button, pressed):
@@ -98,27 +97,67 @@ def main():
     # 4. Start Logic
     if current_mode == "retail":
         print("\n[RETAIL MODE STARTED]")
-        print(f"Trigger Mode: {QUEST_TRIGGER_MODE.upper()}")
+        print(f"Window Mode: {QUEST_WINDOW_MODE.upper()}")
 
-        if QUEST_TRIGGER_MODE == "manual":
-            # ----- MANUAL TRIGGER MODE -----
+        if QUEST_WINDOW_MODE == "auto":
+            # ----- AUTO MODE: Template matching + Log watcher trigger -----
+            # Quest window is found via template matching at any screen position.
+            # TTS triggers automatically when the log watcher detects a new NPC
+            # in Script.log (requires getNPCNames plugin installed in LOTRO).
+            print("Detection : Template matching (finds window anywhere)")
+            print("Trigger   : Automatic (NPC appears in Script.log)")
+            print(f"Watching  : {SCRIPT_LOG}")
+            print()
+            print("1. Ensure 'getNPCNames' plugin is installed.")
+            print("2. Open a quest dialog with any NPC.")
+            print("3. Press F12 to STOP current playback.")
+
+            def npc_found_callback(npc_name):
+                log.info(f"Auto-trigger: NPC '{npc_name}' detected")
+                time.sleep(0.3)
+                q_img, full_img = capture_screen_areas(mode_prefix="retail")
+                if q_img is not None:
+                    engine.process_retail(q_img, full_img, npc_name)
+                else:
+                    log.info("Auto mode: Quest window not found on screen - skipping")
+
+            watcher_thread = threading.Thread(
+                target=watch_npc_file,
+                args=(npc_found_callback, SCRIPT_LOG),
+                daemon=True,
+            )
+            watcher_thread.start()
+
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print("Exiting...")
+
+        else:
+            # ----- STATIC MODE: Fixed coordinates + Hotkey trigger -----
+            # Quest window is assumed to be at QUEST_WINDOW_BOX coordinates.
+            # User must NOT move the quest window after calibration.
+            # Capture is triggered by the hotkey (middle mouse button).
+            # A background NPC log watcher tracks the most recent NPC name
+            # for correct voice resolution - but it does NOT trigger capture.
+            print("Detection : Static coordinates (window must not move)")
+            print("Trigger   : Manual (middle mouse button)")
+            print()
             print("1. Press MIDDLE MOUSE to read quest text.")
             print("2. Press F12 to STOP current playback.")
 
-            # Mouse listener for the manual trigger
+            # Mouse listener for the hotkey trigger
             listener = mouse.Listener(on_click=on_click)
             listener.start()
 
-            # --- NPC name tracking from log file ---
-            # Even in manual mode we watch the log in the background so that
-            # when the user presses middle-mouse we can resolve the correct
-            # gender/race voice for the most recent NPC they interacted with.
+            # --- NPC name tracking (voice resolution only, not a trigger) ---
             npc_tracking = {"name": "[MANUAL]", "time": 0.0}
 
             def npc_log_callback(npc_name):
                 npc_tracking["name"] = npc_name
                 npc_tracking["time"] = time.time()
-                log.info(f"📝 NPC tracked from log: {npc_name}")
+                log.info(f"NPC tracked from log: {npc_name}")
 
             watcher_thread = threading.Thread(
                 target=watch_npc_file,
@@ -132,12 +171,12 @@ def main():
                 while True:
                     if retail_capture_trigger.is_set():
                         retail_capture_trigger.clear()
-                        print("⏳ Manual capture triggered...")
+                        print("Manual capture triggered...")
                         time.sleep(0.25)
 
                         q_img, full_img = capture_screen_areas(mode_prefix="retail")
 
-                        if q_img is not None:
+                        if full_img is not None:
                             # Resolve NPC name from the log (with staleness check)
                             if (
                                 npc_tracking["name"] != "[MANUAL]"
@@ -145,53 +184,21 @@ def main():
                                 <= NPC_NAME_MAX_AGE
                             ):
                                 npc_name = npc_tracking["name"]
-                                log.info(f"🎭 Using tracked NPC: {npc_name}")
+                                log.info(f"Using tracked NPC: {npc_name}")
                             else:
                                 npc_name = "[MANUAL]"
                                 if npc_tracking["time"] > 0:
                                     log.info(
-                                        "⏰ NPC name stale (%.1fs old), "
+                                        "NPC name stale (%.1fs old), "
                                         "falling back to narrator",
                                         time.time() - npc_tracking["time"],
                                     )
                             engine.process_retail(q_img, full_img, npc_name)
-                        elif full_img is not None:
-                            log.info(
-                                "Manual capture in static mode: "
-                                "Processing full screenshot"
-                            )
 
-                        print("✅ Ready.")
+                        print("Ready.")
                     time.sleep(0.1)
             except KeyboardInterrupt:
                 listener.stop()
-                print("Exiting...")
-
-        else:
-            # ----- AUTO TRIGGER MODE -----
-            print(f"Watching Log: {SCRIPT_LOG}")
-            print("1. Ensure 'getNPCNames' plugin is installed.")
-            print("2. Press F12 to STOP current playback.")
-
-            # NPC file watcher — triggers capture automatically
-            def npc_found_callback(npc_name):
-                log.info(f"🤖 Auto-trigger: NPC '{npc_name}' detected")
-                time.sleep(0.3)
-                q_img, full_img = capture_screen_areas(mode_prefix="retail")
-                if q_img is not None:
-                    engine.process_retail(q_img, full_img, npc_name)
-
-            watcher_thread = threading.Thread(
-                target=watch_npc_file,
-                args=(npc_found_callback, SCRIPT_LOG),
-                daemon=True,
-            )
-            watcher_thread.start()
-
-            try:
-                while True:
-                    time.sleep(1)
-            except KeyboardInterrupt:
                 print("Exiting...")
 
     else:
@@ -208,7 +215,7 @@ def main():
             while True:
                 if capture_trigger.is_set():
                     capture_trigger.clear()
-                    print("⏳ Capturing...")
+                    print("Capturing...")
                     time.sleep(0.25)
 
                     q_img, n_img = capture_screen_areas(mode_prefix="echoes")
@@ -216,9 +223,9 @@ def main():
                     if q_img and n_img:
                         engine.process_capture(q_img, n_img)
                     else:
-                        print("❌ Capture failed. Check calibration.")
+                        print("Capture failed. Check calibration.")
 
-                    print("✅ Ready.")
+                    print("Ready.")
                 time.sleep(0.1)
         except KeyboardInterrupt:
             listener.stop()

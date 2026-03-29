@@ -17,8 +17,12 @@ MISSING_TEXT_INDICATOR = "There is currently no text in this page"
 
 # --- DETECTION SETTINGS ---
 # Thresholds for template matching
-TEMPLATE_THRESHOLD = 0.5
+TEMPLATE_THRESHOLD = 0.7
 STATIC_TEMPLATE_THRESHOLD = 0.7
+
+# Debug: log every template match score (name, value, threshold, pass/fail)
+# Set to True to see detailed matching info in the console output.
+DEBUG_TEMPLATE_SCORES = False
 
 # Offsets for text box extraction (Cascading Logic)
 CORNER_OFFSET_X = 5
@@ -26,6 +30,27 @@ CORNER_OFFSET_Y = 5
 PADDING_ICON_Y = 5
 PADDING_INTERSECT_X = 5
 MIN_BOX_DIM = 50
+
+# Base resolution for template scaling — all default templates were captured at 1440p
+BASE_RESOLUTION = (2560, 1440)
+
+# Default layout offsets for retail mode (calibrated at BASE_RESOLUTION)
+# Used as fallback when layout_retail.json is missing
+DEFAULT_RETAIL_OFFSETS = {
+    "CORNER_OFFSET_X": 11,
+    "CORNER_OFFSET_Y": 10,
+    "PADDING_INTERSECT_X": -10,
+    "PADDING_ICON_Y": 17,
+}
+
+# Default layout offsets for echoes mode (calibrated at BASE_RESOLUTION)
+# Used as fallback when layout_echoes.json is missing
+DEFAULT_ECHOES_OFFSETS = {
+    "body_left_margin": 11,
+    "body_top_margin": 10,
+    "body_right_padding": 0,
+    "body_bottom_padding": 0,
+}
 
 # Retail Mode Paths
 SCRIPT_LOG = os.path.join(
@@ -71,20 +96,26 @@ ENABLE_WIKI = False  # Set to True to enable Wiki lookups, False for instant OCR
 LUX_VOLUME = 0.5
 
 # --- QUEST WINDOW DETECTION MODES ---
-# "auto" = use template matching (requires calibration)
-# "static" = use fixed bounding box coordinates (user-defined)
-QUEST_WINDOW_MODE = "static"
+# "auto"   = Template matching finds the quest window anywhere on screen.
+#            Trigger: automatic via Script.log NPC watcher (requires getNPCNames plugin).
+#            Run calibrate_retail.bat to capture templates.
+# "static" = Fixed bounding box (QUEST_WINDOW_BOX). Window must NOT move.
+#            Trigger: manual hotkey press (middle mouse button by default).
+#            Run calibrate_static.bat to set coordinates.
+QUEST_WINDOW_MODE = "auto"
 
 # For static mode: [x, y, width, height] of quest window body area
 # Set these via calibrate_static.bat after drawing bounding box
-QUEST_WINDOW_BOX = [461, 308, 427, 537]
+QUEST_WINDOW_BOX = [555, 380, 425, 539]
 
-# --- TRIGGER SETTINGS ---
-# "auto" = trigger on NPC detection via Script.log (requires getNPCNames plugin)
-# "manual" = trigger on hotkey press ONLY (middle mouse button by default)
+# --- TRIGGER SETTINGS (legacy, kept for calibrate_static.py compat) ---
+# main.py now derives the trigger from QUEST_WINDOW_MODE:
+#   auto   -> log watcher triggers capture automatically
+#   static -> hotkey triggers capture manually
+# These values are only used by calibrate_static.py when writing config.
 QUEST_TRIGGER_MODE = "manual"
 
-# Hotkey configuration (for manual mode)
+# Hotkey for static mode
 # Supported: "middle_mouse", "left", "right", or keyboard key names like "f8", "t", "q"
 QUEST_TRIGGER_KEY = "middle_mouse"
 
