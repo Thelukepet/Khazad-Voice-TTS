@@ -1,8 +1,8 @@
 # Imports
 
 # > Standard Library
-import time
 import json
+import time
 from pathlib import Path
 
 # > Third-party Libraries
@@ -89,7 +89,7 @@ def select_roi(img: np.ndarray, title: str, instruction: str) -> tuple:
     return bbox
 
 
-def update_config(box: tuple):
+def update_config(box: tuple, trigger_key: str = "middle_mouse"):
     """
     Updates config.py with the new QUEST_WINDOW_BOX values and sets mode to 'static'.
 
@@ -97,6 +97,8 @@ def update_config(box: tuple):
     ----------
     box : tuple
         (x, y, w, h) bounding box coordinates.
+    trigger_key : str
+        The trigger key to use (default: "middle_mouse")
     """
     x, y, w, h = box
     box_list = [x, y, w, h]
@@ -107,12 +109,18 @@ def update_config(box: tuple):
 
     # Find and update QUEST_WINDOW_MODE line
     # Find and update QUEST_WINDOW_BOX line
+    # Find and update QUEST_TRIGGER_MODE line
+    # Find and update QUEST_TRIGGER_KEY line
     new_lines = []
     for line in lines:
         if line.strip().startswith("QUEST_WINDOW_MODE ="):
             new_lines.append('QUEST_WINDOW_MODE = "static"\n')
         elif line.strip().startswith("QUEST_WINDOW_BOX ="):
             new_lines.append(f"QUEST_WINDOW_BOX = {box_list}\n")
+        elif line.strip().startswith("QUEST_TRIGGER_MODE ="):
+            new_lines.append('QUEST_TRIGGER_MODE = "manual"\n')
+        elif line.strip().startswith("QUEST_TRIGGER_KEY ="):
+            new_lines.append(f'QUEST_TRIGGER_KEY = "{trigger_key}"\n')
         else:
             new_lines.append(line)
 
@@ -150,7 +158,11 @@ def main():
     print("\n📏 Draw a box around the QUEST TEXT BODY area (the main text content).")
     print("   Do NOT include the title bar or borders.")
 
-    box = select_roi(img_bgr, "Select Quest Text Body", "Draw box around the quest text body (main content area)")
+    box = select_roi(
+        img_bgr,
+        "Select Quest Text Body",
+        "Draw box around the quest text body (main content area)",
+    )
 
     if not box:
         print("\n❌ No valid selection made. Please run again.")
@@ -159,17 +171,51 @@ def main():
     x, y, w, h = box
     print(f"\n✅ Selected box: x={x}, y={y}, w={w}, h={h}")
 
+    # Ask user for trigger key
+    print("\n" + "=" * 60)
+    print("  TRIGGER KEY CONFIGURATION")
+    print("=" * 60)
+    print("\nWhat key would you like to use to trigger quest reading?")
+    print("\nOptions:")
+    print("  • [Press Enter] - Use middle mouse button (recommended)")
+    print("  • Type a keyboard key name (e.g., 'f8', 't', 'q')")
+    print("  • Type mouse button name (e.g., 'left', 'right', 'middle')")
+    print("\nNote: In manual mode, you press this key whenever you want")
+    print("      to read the quest text - no automatic triggering.")
+    print("=" * 60)
+
+    trigger_key_input = input(
+        "\nEnter trigger key (or press Enter for middle mouse): "
+    ).strip()
+    trigger_key = trigger_key_input.lower() if trigger_key_input else "middle_mouse"
+
+    # Validate common inputs
+    if trigger_key in ["left", "right", "middle", "middle_mouse"]:
+        trigger_key = "middle_mouse"
+    elif trigger_key == "f8":
+        trigger_key = "f8"
+    # Add more validations as needed
+
+    print(f"\n✅ Trigger key set to: {trigger_key.upper()}")
+
     # Save calibration to config.py
-    update_config(box)
+    update_config(box, trigger_key)
 
     print("\n=================================================")
     print("✅ CALIBRATION SUCCESS!")
     print(f"   QUEST_WINDOW_MODE set to 'static'")
     print(f"   QUEST_WINDOW_BOX set to [{x}, {y}, {w}, {h}]")
+    print(f"   QUEST_TRIGGER_MODE set to 'manual'")
+    print(f"   QUEST_TRIGGER_KEY set to '{trigger_key}'")
     print(f"   Saved to: {CONFIG_FILE}")
     print("=================================================")
+    print("\n🎮 HOW TO USE:")
+    print(f"   1. Start the application in RETAIL mode")
+    print(f"   2. Press {trigger_key.upper()} whenever you want to read quest text")
+    print(f"   3. Press F12 to stop current playback")
     print("\n📝 To switch back to auto mode, edit config.py and set:")
     print("   QUEST_WINDOW_MODE = 'auto'")
+    print("   QUEST_TRIGGER_MODE = 'auto'")
 
 
 if __name__ == "__main__":

@@ -1,12 +1,12 @@
 # Imports
 
 # > Standard Library
-import os
 import json
-import time
 import logging
+import os
+import time
 from pathlib import Path
-from typing import List, Union, Tuple, Optional, Any, Dict
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 # > Third-party Libraries
 import cv2
@@ -17,11 +17,11 @@ from PIL import Image, ImageGrab
 from .config import (
     DATA_DIR,
     LOG_LEVEL,
-    TEMPLATES_DIR,
-    TEMPLATE_THRESHOLD,
-    STATIC_TEMPLATE_THRESHOLD,
-    QUEST_WINDOW_MODE,
     QUEST_WINDOW_BOX,
+    QUEST_WINDOW_MODE,
+    STATIC_TEMPLATE_THRESHOLD,
+    TEMPLATE_THRESHOLD,
+    TEMPLATES_DIR,
 )
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -103,6 +103,7 @@ def get_memory_file_path(mode: str, backend: str) -> Path:
         The full path to the json file.
     """
     return DATA_DIR / f"npc_memory_{mode.lower()}_{backend.lower()}.json"
+
 
 def load_coords(mode: str) -> Dict:
     """
@@ -329,11 +330,12 @@ def watch_npc_file(callback, log_path: str, ready_event=None):
         except Exception as exc:
             watcher_log.exception(f"Watcher error: {exc}")
 
+
 # --- TEMPLATE MATCHING UTILS ---
 
 
 def match_template_in_roi(
-        img_gray: np.ndarray, template: np.ndarray, x: int, y: int, w: int, h: int
+    img_gray: np.ndarray, template: np.ndarray, x: int, y: int, w: int, h: int
 ) -> Tuple[float, int, int]:
     """
     Performs template matching within a specific Region of Interest (ROI).
@@ -359,7 +361,7 @@ def match_template_in_roi(
     if w < template.shape[1] or h < template.shape[0]:
         return 0.0, 0, 0
 
-    roi = img_gray[y: y + h, x: x + w]
+    roi = img_gray[y : y + h, x : x + w]
     res = cv2.matchTemplate(roi, template, cv2.TM_CCOEFF_NORMED)
     _, max_val, _, max_loc = cv2.minMaxLoc(res)
     return max_val, x + max_loc[0], y + max_loc[1]
@@ -369,7 +371,7 @@ def match_template_in_roi(
 
 
 def extract_quest_areas(
-        full_img_np: np.ndarray,
+    full_img_np: np.ndarray,
 ) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
     Extracts the Quest Title and Body using the Retail logic.
@@ -399,47 +401,27 @@ def extract_quest_areas(
             log.warning("QUEST_WINDOW_BOX must be [x, y, width, height]")
             return None, None
 
-        # Note the exact casing to avoid File Not Found errors on Linux
-        templates_to_check = [
-            "quest.png",  #
-            "questIcon1.PNG",  #
-            "questIcon2.PNG",  #
-            "nextObjective.PNG"  #
-        ]
-
-        window_detected = False
-        for template_name in templates_to_check:
-            template_file = TEMPLATES_DIR / template_name
-
-            if not template_file.exists():
-                continue
-
-            template = cv2.imread(str(template_file), cv2.IMREAD_GRAYSCALE)
-            if template is None:
-                continue
-
-            # Perform pattern matching
-            res = cv2.matchTemplate(img_gray, template, cv2.TM_CCOEFF_NORMED)
-            _, max_val, _, _ = cv2.minMaxLoc(res)
-
-            if max_val >= STATIC_TEMPLATE_THRESHOLD:  # Higher default value to 0.7
-                window_detected = True
-                log.info(f"✅ Static mode: Quest window detected via {template_name}")
-                break
-
-        if not window_detected:
-            log.info("🙈 Static mode: Quest window not detected. Returning None.")
-            return None, None
-        # ----------------------------------------
-
-        # Proceed with extracting the defined static box
         body_x, body_y, body_w, body_h = box
 
-        # Crop the body area
-        body_crop = full_img_np[body_y:body_y + body_h, body_x:body_x + body_w]
-        body_pil = Image.fromarray(cv2.cvtColor(body_crop, cv2.COLOR_BGR2RGB))
+        # Validate coordinates
+        if body_x < 0 or body_y < 0 or body_w <= 0 or body_h <= 0:
+            log.warning(f"Invalid QUEST_WINDOW_BOX coordinates: {box}")
+            return None, None
 
-        log.info(f"📦 Static mode: body box [{body_x}, {body_y}, {body_w}, {body_h}]")
+        # Clamp to screen bounds to prevent crashes
+        if body_x + body_w > w_img:
+            body_w = w_img - body_x
+        if body_y + body_h > h_img:
+            body_h = h_img - body_y
+
+        log.info(
+            f"📦 Static mode: Using custom coordinates [{body_x}, {body_y}, {body_w}, {body_h}]"
+        )
+
+        # Proceed with extracting the defined static box
+        # Crop the body area
+        body_crop = full_img_np[body_y : body_y + body_h, body_x : body_x + body_w]
+        body_pil = Image.fromarray(cv2.cvtColor(body_crop, cv2.COLOR_BGR2RGB))
 
         # In static mode, title is usually not extracted via templates
         return None, body_pil
@@ -517,8 +499,8 @@ def extract_quest_areas(
         body_h = h_img - body_y
 
     # Crop
-    title_crop = full_img_np[title_y: title_y + title_h, title_x: title_x + title_w]
-    body_crop = full_img_np[body_y: body_y + body_h, body_x: body_x + body_w]
+    title_crop = full_img_np[title_y : title_y + title_h, title_x : title_x + title_w]
+    body_crop = full_img_np[body_y : body_y + body_h, body_x : body_x + body_w]
 
     return (
         Image.fromarray(cv2.cvtColor(title_crop, cv2.COLOR_BGR2RGB)),
@@ -530,7 +512,7 @@ def extract_quest_areas(
 
 
 def extract_echoes_areas(
-        full_img_np: np.ndarray,
+    full_img_np: np.ndarray,
 ) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
     Extracts Quest Text and NPC Name using Echoes (Classic) logic.
@@ -595,15 +577,15 @@ def extract_echoes_areas(
     # 5. Crop & Stitch
     try:
         # Title
-        crop_title = full_img_np[ty: ty + th, tx: tx + tw]
+        crop_title = full_img_np[ty : ty + th, tx : tx + tw]
 
         # Body
-        crop_body = full_img_np[by: by + bh, bx: bx + bw]
+        crop_body = full_img_np[by : by + bh, bx : bx + bw]
 
         # NPC (Static)
         nx, ny, nw, nh = npc_box
         if nw > 0 and nh > 0:
-            crop_npc = full_img_np[ny: ny + nh, nx: nx + nw]
+            crop_npc = full_img_np[ny : ny + nh, nx : nx + nw]
         else:
             crop_npc = np.zeros((50, 200, 3), dtype=np.uint8)
 

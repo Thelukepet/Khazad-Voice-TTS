@@ -28,7 +28,9 @@ PADDING_INTERSECT_X = 5
 MIN_BOX_DIM = 50
 
 # Retail Mode Paths
-SCRIPT_LOG = os.path.join(os.path.expanduser("~"), "Documents", "The Lord of the Rings Online", "Script.log")
+SCRIPT_LOG = os.path.join(
+    os.path.expanduser("~"), "Documents", "The Lord of the Rings Online", "Script.log"
+)
 TEMPLATES_DIR = BASE_DIR / "templates"
 
 # --- DEVICE ---
@@ -52,7 +54,7 @@ possible_paths = [
     r"C:\Users\admin\AppData\Local\Programs\Tesseract-OCR\tesseract.exe",
 ]
 
-TESSERACT_CMD =  r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Default value in the configure.bat  / configure.sh file
+TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Default value in the configure.bat  / configure.sh file
 
 for p in possible_paths:
     if os.path.exists(p):
@@ -71,8 +73,22 @@ LUX_VOLUME = 0.5
 # --- QUEST WINDOW DETECTION MODES ---
 # "auto" = use template matching (requires calibration)
 # "static" = use fixed bounding box coordinates (user-defined)
-QUEST_WINDOW_MODE = "auto"
+QUEST_WINDOW_MODE = "static"
 
 # For static mode: [x, y, width, height] of quest window body area
 # Set these via calibrate_static.bat after drawing bounding box
-QUEST_WINDOW_BOX = [496, 329, 429, 538]
+QUEST_WINDOW_BOX = [461, 308, 427, 537]
+
+# --- TRIGGER SETTINGS ---
+# "auto" = trigger on NPC detection via Script.log (requires getNPCNames plugin)
+# "manual" = trigger on hotkey press ONLY (middle mouse button by default)
+QUEST_TRIGGER_MODE = "manual"
+
+# Hotkey configuration (for manual mode)
+# Supported: "middle_mouse", "left", "right", or keyboard key names like "f8", "t", "q"
+QUEST_TRIGGER_KEY = "middle_mouse"
+
+# Maximum age (in seconds) for NPC names from the log file in manual mode.
+# If the last NPC entry is older than this, the engine falls back to the
+# default narrator voice instead of using a potentially stale name.
+NPC_NAME_MAX_AGE = 60
