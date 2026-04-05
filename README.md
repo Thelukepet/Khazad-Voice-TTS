@@ -7,7 +7,7 @@
   <table style="border: none;">
     <tr>
       <td align="center" style="border: none;">
-        <strong>GPU Model (OmniVoice)</strong><br>
+        <strong>GPU Model (Outdated vid using LuxTTS)</strong><br>
         <a href="https://www.youtube.com/watch?v=LlAibQ_TlY4">
           <img src="https://img.youtube.com/vi/LlAibQ_TlY4/0.jpg" width="400">
         </a>
