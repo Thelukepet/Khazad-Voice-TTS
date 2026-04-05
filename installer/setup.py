@@ -25,10 +25,8 @@ from typing import Optional
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 APP_NAME = "Khazad Voice TTS"
-GITHUB_ZIP_URL = (
-    "https://github.com/Thelukepet/Khazad-Voice-TTS/archive/refs/heads/main.zip"
-)
-LUXTTS_ZIP_URL = "https://github.com/Thelukepet/LuxTTS/archive/refs/heads/main.zip"
+GITHUB_ZIP_URL = "https://github.com/Thelukepet/Khazad-Voice-TTS/archive/refs/heads/experimental-install.zip"
+OMNIVOICE_PIP = "omnivoice"
 UV_BINARY_URL = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
 DEFAULT_INSTALL_DIR = r"C:\Khazad-Voice-TTS"
 
@@ -65,14 +63,14 @@ class InstallerApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(f"{APP_NAME} — Setup")
-        self.root.geometry("740x620")
+        self.root.geometry("740x750")
         self.root.resizable(False, False)
         self.root.configure(bg=BG_DARK)
 
         # Center on screen
         self.root.update_idletasks()
         x = (self.root.winfo_screenwidth() - 740) // 2
-        y = (self.root.winfo_screenheight() - 620) // 2
+        y = (self.root.winfo_screenheight() - 750) // 2
         self.root.geometry(f"+{x}+{y}")
 
         # ── State ──
@@ -403,7 +401,7 @@ class InstallerApp:
                 ).pack(anchor=tk.W)
                 tk.Label(
                     det_frame,
-                    text="GPU-accelerated TTS (LuxTTS voice cloning) will be available.",
+                    text="GPU-accelerated TTS (OmniVoice voice cloning) will be available.",
                     font=("Segoe UI", 9),
                     fg=FG_DIM,
                     bg=BG_PANEL,
@@ -535,7 +533,7 @@ class InstallerApp:
                 3,
                 "CPU Only  -  Kokoro",
                 "No GPU required. Fast and reliable TTS.\n"
-                "LuxTTS (voice cloning) will NOT be available.",
+                "OmniVoice (voice cloning) will NOT be available.",
             ),
         ]
 
@@ -697,7 +695,7 @@ class InstallerApp:
 
                 tk.Label(
                     cal_frame,
-                    text="Before your first use, run calibration for your game mode.",
+                    text="⚡ REQUIRED: Calibrate before your first use",
                     font=("Segoe UI", 10, "bold"),
                     fg=FG_YELLOW,
                     bg=BG_PANEL,
@@ -705,17 +703,36 @@ class InstallerApp:
                 tk.Label(
                     cal_frame,
                     text=(
-                        "Calibration teaches the app to find the quest window on your screen.\n"
-                        "Without it, quest text detection will not work correctly."
+                        "Calibration teaches the app where the quest window is on your screen.\n"
+                        "Without it, the app cannot read any quest text."
                     ),
                     font=("Segoe UI", 9),
                     fg=FG_DIM,
                     bg=BG_PANEL,
                     justify=tk.LEFT,
-                ).pack(anchor=tk.W, pady=(2, 8))
+                ).pack(anchor=tk.W, pady=(2, 6))
+
+                # Step-by-step instruction box
+                instr_frame = tk.Frame(cal_frame, bg=BG_ENTRY, padx=10, pady=8)
+                instr_frame.pack(fill=tk.X, pady=(0, 6))
+
+                tk.Label(
+                    instr_frame,
+                    text=(
+                        "①  Launch LOTRO (or Echoes of Angmar) and log in to the game.\n"
+                        "②  Walk up to any NPC and talk to them so a quest window appears.\n"
+                        "     Make sure the quest window is fully visible on your primary monitor.\n"
+                        "③  Come back here and press the matching button below.\n"
+                        "④  Follow the instructions on the new window that opens."
+                    ),
+                    font=("Segoe UI", 9),
+                    fg=FG_CYAN,
+                    bg=BG_ENTRY,
+                    justify=tk.LEFT,
+                ).pack(anchor=tk.W)
 
                 cal_btn_frame = tk.Frame(cal_frame, bg=BG_PANEL)
-                cal_btn_frame.pack(anchor=tk.W)
+                cal_btn_frame.pack(anchor=tk.W, pady=(2, 4))
 
                 cal_btn_style = dict(
                     font=("Segoe UI", 9),
@@ -732,7 +749,7 @@ class InstallerApp:
 
                 tk.Button(
                     cal_btn_frame,
-                    text="Calibrate Retail",
+                    text="Calibrate Retail LOTRO",
                     command=lambda: self._launch_app("calibrate_retail"),
                     **cal_btn_style,
                 ).pack(side=tk.LEFT, padx=(0, 8))
@@ -743,6 +760,27 @@ class InstallerApp:
                     command=lambda: self._launch_app("calibrate_echoes"),
                     **cal_btn_style,
                 ).pack(side=tk.LEFT, padx=(0, 8))
+
+                tk.Button(
+                    cal_btn_frame,
+                    text="Calibrate Static (Fallback)",
+                    command=lambda: self._launch_app("calibrate_static"),
+                    **cal_btn_style,
+                ).pack(side=tk.LEFT, padx=(0, 8))
+
+                # Show install path for future re-calibration
+                install_path = Path(self.install_dir.get())
+                tk.Label(
+                    cal_frame,
+                    text=(
+                        f"Need to re-calibrate later? Open the .bat files inside:\n"
+                        f"{install_path}\\Windows\\"
+                    ),
+                    font=("Segoe UI", 8),
+                    fg=FG_DIM,
+                    bg=BG_PANEL,
+                    justify=tk.LEFT,
+                ).pack(anchor=tk.W, pady=(2, 0))
 
             # Launch buttons
             btn_frame = tk.Frame(f, bg=BG_DARK)
@@ -1019,21 +1057,21 @@ class InstallerApp:
 
             self._set_progress(48)
 
-            # ── Step 6: Install LuxTTS (GPU only) ──
+            # ── Step 6: Install OmniVoice (GPU only) ──
             if use_gpu:
-                self._set_status("Setting up LuxTTS (voice cloning)...")
+                self._set_status("Setting up OmniVoice (voice cloning)...")
                 self._set_progress(52)
                 self._log("", "dim")
                 self._log("=" * 50, "step")
-                self._log("  STEP 6/9  LuxTTS (GPU voice cloning)", "step")
+                self._log("  STEP 6/9  OmniVoice (GPU voice cloning)", "step")
                 self._log("=" * 50, "step")
 
-                self._install_luxtts(install_path, python_exe, uv_exe)
+                self._install_omnivoice(install_path, python_exe, uv_exe)
             else:
                 self._set_progress(52)
                 self._log("", "dim")
                 self._log("=" * 50, "step")
-                self._log("  STEP 6/9  LuxTTS - skipped (CPU mode)", "step")
+                self._log("  STEP 6/9  OmniVoice - skipped (CPU mode)", "step")
                 self._log("=" * 50, "step")
 
             if self._cancel:
@@ -1375,8 +1413,8 @@ class InstallerApp:
         else:
             source = temp_dir
 
-        # Overwrite project files (preserving venv, data, LuxTTS, _uv)
-        preserved = {"venv", "LuxTTS", "_uv", "data", "__pycache__", ".pytest_cache"}
+        # Overwrite project files (preserving venv, data, _uv)
+        preserved = {"venv", "_uv", "data", "__pycache__", ".pytest_cache"}
         for item in source.iterdir():
             if item.name in preserved:
                 continue
@@ -1393,44 +1431,11 @@ class InstallerApp:
 
         self._log("Source files updated.", "ok")
 
-    # ─── LuxTTS Setup ─────────────────────────────────────────────────────
+    # ─── OmniVoice Setup ─────────────────────────────────────────────────
 
-    def _install_luxtts(self, install_path: Path, python_exe: Path, uv_exe: Path):
-        """Download and install LuxTTS for GPU mode."""
-        lux_path = install_path / "LuxTTS"
-
-        if (lux_path / "zipvoice").exists():
-            self._log("LuxTTS source already exists - updating...")
-        else:
-            # Download from GitHub (no git required)
-            self._log("Downloading LuxTTS...")
-            zip_path = install_path / "_luxtts.zip"
-            self._download(LUXTTS_ZIP_URL, zip_path, "LuxTTS")
-            self._log("Extracting LuxTTS...")
-            self._extract_github_zip(zip_path, lux_path)
-            zip_path.unlink(missing_ok=True)
-
-        # Install LuxTTS dependencies
-        lux_req = lux_path / "requirements.txt"
-        if lux_req.exists():
-            self._log("Installing LuxTTS Python dependencies...")
-            self._run_cmd(
-                [
-                    str(uv_exe),
-                    "pip",
-                    "install",
-                    "--python",
-                    str(python_exe),
-                    "-r",
-                    str(lux_req),
-                ],
-                check=False,
-            )
-        else:
-            self._log("LuxTTS requirements.txt not found - skipping deps.", "warn")
-
-        # Install LuxTTS as editable package
-        self._log("Installing LuxTTS package...")
+    def _install_omnivoice(self, install_path: Path, python_exe: Path, uv_exe: Path):
+        """Install OmniVoice TTS for GPU mode."""
+        self._log("Installing OmniVoice TTS package...")
         self._run_cmd(
             [
                 str(uv_exe),
@@ -1438,13 +1443,11 @@ class InstallerApp:
                 "install",
                 "--python",
                 str(python_exe),
-                "-e",
-                str(lux_path),
+                OMNIVOICE_PIP,
             ],
             check=False,
         )
-
-        self._log("LuxTTS installed.", "ok")
+        self._log("OmniVoice installed.", "ok")
 
     # ─── Zip Extraction Helper ────────────────────────────────────────────
 
@@ -1614,6 +1617,13 @@ $sc.Save()
             )
         elif mode == "calibrate_echoes":
             script = str(install_path / "src" / "calibrate_echoes.py")
+            subprocess.Popen(
+                [python_exe, script],
+                cwd=str(install_path),
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+        elif mode == "calibrate_static":
+            script = str(install_path / "src" / "calibrate_static.py")
             subprocess.Popen(
                 [python_exe, script],
                 cwd=str(install_path),

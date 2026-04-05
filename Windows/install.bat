@@ -62,7 +62,7 @@ echo ==================================================
 echo.
 echo [1] CUDA 12.1 (Standard - Recommended for most Nvidia Graphics cards)
 echo [2] CUDA 12.8 (Nightly - For the latest RTX 50-Series)
-echo [3] CPU Only  (Slow - Not recommended for using LuxTTS, will still work with Kokoro)
+echo [3] CPU Only  (Slow - Not recommended for using OmniVoice, will still work with Kokoro)
 echo.
 set /p choice="Enter selection [1, 2, or 3]: "
 
@@ -75,31 +75,12 @@ if "%choice%"=="1" (
 )
 if %errorlevel% neq 0 goto :error
 
-:: --- 3. LuxTTS Setup ---
+:: --- 3. OmniVoice Setup ---
 echo.
-echo [4/6] Summoning the Voice (Setting up LuxTTS)...
+echo [4/6] Summoning the Voice (Installing OmniVoice TTS)...
 
-if not exist "LuxTTS" (
-    echo [INFO] LuxTTS not found. Cloning the 'main' branch...
-    :: Added -b main to ensure we get the right branch immediately
-    git clone -b main https://github.com/Thelukepet/LuxTTS.git
-) else (
-    echo [INFO] LuxTTS exists. Updating the scrolls...
-    cd LuxTTS
-    :: Fetch all updates and force-switch to main if it's currently on master
-    git fetch origin
-    git checkout main
-    git pull origin main
-    cd ..
-)
-
-echo Installing LuxTTS dependencies...
-:: We use --no-deps for torch to prevent it from overwriting the CUDA version we just installed
-pip install -r LuxTTS\requirements.txt
-if %errorlevel% neq 0 goto :error
-
-echo Installing LuxTTS package...
-pip install -e LuxTTS
+echo Installing OmniVoice package...
+pip install omnivoice
 if %errorlevel% neq 0 goto :error
 
 :: --- 4. Main Requirements ---

@@ -58,7 +58,7 @@ def main():
     print("\n[SELECT AUDIO ENGINE]")
     print("1. CPU (Kokoro) [Default]")
     print("   -> Fast, Reliable. Works on all PCs.")
-    print("2. GPU (LuxTTS)")
+    print("2. GPU (OmniVoice)")
     print("   -> Higher Quality. REQUIRES NVIDIA GPU.")
 
     device_input = input("\nEnter choice (1 or 2): ").strip()
@@ -112,14 +112,53 @@ def main():
             print("2. Open a quest dialog with any NPC.")
             print("3. Press F12 to STOP current playback.")
 
+            # Track last played NPC to skip stale log entries that
+            # accumulated in Script.log during a previous playback.
+            _last_played = {"name": "", "time": 0.0}
+
             def npc_found_callback(npc_name):
+                # Skip stale duplicate: same NPC played within the last 5 seconds.
+                # The LOTRO plugin can write the same name multiple times per
+                # interaction; these pile up while we're blocked in playback.
+                now = time.time()
+                if (
+                    npc_name == _last_played["name"]
+                    and _last_played["time"] > 0
+                    and now - _last_played["time"] < 5.0
+                ):
+                    log.info(
+                        f"Skipping stale trigger for '{npc_name}' "
+                        f"(same NPC played {now - _last_played['time']:.1f}s ago)"
+                    )
+                    return
+
                 log.info(f"Auto-trigger: NPC '{npc_name}' detected")
-                time.sleep(0.3)
-                q_img, full_img = capture_screen_areas(mode_prefix="retail")
+
+                # Retry screen capture up to 3 times to give the game
+                # time to render the quest window after the NPC click.
+                q_img = None
+                full_img = None
+                for attempt in range(3):
+                    time.sleep(0.5 + attempt * 0.5)
+                    q_img, full_img = capture_screen_areas(mode_prefix="retail")
+                    if q_img is not None:
+                        break
+                    if attempt < 2:
+                        log.info(
+                            f"Quest window not found, retrying ({attempt + 2}/3)..."
+                        )
+
                 if q_img is not None:
                     engine.process_retail(q_img, full_img, npc_name)
+                    # process_retail blocks until playback finishes —
+                    # record timestamp so stale log entries are skipped
+                    _last_played["name"] = npc_name
+                    _last_played["time"] = time.time()
                 else:
-                    log.info("Auto mode: Quest window not found on screen - skipping")
+                    log.info(
+                        "Auto mode: Quest window not found on screen "
+                        "after retries — skipping"
+                    )
 
             watcher_thread = threading.Thread(
                 target=watch_npc_file,

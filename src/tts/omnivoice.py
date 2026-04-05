@@ -1,59 +1,50 @@
 # Imports
 
 # > Standard Library
-import sys
-import re
 import random
+import re
 import time
 from pathlib import Path
-from typing import Tuple, Dict, List
+from typing import Dict, List, Tuple
 
 # > Third-party Libraries
 import numpy as np
+import torch
+
+from src.config import REF_AUDIO_DIR, TTS_SPEED, TTS_WAVE_STEPS
 
 # > Local Dependencies
 from src.utils import setup_logger
-from src.config import DEVICE, REF_AUDIO_DIR, TTS_SPEED, TTS_WAVE_STEPS
+
 from .base import TTSBackend
 
 log = setup_logger(__name__)
 
 
-class LuxBackend(TTSBackend):
+class OmniVoiceBackend(TTSBackend):
     """
-    High-quality Voice Cloning Backend using LuxTTS (GPU only).
+    High-quality Voice Cloning Backend using OmniVoice (GPU only).
     """
 
     def __init__(self):
         """
-        Initializes the LuxTTS model on the GPU and loads the voice library.
+        Initializes the OmniVoice model on the GPU and loads the voice library.
         """
-        log.info(f"Loading LuxTTS Model on {DEVICE}...")
+        log.info("Loading OmniVoice Model on cuda:0...")
 
-        project_root = Path(__file__).resolve().parent.parent.parent
-        lux_path = project_root / "LuxTTS"
+        from omnivoice import OmniVoice
 
-        if lux_path.exists() and str(lux_path) not in sys.path:
-            sys.path.append(str(lux_path))
-
-        try:
-            try:
-                from zipvoice.luxvoice import LuxTTS
-            except ImportError:
-                from LuxTTS.zipvoice.luxvoice import LuxTTS
-        except ImportError as e:
-            raise ImportError(
-                f"Could not import LuxTTS. Checked '{lux_path}'. Error: {e}"
-            )
-
-        self.backend_id = "lux"  # Explicit ID for memory separation
-        self.tts = LuxTTS("YatharthS/LuxTTS", device="cuda")
-        self.samplerate = 48000
+        self.backend_id = "lux"  # Keep same ID for memory compatibility
+        self.tts = OmniVoice.from_pretrained(
+            "k2-fsa/OmniVoice",
+            device_map="cuda:0",
+            dtype=torch.float16,
+        )
+        self.samplerate = 24000
         self.voice_library = self._load_voice_library()
-        self.prompt_cache = {}
 
         total_voices = sum(len(v) for v in self.voice_library.values())
-        log.info(f"✅ LuxTTS Ready. Loaded {total_voices} reference voices.")
+        log.info(f"✅ OmniVoice Ready. Loaded {total_voices} reference voices.")
 
         self._warmup()
 
@@ -61,7 +52,7 @@ class LuxBackend(TTSBackend):
         """
         Runs a short, silent generation to compile PyTorch CUDA graphs.
         """
-        log.info("🔥 Warming up LuxTTS (takes ~10s for first run)...")
+        log.info("🔥 Warming up OmniVoice (takes ~10s for first run)...")
         try:
             if "narrator" in self.voice_library:
                 voice_id = "narrator|0"
@@ -169,35 +160,21 @@ class LuxBackend(TTSBackend):
             return np.array([], dtype=np.float32)
 
         if not warmup:
-            log.info(f"🎙️ Cloning [{category}] (Source: {Path(ref_data['audio']).name})...")
-
-        try:
-            if voice_id in self.prompt_cache:
-                encoded_prompt = self.prompt_cache[voice_id]
-            else:
-                encoded_prompt = self.tts.encode_prompt(
-                    ref_data["audio"],
-                    text=ref_data["text"],
-                    rms=0.01,
-                    duration=1000
-                )
-                self.prompt_cache[voice_id] = encoded_prompt
-
-            wav_tensor = self.tts.generate_speech(
-                text,
-                encoded_prompt,
-                num_steps=TTS_WAVE_STEPS,
-                speed=TTS_SPEED,
-                t_shift=0.9
+            log.info(
+                f"🎙️ Cloning [{category}] (Source: {Path(ref_data['audio']).name})..."
             )
 
-            if hasattr(wav_tensor, "detach"):
-                wav = wav_tensor.detach().cpu().numpy().squeeze()
-            else:
-                wav = wav_tensor.numpy().squeeze()
-
+        try:
+            result = self.tts.generate(
+                text=text,
+                ref_audio=ref_data["audio"],
+                ref_text=ref_data["text"],
+                num_step=TTS_WAVE_STEPS,
+                speed=TTS_SPEED,
+            )
+            # result is a list of torch.Tensor with shape (1, T)
+            wav = result[0].detach().cpu().numpy().squeeze()
             return wav.astype(np.float32)
-
         except Exception as e:
             log.error(f"Generation failed: {e}")
             return np.array([], dtype=np.float32)

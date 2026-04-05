@@ -280,7 +280,7 @@ def get_file_paths(mode: str) -> Tuple[Path, Path]:
 def get_memory_file_path(mode: str, backend: str) -> Path:
     """
     Constructs the path for the NPC memory file based on mode and backend.
-    This ensures Kokoro (CPU) and LuxTTS (GPU) maintain separate voice databases.
+    This ensures Kokoro (CPU) and OmniVoice (GPU) maintain separate voice databases.
 
     Parameters
     ----------

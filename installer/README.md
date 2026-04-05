@@ -13,7 +13,7 @@ An experimental `.exe` bootstrapper that replaces the manual `install.bat` / `in
 3. **Downloads the project source** from GitHub (zip archive, no git required).
 4. **Creates a virtual environment** via `uv venv`.
 5. **Installs PyTorch** with the user's chosen CUDA/CPU version.
-6. **Installs LuxTTS** (GPU users only) from GitHub zip.
+6. **Installs OmniVoice** (GPU users only) via pip.
 7. **Installs all Python dependencies** via `uv pip install`.
 8. **Downloads NLTK data** (punkt, punkt_tab, averaged_perceptron_tagger).
 9. **Checks for FFmpeg and Tesseract** — auto-installs FFmpeg via winget if missing.
@@ -60,7 +60,7 @@ Upload `Khazad-Voice-Setup.exe` to your GitHub Releases page. End users download
 
 The wizard opens with a dark-themed GUI showing GPU auto-detection results.
 
-- ✅ NVIDIA GPU detected → GPU mode (LuxTTS) will be recommended.
+- ✅ NVIDIA GPU detected → GPU mode (OmniVoice) will be recommended.
 - ⚠ No NVIDIA GPU → CPU mode (Kokoro) will be recommended.
 
 ### Step 2 — Install Location
@@ -94,7 +94,7 @@ Steps run:
 3. Download project source from GitHub
 4. Create virtual environment
 5. Install PyTorch (selected version)
-6. Install LuxTTS (GPU only)
+6. Install OmniVoice (GPU only)
 7. Install application requirements
 8. Download NLTK data + check FFmpeg/Tesseract
 9. Create desktop shortcuts
@@ -163,7 +163,7 @@ The installer is a **bootstrapper**, not a bundled application. Reasons:
 
 4. **FFmpeg auto-install requires winget** — if `winget` is not available (rare on Windows 10), FFmpeg must be installed manually.
 
-5. **No automatic updates** — the installer downloads the latest `main` branch. If the user re-runs it, it will overwrite source files but preserve `venv/`, `data/`, and `LuxTTS/`.
+5. **No automatic updates** — the installer downloads the latest `main` branch. If the user re-runs it, it will overwrite source files but preserve `venv/`, `data/`, and `templates/`.
 
 6. **Shortcuts are .bat files** — not `.lnk` shortcuts. They open a console window behind the app. This is intentional for simplicity and debuggability.
 
@@ -177,8 +177,8 @@ Check internet connection. The uv binary is downloaded from `github.com/astral-s
 ### "PyTorch installation failed"
 Usually a network issue downloading from `download.pytorch.org`. Re-run the installer. If it persists, try a different CUDA version or CPU mode.
 
-### "LuxTTS import failed" (GPU mode)
-LuxTTS has exotic dependencies (LinaCodec via git, piper_phonemize). If `uv pip install` fails for LuxTTS, the user falls back to CPU mode automatically at runtime (handled in `src/tts/__init__.py`).
+### "OmniVoice import failed" (GPU mode)
+OmniVoice is installed via `pip install omnivoice`. If the install fails, the user falls back to CPU mode automatically at runtime (handled in `src/tts/__init__.py`).
 
 ### "Tesseract not found"
 Install Tesseract OCR from https://github.com/UB-Mannheim/tesseract/wiki and ensure it's at `C:\Program Files\Tesseract-OCR\tesseract.exe`.

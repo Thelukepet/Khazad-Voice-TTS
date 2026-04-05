@@ -1,7 +1,7 @@
 # Imports
 
 # > Standard Library
-from typing import Tuple, Optional, Any
+from typing import Any, Optional, Tuple
 
 # > Third-party Libraries
 import gradio as gr
@@ -9,8 +9,8 @@ import numpy as np
 
 # > Local Dependencies
 from . import config_manager as cfg
-from . import library as lib
 from . import engine_interface as engine
+from . import library as lib
 
 # --- CONSTANTS ---
 SAMPLE_SCRIPTS = [
@@ -79,7 +79,7 @@ def create_ui() -> gr.Blocks:
 
                     # --- GPU MODE ---
                     with gr.Column(variant="panel"):
-                        gr.Markdown("## GPU Mode (LuxTTS)")
+                        gr.Markdown("## GPU Mode (OmniVoice)")
                         lux_vol_slider = gr.Slider(
                             0.1,
                             1.0,
@@ -94,7 +94,7 @@ def create_ui() -> gr.Blocks:
                         # However, based on your request, I will place speed controls here too, but they will update the same 'TTS_SPEED'.
 
                         gr.Markdown(
-                            "*Note: TTS Speed setting (left) applies to LuxTTS as well.*"
+                            "*Note: TTS Speed setting (left) applies to OmniVoice as well.*"
                         )
 
                         steps_slider_conf = gr.Slider(
@@ -141,8 +141,8 @@ def create_ui() -> gr.Blocks:
             # ==================================
             # TAB 2: TTS TESTER
             # ==================================
-            with gr.Tab("🎙️ LuxTTS Tester & Custom Voice Adder", id="test_tab"):
-                gr.Markdown("### Test Configuration & Add New Voices (LuxTTS Only)")
+            with gr.Tab("🎙️ OmniVoice Tester & Custom Voice Adder", id="test_tab"):
+                gr.Markdown("### Test Configuration & Add New Voices (OmniVoice Only)")
 
                 mode_radio = gr.Radio(
                     choices=["📂 Use Existing Voice", "📤 Upload New Voice"],
@@ -162,7 +162,9 @@ def create_ui() -> gr.Blocks:
                                 interactive=True,
                             )
                             lib_sample = gr.Dropdown(
-                                choices=[], label="STEP 2: Select Sample File", interactive=True
+                                choices=[],
+                                label="STEP 2: Select Sample File",
+                                interactive=True,
                             )
                             btn_load_lib = gr.Button("Load Voice Data", size="sm")
 
@@ -221,7 +223,10 @@ def create_ui() -> gr.Blocks:
                                 label="Test Steps",
                             )
 
-                        test_btn = gr.Button("STEP 3: Generate Preview (first generated result will take longer)", variant="primary")
+                        test_btn = gr.Button(
+                            "STEP 3: Generate Preview (first generated result will take longer)",
+                            variant="primary",
+                        )
                         audio_output = gr.Audio(label="Result")
                         status_msg = gr.Markdown("")
 

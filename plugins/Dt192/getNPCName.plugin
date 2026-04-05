@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+
+<Plugin>
+  <Information>
+    <Name>getNPCName</Name>
+    <Author>dt192</Author>
+    <Version>0.1</Version>
+    <Description>Log the quest giver name on click</Description>
+  </Information>
+  <Package>Dt192.getNPCName.Main</Package>
+</Plugin>
