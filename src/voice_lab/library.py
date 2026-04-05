@@ -6,7 +6,7 @@ import re
 import shutil
 import tempfile
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict
+from typing import Dict, List, Optional, Tuple
 
 # > Third-party Libraries
 import soundfile as sf
@@ -45,7 +45,7 @@ def read_clean_lines(txt_path: Path) -> List[str]:
 def refresh_library() -> None:
     """
     Scans the Reference Audio directory and builds the library cache.
-    Replicates the exact matching logic from src/tts/lux.py.
+    Replicates the exact matching logic from src/tts/omnivoice.py.
 
     Populates the global VOICE_LIBRARY dictionary with structure:
     { 'category': [ {'name': filename, 'path': fullpath, 'text': transcript}, ... ] }

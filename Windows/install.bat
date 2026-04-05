@@ -55,6 +55,15 @@ python -m pip install --upgrade pip setuptools wheel
 :: Install NLTK immediately to ensure it is present regardless of later conflicts
 python -m pip install nltk
 
+:: --- 3. OmniVoice Setup (BEFORE PyTorch to prevent torch overwrite) ---
+echo.
+echo [4/6] Summoning the Voice (Installing OmniVoice TTS)...
+
+echo Installing OmniVoice package...
+pip install omnivoice
+if %errorlevel% neq 0 goto :error
+
+:: --- 4. PyTorch Setup (AFTER OmniVoice so CUDA version wins) ---
 echo.
 echo ==================================================
 echo           SELECT YOUR GPU DRIVER VERSION
@@ -62,47 +71,20 @@ echo ==================================================
 echo.
 echo [1] CUDA 12.1 (Standard - Recommended for most Nvidia Graphics cards)
 echo [2] CUDA 12.8 (Nightly - For the latest RTX 50-Series)
-echo [3] CPU Only  (Slow - Not recommended for using LuxTTS, will still work with Kokoro)
+echo [3] CPU Only  (Slow - Not recommended for using OmniVoice, will still work with Kokoro)
 echo.
 set /p choice="Enter selection [1, 2, or 3]: "
 
 if "%choice%"=="1" (
-    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+    pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121 --force-reinstall --no-deps
 ) else if "%choice%"=="2" (
-    pip install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+    pip install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128 --force-reinstall --no-deps
 ) else (
     pip install torch torchaudio
 )
 if %errorlevel% neq 0 goto :error
 
-:: --- 3. LuxTTS Setup ---
-echo.
-echo [4/6] Summoning the Voice (Setting up LuxTTS)...
-
-if not exist "LuxTTS" (
-    echo [INFO] LuxTTS not found. Cloning the 'main' branch...
-    :: Added -b main to ensure we get the right branch immediately
-    git clone -b main https://github.com/Thelukepet/LuxTTS.git
-) else (
-    echo [INFO] LuxTTS exists. Updating the scrolls...
-    cd LuxTTS
-    :: Fetch all updates and force-switch to main if it's currently on master
-    git fetch origin
-    git checkout main
-    git pull origin main
-    cd ..
-)
-
-echo Installing LuxTTS dependencies...
-:: We use --no-deps for torch to prevent it from overwriting the CUDA version we just installed
-pip install -r LuxTTS\requirements.txt
-if %errorlevel% neq 0 goto :error
-
-echo Installing LuxTTS package...
-pip install -e LuxTTS
-if %errorlevel% neq 0 goto :error
-
-:: --- 4. Main Requirements ---
+:: --- 5. Main Requirements ---
 echo.
 echo [5/6] Finalizing the Craft (Installing Main Requirements)...
 pip install -r requirements.txt
@@ -111,7 +93,7 @@ if %errorlevel% neq 0 (
     echo This is usually a version conflict. NLTK was pre-installed to ensure safety.
 )
 
-:: --- 5. NLTK Data Download ---
+:: --- 6. NLTK Data Download ---
 echo.
 echo [6/6] Teaching the Runes (Downloading NLTK Data)...
 python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger')"

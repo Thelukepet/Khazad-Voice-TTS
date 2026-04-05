@@ -69,7 +69,7 @@ DEFAULT_VOLUME = 0.4
 
 # --- TTS SETTINGS ---
 TTS_SPEED = 1.1  # Lower speed to prevent cutoffs
-TTS_WAVE_STEPS = 4  # Quality steps default is max performance, can be changed in the configure.bat / configure.sh
+TTS_WAVE_STEPS = 16  # OmniVoice diffusion steps (32 = high quality, 16 = fast). Can be changed in the configure.bat / configure.sh file
 
 # --- OCR SETTINGS ---
 # We check standard Windows paths to find Tesseract automatically
