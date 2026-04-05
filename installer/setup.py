@@ -1094,6 +1094,8 @@ class InstallerApp:
                         str(python_exe),
                         "-r",
                         str(req_file),
+                        "--extra-index-url",
+                        TORCH_INDEX_URLS[choice],
                     ],
                     check=False,  # Don't abort on version conflicts
                 )
@@ -1124,6 +1126,8 @@ class InstallerApp:
                     "gradio",
                     "openai-whisper",
                     "soundfile",
+                    "--extra-index-url",
+                    TORCH_INDEX_URLS[choice],
                 ],
                 check=False,
             )
@@ -1240,6 +1244,7 @@ class InstallerApp:
         """Background thread — update source code and dependencies only."""
         try:
             install_path = Path(self.install_dir.get())
+            choice = self.gpu_choice.get()
 
             # Find uv and python from existing installation
             uv_exe = self._acquire_uv(install_path)
@@ -1281,6 +1286,8 @@ class InstallerApp:
                         str(python_exe),
                         "-r",
                         str(req_file),
+                        "--extra-index-url",
+                        TORCH_INDEX_URLS[choice],
                     ],
                     check=False,
                 )
@@ -1296,6 +1303,8 @@ class InstallerApp:
                     "gradio",
                     "openai-whisper",
                     "soundfile",
+                    "--extra-index-url",
+                    TORCH_INDEX_URLS[choice],
                 ],
                 check=False,
             )
