@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="Black">
-    <option name="sdkName" value="lotro-narrator-minimal" />
-  </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="lotro-narrator-minimal" project-jdk-type="Python SDK" />
-</project>

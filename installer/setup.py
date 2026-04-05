@@ -719,11 +719,12 @@ class InstallerApp:
                 tk.Label(
                     instr_frame,
                     text=(
-                        "①  Launch LOTRO (or Echoes of Angmar) and log in to the game.\n"
-                        "②  Walk up to any NPC and talk to them so a quest window appears.\n"
-                        "     Make sure the quest window is fully visible on your primary monitor.\n"
-                        "③  Come back here and press the matching button below.\n"
-                        "④  Follow the instructions on the new window that opens."
+                        "①  Launch LOTRO (or Echoes of Angmar) and log in to the game.\n\n"
+                        "②  Walk up to any NPC and talk to them so a quest window appears.\n\n"
+                        "   Make sure the quest window is fully visible on your primary monitor.\n\n"
+                        "③  Run the calibrate_lotro (retail) / calibrate_eoa (EOA) to calibrate.\n\n"
+                        "   You can find the .bat (Windows) or .sh (Linux) files in their respective folders.\n\n"
+                        "   Follow the instructions on the new window that opens."
                     ),
                     font=("Segoe UI", 9),
                     fg=FG_CYAN,
