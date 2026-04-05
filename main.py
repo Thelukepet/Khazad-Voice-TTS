@@ -3,9 +3,16 @@
 # > Standard Library
 import argparse
 import sys
+import os
 import threading
 import time
+from pathlib import Path
 from threading import Event
+
+# Force AI models to download into the local installation folder
+_install_dir = Path(__file__).resolve().parent
+os.environ["HF_HOME"] = str(_install_dir / "models" / "huggingface")
+os.environ["TORCH_HOME"] = str(_install_dir / "models" / "torch")
 
 # > Third Party Imports
 from pynput import keyboard, mouse

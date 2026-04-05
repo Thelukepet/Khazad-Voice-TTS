@@ -465,11 +465,11 @@ class InstallerApp:
 
         # Disk space estimates
         note = (
-            "Estimated disk space required:\n"
-            "  CPU (Kokoro)   ~1.5 GB\n"
-            "  GPU CUDA 12.1  ~4.5 GB\n"
-            "  GPU CUDA 12.8  ~4.5 GB"
-        )
+            "Estimated disk space required (Install + AI Models):\n"
+            "  CPU (Kokoro)   ~3.0 GB\n"
+            "  GPU CUDA 12.1  ~8.0 GB\n"
+            "  GPU CUDA 12.8  ~8.0 GB"
+            )
         tk.Label(
             f,
             text=note,
