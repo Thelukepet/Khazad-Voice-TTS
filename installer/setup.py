@@ -25,7 +25,7 @@ from typing import Optional
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 APP_NAME = "Khazad Voice TTS"
-GITHUB_ZIP_URL = "https://github.com/Thelukepet/Khazad-Voice-TTS/archive/refs/heads/experimental-install.zip"
+GITHUB_ZIP_URL = "https://github.com/Thelukepet/Khazad-Voice-TTS/archive/refs/heads/experimental-installer.zip"
 OMNIVOICE_PIP = "omnivoice"
 UV_BINARY_URL = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
 DEFAULT_INSTALL_DIR = r"C:\Khazad-Voice-TTS"
