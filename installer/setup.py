@@ -960,279 +960,176 @@ class InstallerApp:
     # ─── Main Installation Logic ──────────────────────────────────────────
 
     def _run_install(self):
-        """Background thread - the entire installation sequence."""
-        try:
-            install_path = Path(self.install_dir.get())
-            choice = self.gpu_choice.get()
-            use_gpu = choice in (1, 2)
-
-            # ── Step 1: Acquire uv ──
-            self._set_status("Setting up uv package manager...")
-            self._set_progress(2)
-            self._log("=" * 50, "step")
-            self._log("  STEP 1/9  Acquiring uv", "step")
-            self._log("=" * 50, "step")
-
-            uv_exe = self._acquire_uv(install_path)
-            self._log(f"uv ready: {uv_exe}", "ok")
-            if self._cancel:
-                return self._cancelled()
-
-            # ── Step 2: Install Python 3.12 via uv ──
-            self._set_status("Installing Python 3.12...")
-            self._set_progress(5)
-            self._log("", "dim")
-            self._log("=" * 50, "step")
-            self._log("  STEP 2/9  Installing Python 3.12", "step")
-            self._log("=" * 50, "step")
-
-            self._run_cmd([str(uv_exe), "python", "install", "3.12"])
-            self._log("Python 3.12 installed.", "ok")
-            if self._cancel:
-                return self._cancelled()
-
-            # ── Step 3: Download project source ──
-            self._set_status("Downloading Khazad Voice TTS...")
-            self._set_progress(8)
-            self._log("", "dim")
-            self._log("=" * 50, "step")
-            self._log("  STEP 3/9  Downloading project source", "step")
-            self._log("=" * 50, "step")
-
-            self._download_project(install_path)
-            if self._cancel:
-                return self._cancelled()
-
-            # ── Step 4: Create virtual environment ──
-            self._set_status("Creating virtual environment...")
-            self._set_progress(14)
-            self._log("", "dim")
-            self._log("=" * 50, "step")
-            self._log("  STEP 4/9  Creating virtual environment", "step")
-            self._log("=" * 50, "step")
-
-            venv_path = install_path / "venv"
-            if venv_path.exists():
-                self._log("Removing existing venv...")
-                shutil.rmtree(venv_path)
-
-            self._run_cmd([str(uv_exe), "venv", str(venv_path), "--python", "3.12"])
-
-            python_exe = venv_path / "Scripts" / "python.exe"
-            if not python_exe.exists():
-                raise FileNotFoundError(f"Python executable not found at {python_exe}")
-            self._log(f"venv created: {python_exe}", "ok")
-            if self._cancel:
-                return self._cancelled()
-
-            # ── Step 5: Install OmniVoice (BEFORE PyTorch) ──
-            # OmniVoice may pull in a CPU-only torch as a dependency.
-            # We install PyTorch AFTER OmniVoice so the CUDA version wins.
-            self._set_status("Installing OmniVoice TTS...")
-            self._set_progress(18)
-            self._log("", "dim")
-            self._log("=" * 50, "step")
-            self._log("  STEP 5/9  OmniVoice TTS", "step")
-            self._log("=" * 50, "step")
-
-            self._install_omnivoice(install_path, python_exe, uv_exe)
-
-            if self._cancel:
-                return self._cancelled()
-
-            self._set_progress(48)
-
-            # ── Step 6: Install PyTorch (AFTER OmniVoice so CUDA wins) ──
-            self._set_status(
-                f"Installing PyTorch ({TORCH_LABELS.get(choice, 'CPU')})..."
-            )
-            self._set_progress(52)
-            self._log("", "dim")
-            self._log("=" * 50, "step")
-            self._log(
-                f"  STEP 6/9  PyTorch - {TORCH_LABELS.get(choice, 'CPU')}",
-                "step",
-            )
-            self._log("=" * 50, "step")
-
-            torch_cmd = [
-                str(uv_exe),
-                "pip",
-                "install",
-                "--python",
-                str(python_exe),
-            ]
-            if choice == 2:
-                torch_cmd.append("--pre")
-            torch_cmd += ["torch", "torchaudio"]
-            torch_cmd += ["--index-url", TORCH_INDEX_URLS[choice]]
-
-            self._run_cmd(torch_cmd)
-            self._log("PyTorch installed.", "ok")
-
-            if self._cancel:
-                return self._cancelled()
-
-            self._set_progress(68)
-
-            # ── Step 7: Install main requirements ──
-            self._set_status("Installing application dependencies...")
-            self._set_progress(70)
-            self._log("", "dim")
-            self._log("=" * 50, "step")
-            self._log("  STEP 7/9  Application requirements", "step")
-            self._log("=" * 50, "step")
-
-            req_file = install_path / "requirements.txt"
-            if req_file.exists():
-                self._run_cmd(
-                    [
-                        str(uv_exe),
-                        "pip",
-                        "install",
-                        "--python",
-                        str(python_exe),
-                        "-r",
-                        str(req_file),
-                        "--extra-index-url",
-                        TORCH_INDEX_URLS[choice],
-                    ],
-                    check=False,  # Don't abort on version conflicts
-                )
-            else:
-                self._log("requirements.txt not found - skipping.", "warn")
-
-            # Ensure NLTK is present
-            self._run_cmd(
-                [
-                    str(uv_exe),
-                    "pip",
-                    "install",
-                    "--python",
-                    str(python_exe),
-                    "nltk",
-                ],
-                check=False,
-            )
-
-            # Voice Lab dependencies (not in requirements.txt)
-            self._run_cmd(
-                [
-                    str(uv_exe),
-                    "pip",
-                    "install",
-                    "--python",
-                    str(python_exe),
-                    "gradio",
-                    "openai-whisper",
-                    "soundfile",
-                    "--extra-index-url",
-                    TORCH_INDEX_URLS[choice],
-                ],
-                check=False,
-            )
-
-            self._log("Dependencies installed.", "ok")
-            if self._cancel:
-                return self._cancelled()
-
-            self._set_progress(84)
-
-            # ── Step 8: NLTK data + external tools ──
-            self._set_status("Downloading NLTK data & checking tools...")
-            self._set_progress(86)
-            self._log("", "dim")
-            self._log("=" * 50, "step")
-            self._log("  STEP 8/9  NLTK data & external tools", "step")
-            self._log("=" * 50, "step")
-
-            # NLTK data
-            self._run_cmd(
-                [
-                    str(python_exe),
-                    "-c",
-                    "import nltk; "
-                    "nltk.download('punkt'); "
-                    "nltk.download('punkt_tab'); "
-                    "nltk.download('averaged_perceptron_tagger')",
-                ],
-                check=False,
-            )
-
-            # FFmpeg check
-            ffmpeg_found = shutil.which("ffmpeg") is not None
-            if ffmpeg_found:
-                self._log("FFmpeg found.", "ok")
-            else:
-                self._log("FFmpeg not found - attempting winget install...", "warn")
-                result = self._run_cmd(
-                    [
-                        "winget",
-                        "install",
-                        "-e",
-                        "--id",
-                        "Gyan.FFmpeg",
-                        "--accept-source-agreements",
-                        "--accept-package-agreements",
-                    ],
-                    check=False,
-                )
-                if result.returncode == 0:
-                    self._log("FFmpeg installed via winget.", "ok")
+            """Background thread - the entire installation sequence."""
+            try:
+                install_path = Path(self.install_dir.get())
+                choice = self.gpu_choice.get()
+                use_gpu = choice in (1, 2)
+    
+                # ── Step 1: Acquire uv ──
+                self._set_status("Setting up uv package manager...")
+                self._set_progress(2)
+                self._log("=" * 50, "step")
+                self._log("  STEP 1/9  Acquiring uv", "step")
+                self._log("=" * 50, "step")
+    
+                uv_exe = self._acquire_uv(install_path)
+                self._log(f"uv ready: {uv_exe}", "ok")
+                if self._cancel: return self._cancelled()
+    
+                # ── Step 2: Install Python 3.12 via uv ──
+                self._set_status("Installing Python 3.12...")
+                self._set_progress(5)
+                self._log("", "dim")
+                self._log("=" * 50, "step")
+                self._log("  STEP 2/9  Installing Python 3.12", "step")
+                self._log("=" * 50, "step")
+    
+                self._run_cmd([str(uv_exe), "python", "install", "3.12"])
+                self._log("Python 3.12 installed.", "ok")
+                if self._cancel: return self._cancelled()
+    
+                # ── Step 3: Download project source ──
+                self._set_status("Downloading Khazad Voice TTS...")
+                self._set_progress(8)
+                self._log("", "dim")
+                self._log("=" * 50, "step")
+                self._log("  STEP 3/9  Downloading project source", "step")
+                self._log("=" * 50, "step")
+    
+                self._download_project(install_path)
+                if self._cancel: return self._cancelled()
+    
+                # ── Step 4: Create virtual environment ──
+                self._set_status("Creating virtual environment...")
+                self._set_progress(14)
+                self._log("", "dim")
+                self._log("=" * 50, "step")
+                self._log("  STEP 4/9  Creating virtual environment", "step")
+                self._log("=" * 50, "step")
+    
+                venv_path = install_path / "venv"
+                if venv_path.exists():
+                    self._log("Removing existing venv...")
+                    shutil.rmtree(venv_path)
+    
+                self._run_cmd([str(uv_exe), "venv", str(venv_path), "--python", "3.12"])
+    
+                python_exe = venv_path / "Scripts" / "python.exe"
+                if not python_exe.exists():
+                    raise FileNotFoundError(f"Python executable not found at {python_exe}")
+                self._log(f"venv created: {python_exe}", "ok")
+                if self._cancel: return self._cancelled()
+    
+                # ── Step 5: Install OmniVoice ──
+                self._set_status("Installing OmniVoice TTS...")
+                self._set_progress(18)
+                self._log("", "dim")
+                self._log("=" * 50, "step")
+                self._log("  STEP 5/9  OmniVoice TTS", "step")
+                self._log("=" * 50, "step")
+    
+                self._install_omnivoice(install_path, python_exe, uv_exe)
+                if self._cancel: return self._cancelled()
+                self._set_progress(35)
+    
+                # ── Step 6: Install main requirements (Whisper & Gradio) ──
+                self._set_status("Installing application dependencies...")
+                self._set_progress(40)
+                self._log("", "dim")
+                self._log("=" * 50, "step")
+                self._log("  STEP 6/9  Application requirements", "step")
+                self._log("=" * 50, "step")
+    
+                req_file = install_path / "requirements.txt"
+                if req_file.exists():
+                    self._run_cmd([str(uv_exe), "pip", "install", "--python", str(python_exe), "-r", str(req_file)], check=False)
                 else:
-                    self._log(
-                        "Could not auto-install FFmpeg. "
-                        "Please install manually: https://ffmpeg.org/download.html",
-                        "warn",
-                    )
-
-            # Tesseract check
-            tesseract_paths = [
-                r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-                r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-            ]
-            tess_found = any(os.path.exists(p) for p in tesseract_paths)
-            if tess_found:
-                self._log("Tesseract OCR found.", "ok")
-            else:
-                self._log("Tesseract OCR not found.", "warn")
-                self._log(
-                    "  Required for quest text recognition. "
-                    "Install from: https://github.com/UB-Mannheim/tesseract/wiki",
-                    "warn",
-                )
-
-            if self._cancel:
-                return self._cancelled()
-
-            self._set_progress(94)
-
-            # ── Step 9: Create shortcuts ──
-            self._set_status("Creating shortcuts...")
-            self._set_progress(96)
-            self._log("", "dim")
-            self._log("=" * 50, "step")
-            self._log("  STEP 9/9  Shortcuts", "step")
-            self._log("=" * 50, "step")
-
-            self._create_shortcuts(install_path)
-
-            # ── Done ──
-            self._set_progress(100)
-            self._log("", "dim")
-            self._log("=" * 50, "ok")
-            self._log("  INSTALLATION COMPLETE!", "ok")
-            self._log("=" * 50, "ok")
-
-            self._install_finished(True)
-
-        except subprocess.CalledProcessError as e:
-            cmd_str = " ".join(str(c) for c in e.cmd) if e.cmd else "unknown"
-            self._log(f"\nCommand failed (exit {e.returncode}): {cmd_str}", "err")
-            self._install_finished(False, f"Command failed:\n{cmd_str}")
-        except Exception as e:
-            self._log(f"\nError: {e}", "err")
-            self._install_finished(False, str(e))
+                    self._log("requirements.txt not found - skipping.", "warn")
+    
+                self._run_cmd([str(uv_exe), "pip", "install", "--python", str(python_exe), "nltk"], check=False)
+                
+                # Voice Lab dependencies (this pulls in CPU torch secretly)
+                self._run_cmd([str(uv_exe), "pip", "install", "--python", str(python_exe), "gradio", "openai-whisper", "soundfile"], check=False)
+    
+                self._log("Dependencies installed.", "ok")
+                if self._cancel: return self._cancelled()
+                self._set_progress(60)
+    
+                # ── Step 7: PyTorch Setup (THE FINAL WORD) ──
+                self._set_status(f"Installing PyTorch ({TORCH_LABELS.get(choice, 'CPU')})...")
+                self._set_progress(65)
+                self._log("", "dim")
+                self._log("=" * 50, "step")
+                self._log(f"  STEP 7/9  PyTorch - {TORCH_LABELS.get(choice, 'CPU')}", "step")
+                self._log("=" * 50, "step")
+    
+                # First, completely rip out any CPU versions installed during Step 6
+                self._log("Cleaning up CPU versions installed by dependencies...", "dim")
+                self._run_cmd([str(uv_exe), "pip", "uninstall", "--python", str(python_exe), "torch", "torchaudio"], check=False)
+    
+                # Force install the correct drivers
+                torch_cmd = [str(uv_exe), "pip", "install", "--python", str(python_exe)]
+                if choice == 2:
+                    torch_cmd.append("--pre")
+                torch_cmd += ["torch", "torchaudio", "--index-url", TORCH_INDEX_URLS[choice]]
+                self._run_cmd(torch_cmd)
+    
+                self._log("PyTorch installed.", "ok")
+                if self._cancel: return self._cancelled()
+                self._set_progress(80)
+    
+                # ── Step 8: NLTK data + external tools ──
+                self._set_status("Downloading NLTK data & checking tools...")
+                self._set_progress(82)
+                self._log("", "dim")
+                self._log("=" * 50, "step")
+                self._log("  STEP 8/9  NLTK data & external tools", "step")
+                self._log("=" * 50, "step")
+    
+                self._run_cmd([str(python_exe), "-c", "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger')"], check=False)
+    
+                ffmpeg_found = shutil.which("ffmpeg") is not None
+                if ffmpeg_found:
+                    self._log("FFmpeg found.", "ok")
+                else:
+                    self._log("FFmpeg not found - attempting winget install...", "warn")
+                    result = self._run_cmd(["winget", "install", "-e", "--id", "Gyan.FFmpeg", "--accept-source-agreements", "--accept-package-agreements"], check=False)
+    
+                tesseract_paths = [r"C:\Program Files\Tesseract-OCR\tesseract.exe", r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe"]
+                if any(os.path.exists(p) for p in tesseract_paths):
+                    self._log("Tesseract OCR found.", "ok")
+                else:
+                    self._log("Tesseract OCR not found. Install from github.", "warn")
+    
+                if self._cancel: return self._cancelled()
+                self._set_progress(94)
+    
+                # ── Step 9: Create shortcuts ──
+                self._set_status("Creating shortcuts...")
+                self._set_progress(96)
+                self._log("", "dim")
+                self._log("=" * 50, "step")
+                self._log("  STEP 9/9  Shortcuts", "step")
+                self._log("=" * 50, "step")
+    
+                self._create_shortcuts(install_path)
+    
+                # ── Done ──
+                self._set_progress(100)
+                self._log("", "dim")
+                self._log("=" * 50, "ok")
+                self._log("  INSTALLATION COMPLETE!", "ok")
+                self._log("=" * 50, "ok")
+                self._install_finished(True)
+    
+            except subprocess.CalledProcessError as e:
+                cmd_str = " ".join(str(c) for c in e.cmd) if e.cmd else "unknown"
+                self._log(f"\nCommand failed (exit {e.returncode}): {cmd_str}", "err")
+                self._install_finished(False, f"Command failed:\n{cmd_str}")
+            except Exception as e:
+                self._log(f"\nError: {e}", "err")
+                self._install_finished(False, str(e))
 
     def _cancelled(self):
         self._log("\nInstallation cancelled by user.", "warn")
@@ -1241,106 +1138,80 @@ class InstallerApp:
     # ─── Update Logic ────────────────────────────────────────────────────
 
     def _run_update(self):
-        """Background thread — update source code and dependencies only."""
-        try:
-            install_path = Path(self.install_dir.get())
-            choice = self.gpu_choice.get()
-
-            # Find uv and python from existing installation
-            uv_exe = self._acquire_uv(install_path)
-            python_exe = install_path / "venv" / "Scripts" / "python.exe"
-
-            if not python_exe.exists():
-                raise FileNotFoundError(
-                    f"Python not found at {python_exe}.\n"
-                    "The existing installation may be damaged. Try a Full Reinstall."
-                )
-
-            # ── Step 1: Download latest source ──
-            self._set_status("Downloading latest source code...")
-            self._set_progress(15)
-            self._log("=" * 50, "step")
-            self._log("  STEP 1/3  Downloading latest source", "step")
-            self._log("=" * 50, "step")
-
-            self._update_project(install_path)
-            if self._cancel:
-                return self._cancelled()
-
-            # ── Step 2: Reinstall requirements ──
-            self._set_status("Checking for new dependencies...")
-            self._set_progress(55)
-            self._log("", "dim")
-            self._log("=" * 50, "step")
-            self._log("  STEP 2/3  Updating dependencies", "step")
-            self._log("=" * 50, "step")
-
-            req_file = install_path / "requirements.txt"
-            if req_file.exists():
-                self._run_cmd(
-                    [
-                        str(uv_exe),
-                        "pip",
-                        "install",
-                        "--python",
-                        str(python_exe),
-                        "-r",
-                        str(req_file),
-                        "--extra-index-url",
-                        TORCH_INDEX_URLS[choice],
-                    ],
-                    check=False,
-                )
-
-            # Also update Voice Lab dependencies
-            self._run_cmd(
-                [
-                    str(uv_exe),
-                    "pip",
-                    "install",
-                    "--python",
-                    str(python_exe),
-                    "gradio",
-                    "openai-whisper",
-                    "soundfile",
-                    "--extra-index-url",
-                    TORCH_INDEX_URLS[choice],
-                ],
-                check=False,
-            )
-
-            self._log("Dependencies updated.", "ok")
-            if self._cancel:
-                return self._cancelled()
-
-            # ── Step 3: Update shortcuts ──
-            self._set_status("Updating shortcuts...")
-            self._set_progress(85)
-            self._log("", "dim")
-            self._log("=" * 50, "step")
-            self._log("  STEP 3/3  Shortcuts", "step")
-            self._log("=" * 50, "step")
-
-            self._create_shortcuts(install_path)
-
-            # ── Done ──
-            self._set_progress(100)
-            self._is_update = True
-            self._log("", "dim")
-            self._log("=" * 50, "ok")
-            self._log("  UPDATE COMPLETE!", "ok")
-            self._log("=" * 50, "ok")
-
-            self._install_finished(True)
-
-        except subprocess.CalledProcessError as e:
-            cmd_str = " ".join(str(c) for c in e.cmd) if e.cmd else "unknown"
-            self._log(f"\nCommand failed (exit {e.returncode}): {cmd_str}", "err")
-            self._install_finished(False, f"Command failed:\n{cmd_str}")
-        except Exception as e:
-            self._log(f"\nError: {e}", "err")
-            self._install_finished(False, str(e))
-
+            """Background thread — update source code and dependencies only."""
+            try:
+                install_path = Path(self.install_dir.get())
+                choice = self.gpu_choice.get() # Ensure we lock the hardware choice
+    
+                uv_exe = self._acquire_uv(install_path)
+                python_exe = install_path / "venv" / "Scripts" / "python.exe"
+    
+                if not python_exe.exists():
+                    raise FileNotFoundError("Python not found. The existing installation may be damaged. Try a Full Reinstall.")
+    
+                # ── Step 1: Download latest source ──
+                self._set_status("Downloading latest source code...")
+                self._set_progress(15)
+                self._log("=" * 50, "step")
+                self._log("  STEP 1/3  Downloading latest source", "step")
+                self._log("=" * 50, "step")
+    
+                self._update_project(install_path)
+                if self._cancel: return self._cancelled()
+    
+                # ── Step 2: Reinstall requirements ──
+                self._set_status("Checking for new dependencies...")
+                self._set_progress(40)
+                self._log("", "dim")
+                self._log("=" * 50, "step")
+                self._log("  STEP 2/3  Updating dependencies", "step")
+                self._log("=" * 50, "step")
+    
+                req_file = install_path / "requirements.txt"
+                if req_file.exists():
+                    self._run_cmd([str(uv_exe), "pip", "install", "--python", str(python_exe), "-r", str(req_file)], check=False)
+    
+                self._run_cmd([str(uv_exe), "pip", "install", "--python", str(python_exe), "gradio", "openai-whisper", "soundfile"], check=False)
+                
+                # Enforce PyTorch Version (THE FINAL WORD)
+                self._log("Enforcing GPU drivers...", "dim")
+                self._run_cmd([str(uv_exe), "pip", "uninstall", "--python", str(python_exe), "torch", "torchaudio"], check=False)
+                
+                torch_cmd = [str(uv_exe), "pip", "install", "--python", str(python_exe)]
+                if choice == 2:
+                    torch_cmd.append("--pre")
+                torch_cmd += ["torch", "torchaudio", "--index-url", TORCH_INDEX_URLS[choice]]
+                self._run_cmd(torch_cmd)
+    
+                self._log("Dependencies updated.", "ok")
+                if self._cancel: return self._cancelled()
+    
+                # ── Step 3: Update shortcuts ──
+                self._set_status("Updating shortcuts...")
+                self._set_progress(85)
+                self._log("", "dim")
+                self._log("=" * 50, "step")
+                self._log("  STEP 3/3  Shortcuts", "step")
+                self._log("=" * 50, "step")
+    
+                self._create_shortcuts(install_path)
+    
+                self._set_progress(100)
+                self._is_update = True
+                self._log("", "dim")
+                self._log("=" * 50, "ok")
+                self._log("  UPDATE COMPLETE!", "ok")
+                self._log("=" * 50, "ok")
+                self._install_finished(True)
+    
+            except subprocess.CalledProcessError as e:
+                cmd_str = " ".join(str(c) for c in e.cmd) if e.cmd else "unknown"
+                self._log(f"\nCommand failed (exit {e.returncode}): {cmd_str}", "err")
+                self._install_finished(False, f"Command failed:\n{cmd_str}")
+            except Exception as e:
+                self._log(f"\nError: {e}", "err")
+                self._install_finished(False, str(e))
+                
     # ─── uv Acquisition ───────────────────────────────────────────────────
 
     def _acquire_uv(self, install_path: Path) -> Path:
