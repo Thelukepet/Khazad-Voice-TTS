@@ -19,6 +19,7 @@ transformers
 accelerate
 kokoro>=0.3.4
 omnivoice
+torchcodec
 
 # --- Vision & OCR ---
 opencv-python

@@ -70,6 +70,15 @@ python -m pip install --upgrade pip setuptools wheel
 # Install NLTK immediately to ensure it is present regardless of later conflicts
 python -m pip install nltk
 
+# --- 3. OmniVoice Setup (BEFORE PyTorch to prevent torch overwrite) ---
+echo ""
+echo "[4/6] Summoning the Voice (Installing OmniVoice TTS)..."
+
+echo "Installing OmniVoice package..."
+pip install omnivoice
+if [ $? -ne 0 ]; then error_exit; fi
+
+# --- 4. PyTorch Setup (AFTER OmniVoice so CUDA version wins) ---
 echo ""
 echo "=================================================="
 echo "           SELECT YOUR GPU DRIVER VERSION"
@@ -91,15 +100,7 @@ fi
 
 if [ $? -ne 0 ]; then error_exit; fi
 
-# --- 3. OmniVoice Setup ---
-echo ""
-echo "[4/6] Summoning the Voice (Installing OmniVoice TTS)..."
-
-echo "Installing OmniVoice package..."
-pip install omnivoice
-if [ $? -ne 0 ]; then error_exit; fi
-
-# --- 4. Main Requirements ---
+# --- 5. Main Requirements ---
 echo ""
 echo "[5/6] Finalizing the Craft (Installing Main Requirements)..."
 pip install -r requirements.txt
@@ -108,7 +109,7 @@ if [ $? -ne 0 ]; then
   echo "This is usually a version conflict. NLTK was pre-installed to ensure safety."
 fi
 
-# --- 5. NLTK Data Download ---
+# --- 6. NLTK Data Download ---
 echo ""
 echo "[6/6] Teaching the Runes (Downloading NLTK Data)..."
 python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger')"

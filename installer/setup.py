@@ -527,7 +527,7 @@ class InstallerApp:
                 2,
                 "CUDA 12.8  -  Nightly",
                 "For the latest RTX 50-series cards.\n"
-                "Uses PyTorch nightly build (may be less stable).",
+                "Uses PyTorch nightly build (required for RTX 50-series).",
             ),
             (
                 3,
@@ -1025,15 +1025,32 @@ class InstallerApp:
             if self._cancel:
                 return self._cancelled()
 
-            # ── Step 5: Install PyTorch ──
-            self._set_status(
-                f"Installing PyTorch ({TORCH_LABELS.get(choice, 'CPU')})..."
-            )
+            # ── Step 5: Install OmniVoice (BEFORE PyTorch) ──
+            # OmniVoice may pull in a CPU-only torch as a dependency.
+            # We install PyTorch AFTER OmniVoice so the CUDA version wins.
+            self._set_status("Installing OmniVoice TTS...")
             self._set_progress(18)
             self._log("", "dim")
             self._log("=" * 50, "step")
+            self._log("  STEP 5/9  OmniVoice TTS", "step")
+            self._log("=" * 50, "step")
+
+            self._install_omnivoice(install_path, python_exe, uv_exe)
+
+            if self._cancel:
+                return self._cancelled()
+
+            self._set_progress(48)
+
+            # ── Step 6: Install PyTorch (AFTER OmniVoice so CUDA wins) ──
+            self._set_status(
+                f"Installing PyTorch ({TORCH_LABELS.get(choice, 'CPU')})..."
+            )
+            self._set_progress(52)
+            self._log("", "dim")
+            self._log("=" * 50, "step")
             self._log(
-                f"  STEP 5/9  PyTorch - {TORCH_LABELS.get(choice, 'CPU')}",
+                f"  STEP 6/9  PyTorch - {TORCH_LABELS.get(choice, 'CPU')}",
                 "step",
             )
             self._log("=" * 50, "step")
@@ -1052,27 +1069,6 @@ class InstallerApp:
 
             self._run_cmd(torch_cmd)
             self._log("PyTorch installed.", "ok")
-            if self._cancel:
-                return self._cancelled()
-
-            self._set_progress(48)
-
-            # ── Step 6: Install OmniVoice (GPU only) ──
-            if use_gpu:
-                self._set_status("Setting up OmniVoice (voice cloning)...")
-                self._set_progress(52)
-                self._log("", "dim")
-                self._log("=" * 50, "step")
-                self._log("  STEP 6/9  OmniVoice (GPU voice cloning)", "step")
-                self._log("=" * 50, "step")
-
-                self._install_omnivoice(install_path, python_exe, uv_exe)
-            else:
-                self._set_progress(52)
-                self._log("", "dim")
-                self._log("=" * 50, "step")
-                self._log("  STEP 6/9  OmniVoice - skipped (CPU mode)", "step")
-                self._log("=" * 50, "step")
 
             if self._cancel:
                 return self._cancelled()
