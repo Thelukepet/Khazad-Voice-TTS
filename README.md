@@ -1,7 +1,8 @@
 <div align="center">
   <img src="installer/logo.jpg" width="128" height="128">
   <h1>⚒️ Khazad Voice TTS</h1>
-  <strong>Immersive AI Narrator for The Lord of the Rings Online</strong>
+  <strong>Immersive AI Narrator for The Lord of the Rings Online</strong><br><br>
+  
 </div>
 
 **Khazad Voice TTS** is an external utility designed to provide real-time narration for *The Lord of the Rings Online* (LOTRO). By combining Optical Character Recognition (OCR) with advanced Text-to-Speech (TTS) models, this tool captures quest text from your screen and narrates it aloud using context-aware AI voices.
