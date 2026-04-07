@@ -65,14 +65,14 @@ class InstallerApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title(f"{APP_NAME} — Setup")
-        self.root.geometry("740x750")
+        self.root.geometry("740x660")
         self.root.resizable(False, False)
         self.root.configure(bg=BG_DARK)
 
         # Center on screen
         self.root.update_idletasks()
         x = (self.root.winfo_screenwidth() - 740) // 2
-        y = (self.root.winfo_screenheight() - 750) // 2
+        y = (self.root.winfo_screenheight() - 660) // 2
         self.root.geometry(f"+{x}+{y}")
 
         # ── State ──
@@ -936,6 +936,7 @@ class InstallerApp:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
 
         for line in proc.stdout:
