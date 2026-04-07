@@ -12,3 +12,7 @@ opencv-python
 nltk
 Pillow
 pytesseract
+sounddevice
+pandas
+requests
+beautifulsoup4

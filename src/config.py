@@ -59,9 +59,30 @@ SCRIPT_LOG = os.path.join(
 TEMPLATES_DIR = BASE_DIR / "templates"
 
 # --- DEVICE ---
-import torch
+# Lazy: torch is only imported when DEVICE is first accessed at runtime,
+# so the test suite doesn't need a GPU stack just to import config.
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+def _get_device() -> str:
+    try:
+        import torch
+
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    except ImportError:
+        return "cpu"
+
+
+DEVICE = None  # Set on first access via __getattr__ below
+
+
+def __getattr__(name):
+    if name == "DEVICE":
+        global DEVICE
+        if DEVICE is None:
+            DEVICE = _get_device()
+        return DEVICE
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 # --- AUDIO SETTINGS ---
 SAMPLE_RATE = 24000
