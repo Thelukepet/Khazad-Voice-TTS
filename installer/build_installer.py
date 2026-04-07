@@ -56,13 +56,11 @@ def convert_logo_to_ico():
         img = Image.open(LOGO_JPG).convert("RGBA")
         # ICO needs square dimensions; generate all standard Windows icon sizes
         sizes = [(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)]
-        icon_images = [img.resize(size, Image.LANCZOS) for size in sizes]
-        # Save largest first, append the rest — Pillow builds multi-size ICO
-        icon_images[-1].save(
+        # Pillow handles resizing internally when saving ICO with sizes parameter
+        img.save(
             str(LOGO_ICO),
             format="ICO",
             sizes=sizes,
-            append_images=icon_images[:-1],
         )
         print(f"  Converted logo.jpg -> logo.ico ({len(sizes)} sizes)")
         return True

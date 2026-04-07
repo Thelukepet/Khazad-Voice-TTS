@@ -8,8 +8,28 @@ on:
     branches: [main]
 
 jobs:
+  test:
+    name: Run Tests
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: pip install -r requirements-test.txt
+
+      - name: Run pytest
+        run: python -m pytest tests/ -v
+
   build:
     name: Build Installer
+    needs: test
     runs-on: windows-latest
 
     steps:

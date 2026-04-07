@@ -1,5 +1,8 @@
-# ⚒️ Khazad Voice TTS
-**Immersive AI Narrator for The Lord of the Rings Online**
+<div align="center">
+  <img src="installer/logo.jpg" width="128" height="128">
+  <h1>⚒️ Khazad Voice TTS</h1>
+  <strong>Immersive AI Narrator for The Lord of the Rings Online</strong>
+</div>
 
 **Khazad Voice TTS** is an external utility designed to provide real-time narration for *The Lord of the Rings Online* (LOTRO). By combining Optical Character Recognition (OCR) with advanced Text-to-Speech (TTS) models, this tool captures quest text from your screen and narrates it aloud using context-aware AI voices.
 
@@ -95,7 +98,7 @@ Required for Retail mode to identify NPC metadata (Race/Gender) for accurate voi
    * Download all dependencies and voice models.
    * Detect your GPU and install the correct PyTorch drivers.
    * Create desktop shortcuts for launching and configuring.
-3. Once complete, the installer will present **calibration buttons** — follow the on-screen instructions to calibrate before your first use (see [Calibration](#calibration-important) below).
+3. Once complete, the installer will give you new instructions to calibrate the program before your first use (see [Calibration](#calibration-important) below).
 
 That's it! No manual Python or Git installation required.
 

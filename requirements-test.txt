@@ -1,0 +1,14 @@
+# Minimal dependencies for running the test suite
+# Heavy deps (torch, kokoro, omnivoice, transformers, gradio) are NOT needed
+# because the TTS backends use lazy imports in src/tts/__init__.py
+
+# --- Testing ---
+pytest>=8.0.0
+pytest-cov
+
+# --- Core deps imported by src modules during test collection ---
+numpy
+opencv-python
+nltk
+Pillow
+pytesseract

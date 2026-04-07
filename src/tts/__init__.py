@@ -5,9 +5,6 @@ Exposes the factory function to select between Kokoro (CPU) and OmniVoice (GPU).
 
 from src.utils import setup_logger
 
-from .kokoro import KokoroBackend
-from .omnivoice import OmniVoiceBackend
-
 log = setup_logger("TTS_FACTORY")
 
 
@@ -28,11 +25,17 @@ def get_tts_backend(device_choice: str = "cpu"):
     if device_choice == "gpu":
         log.info("🚀 User selected GPU (OmniVoice). Initializing...")
         try:
+            from .omnivoice import OmniVoiceBackend
+
             return OmniVoiceBackend()
         except Exception as e:
             log.error(f"❌ Failed to load OmniVoice (GPU): {e}")
             log.warning("⚠️ Falling back to Kokoro (CPU) automatically.")
+            from .kokoro import KokoroBackend
+
             return KokoroBackend()
     else:
         log.info("🐢 User selected CPU (Kokoro). Initializing...")
+        from .kokoro import KokoroBackend
+
         return KokoroBackend()

@@ -1495,7 +1495,7 @@ class InstallerApp:
         # Copy icon to install directory for shortcut use
         icon_dest = install_path / "logo.ico"
         icon_src = self._find_icon()
-        if icon_src and not icon_dest.exists():
+        if icon_src:
             try:
                 shutil.copy2(str(icon_src), str(icon_dest))
             except Exception:
