@@ -26,6 +26,8 @@ jobs:
 
       - name: Build installer exe
         run: python installer/build_installer.py --clean
+        env:
+          PYTHONIOENCODING: utf-8
 
       - name: Upload exe artifact
         uses: actions/upload-artifact@v4
