@@ -28,7 +28,7 @@ APP_NAME = "Khazad Voice TTS"
 GITHUB_ZIP_URL = (
     "https://github.com/Thelukepet/Khazad-Voice-TTS/archive/refs/heads/main.zip"
 )
-OMNIVOICE_PIP = "omnivoice"
+OMNIVOICE_PIP = "omnivoice==0.1.4"
 UV_BINARY_URL = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
 DEFAULT_INSTALL_DIR = r"C:\Khazad-Voice-TTS"
 
