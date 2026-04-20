@@ -16,7 +16,7 @@ numba>=0.60.0
 transformers
 accelerate
 kokoro>=0.3.4
-omnivoice
+omnivoice==0.1.4
 torchcodec
 
 # --- Vision & OCR ---

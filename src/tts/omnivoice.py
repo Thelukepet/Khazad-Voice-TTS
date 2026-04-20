@@ -172,8 +172,11 @@ class OmniVoiceBackend(TTSBackend):
                 num_step=TTS_WAVE_STEPS,
                 speed=TTS_SPEED,
             )
-            # result is a list of torch.Tensor with shape (1, T)
-            wav = result[0].detach().cpu().numpy().squeeze()
+            audio = result[0]
+            if isinstance(audio, torch.Tensor):
+                wav = audio.detach().cpu().numpy().squeeze()
+            else:
+                wav = np.asarray(audio).squeeze()
             return wav.astype(np.float32)
         except Exception as e:
             log.error(f"Generation failed: {e}")

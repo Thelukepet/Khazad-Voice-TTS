@@ -131,8 +131,11 @@ def generate_preview(
             speed=speed,
         )
 
-        # result is a list of torch.Tensor with shape (1, T) at 24 kHz
-        wav = result[0].detach().cpu().numpy().squeeze()
+        audio = result[0]
+        if hasattr(audio, "detach"):
+            wav = audio.detach().cpu().numpy().squeeze()
+        else:
+            wav = np.asarray(audio).squeeze()
 
         return 24000, wav
     except Exception as e:

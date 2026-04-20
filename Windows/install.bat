@@ -60,7 +60,7 @@ echo.
 echo [4/6] Summoning the Voice (Installing OmniVoice TTS)...
 
 echo Installing OmniVoice package...
-pip install omnivoice
+pip install omnivoice==0.1.4
 if %errorlevel% neq 0 goto :error
 
 :: --- 4. PyTorch Setup (AFTER OmniVoice so CUDA version wins) ---

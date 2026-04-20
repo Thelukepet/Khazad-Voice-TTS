@@ -1,8 +1,8 @@
 # Imports
 
 # > Standard Library
-import time
 import json
+import time
 from pathlib import Path
 
 # > Third-party Libraries
@@ -207,7 +207,7 @@ def main():
 
     # 1. Body Calculation
     tx, ty, _, _ = r_tl  # TL Corner Pos
-    bx, by, _, _ = r_text  # Text Pos
+    bx, by, bw, bh = r_text  # Text Pos
     brx, bry, _, _ = r_br  # BR Corner Pos
 
     # Calculate margins relative to the anchors
