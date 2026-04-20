@@ -898,11 +898,11 @@ def extract_echoes_areas(
         log.warning("Anchors not found in Echoes mode.")
         return None, None
 
-    # 3. Calculate Quest Title
-    tx = pos_lp[0] + tmpls["left_plant"].shape[1]
-    ty = pos_lp[1]
-    tw = pos_rp[0] - tx
-    th = max(tmpls["left_plant"].shape[0], tmpls["right_plant"].shape[0])
+    # 3. Quest Title position (kept for reference; not used in OCR)
+    # tx = pos_lp[0] + tmpls["left_plant"].shape[1]
+    # ty = pos_lp[1]
+    # tw = pos_rp[0] - tx
+    # th = max(tmpls["left_plant"].shape[0], tmpls["right_plant"].shape[0])
 
     # 4. Calculate Quest Body
     bx = pos_tl[0] + offsets.get("body_left_margin", 0)
@@ -915,9 +915,6 @@ def extract_echoes_areas(
 
     # 5. Crop & Stitch
     try:
-        # Title
-        crop_title = full_img_np[ty : ty + th, tx : tx + tw]
-
         # Body
         crop_body = full_img_np[by : by + bh, bx : bx + bw]
 
@@ -928,26 +925,10 @@ def extract_echoes_areas(
         else:
             crop_npc = np.zeros((50, 200, 3), dtype=np.uint8)
 
-        # Stitch
-        sep_h = 10
-        max_w = max(crop_title.shape[1], crop_body.shape[1])
-        separator = np.full((sep_h, max_w, 3), 255, dtype=np.uint8)
-
-        def resize_w(img, target_w):
-            h, w = img.shape[:2]
-            if w == target_w:
-                return img
-            return cv2.resize(img, (target_w, h))
-
-        if crop_title.shape[1] != max_w:
-            crop_title = resize_w(crop_title, max_w)
-        if crop_body.shape[1] != max_w:
-            crop_body = resize_w(crop_body, max_w)
-
-        stitched_quest = np.vstack([crop_title, separator, crop_body])
-
+        # Return body-only for OCR — stitching the title (different font)
+        # into the same image causes cross-contamination and garbage text.
         return (
-            Image.fromarray(cv2.cvtColor(stitched_quest, cv2.COLOR_BGR2RGB)),
+            Image.fromarray(cv2.cvtColor(crop_body, cv2.COLOR_BGR2RGB)),
             Image.fromarray(cv2.cvtColor(crop_npc, cv2.COLOR_BGR2RGB)),
         )
 
