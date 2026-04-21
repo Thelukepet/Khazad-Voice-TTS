@@ -68,19 +68,21 @@ The wizard opens with a dark-themed GUI showing GPU auto-detection results.
 Default: `C:\Khazad-Voice-TTS`. The user can browse to change it.
 
 Disk space estimates are shown:
-- CPU (Kokoro): ~1.5 GB
-- GPU CUDA 12.1: ~4.5 GB
-- GPU CUDA 12.8: ~4.5 GB
+- CPU (Kokoro): ~3.0 GB
+- GPU CUDA 12.1: ~8.0 GB
+- GPU CUDA 12.6: ~8.0 GB
+- GPU CUDA 12.8: ~8.0 GB
 
 ### Step 3 — GPU Driver Selection
 
-The same three options from `install.bat`:
+The same four options from `install.bat`:
 
-| Option | Description | PyTorch Index |
-|--------|-------------|---------------|
-| CUDA 12.1 | Standard — most NVIDIA cards (RTX 20/30/40, GTX series) | `whl/cu121` |
-| CUDA 12.8 | Nightly — RTX 50-series | `whl/nightly/cu128` |
-| CPU Only | Kokoro TTS, no GPU needed | `whl/cpu` |
+| Option | Description | Min Driver | PyTorch Index |
+|--------|-------------|------------|---------------|
+| CUDA 12.1 | Legacy — RTX 20/30/40 series, older drivers | 527+ | `whl/cu121` |
+| CUDA 12.6 | Standard — RTX 20/30/40 series, recommended | 560+ | `whl/cu126` |
+| CUDA 12.8 | Latest — required for RTX 50-series (Blackwell) | 570+ | `whl/cu128` |
+| CPU Only | Kokoro TTS, no GPU needed | — | `whl/cpu` |
 
 If no NVIDIA GPU was detected, CPU mode is pre-selected with a warning.
 

@@ -84,16 +84,19 @@ echo "=================================================="
 echo "           SELECT YOUR GPU DRIVER VERSION"
 echo "=================================================="
 echo ""
-echo "[1] CUDA 12.1 (Standard - Recommended for most Nvidia Graphics cards)"
-echo "[2] CUDA 12.8 (Nightly - For the latest RTX 50-Series)"
-echo "[3] CPU Only  (Slow - Not recommended for using OmniVoice, will still work with Kokoro)"
+echo "[1] CUDA 12.1 (Legacy   - driver 527+, RTX 20/30/40 series)"
+echo "[2] CUDA 12.6 (Standard - driver 560+, RTX 20/30/40 series, recommended)"
+echo "[3] CUDA 12.8 (Latest   - driver 570+, required for RTX 50-series)"
+echo "[4] CPU Only  (Slow - OmniVoice voice cloning will NOT be available)"
 echo ""
-read -p "Enter selection [1, 2, or 3]: " choice
+read -p "Enter selection [1, 2, 3, or 4]: " choice
 
 if [ "$choice" == "1" ]; then
   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
 elif [ "$choice" == "2" ]; then
-  pip install --pre torch torchaudio --index-url https://download.pytorch.org/whl/nightly/cu128
+  pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu126
+elif [ "$choice" == "3" ]; then
+  pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu128
 else
   pip install torch torchaudio
 fi

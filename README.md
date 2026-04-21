@@ -114,7 +114,7 @@ That's it! No manual Python or Git installation required.
     ```
 3.  Follow the on-screen prompts:
     * The script will verify **Python 3.12** and **Git** installation.
-    * Select your GPU architecture (CUDA version) when prompted to ensure the correct PyTorch drivers are downloaded.
+    * Select your CUDA version when prompted. Choose **12.6** for most cards (driver 560+), **12.1** for older drivers (527+), or **12.8** for RTX 50-series (driver 570+).
     * The script will automatically fetch the required voice models.
 
 ---

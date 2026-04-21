@@ -34,14 +34,16 @@ DEFAULT_INSTALL_DIR = r"C:\Khazad-Voice-TTS"
 
 TORCH_INDEX_URLS = {
     1: "https://download.pytorch.org/whl/cu121",
-    2: "https://download.pytorch.org/whl/nightly/cu128",
-    3: "https://download.pytorch.org/whl/cpu",
+    2: "https://download.pytorch.org/whl/cu126",
+    3: "https://download.pytorch.org/whl/cu128",
+    4: "https://download.pytorch.org/whl/cpu",
 }
 
 TORCH_LABELS = {
     1: "CUDA 12.1",
-    2: "CUDA 12.8 (Nightly)",
-    3: "CPU Only",
+    2: "CUDA 12.6",
+    3: "CUDA 12.8",
+    4: "CPU Only",
 }
 
 # Colors
@@ -81,6 +83,7 @@ class InstallerApp:
         self.current_step = 0
         self.has_nvidia = False
         self.gpu_name: Optional[str] = None
+        self.driver_version: Optional[str] = None
         self._cancel = False
         self._install_success = False
         self._is_update = False
@@ -88,8 +91,22 @@ class InstallerApp:
         # Detect hardware
         self._detect_gpu()
 
-        # Set default choice based on detection
-        self.gpu_choice.set(1 if self.has_nvidia else 3)
+        # Set default choice based on detection and detected driver version
+        if self.has_nvidia:
+            ver = self.driver_version or ""
+            try:
+                major = int(ver.split(".")[0])
+            except ValueError:
+                major = 0
+            if major >= 570:
+                default_cuda = 3  # CUDA 12.8
+            elif major >= 560:
+                default_cuda = 2  # CUDA 12.6
+            else:
+                default_cuda = 1  # CUDA 12.1 (safe fallback)
+            self.gpu_choice.set(default_cuda)
+        else:
+            self.gpu_choice.set(4)
 
         # Set window icon (logo.ico is created at build time from logo.jpg)
         if getattr(sys, "frozen", False):
@@ -112,19 +129,28 @@ class InstallerApp:
     def _detect_gpu(self):
         """Check for an NVIDIA GPU via nvidia-smi, then WMI as fallback."""
         # Method 1: nvidia-smi (fast, but may not be on PATH)
-        try:
-            result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                self.has_nvidia = True
-                self.gpu_name = result.stdout.strip().split("\n")[0]
-                return
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
+        _smi_candidates = [
+            "nvidia-smi",
+            r"C:\Windows\System32\nvidia-smi.exe",
+            r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe",
+        ]
+        for smi in _smi_candidates:
+            try:
+                result = subprocess.run(
+                    [smi, "--query-gpu=name,driver_version", "--format=csv,noheader"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    first_line = result.stdout.strip().split("\n")[0]
+                    parts = [p.strip() for p in first_line.split(",", 1)]
+                    self.has_nvidia = True
+                    self.gpu_name = parts[0]
+                    self.driver_version = parts[1] if len(parts) > 1 else None
+                    return
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                pass
 
         # Method 2: WMI query (built into Windows, works without nvidia-smi)
         try:
@@ -401,6 +427,14 @@ class InstallerApp:
                     fg=FG_GREEN,
                     bg=BG_PANEL,
                 ).pack(anchor=tk.W)
+                if self.driver_version:
+                    tk.Label(
+                        det_frame,
+                        text=f"  Driver version:       {self.driver_version}",
+                        font=("Segoe UI", 10),
+                        fg=FG_GREEN,
+                        bg=BG_PANEL,
+                    ).pack(anchor=tk.W)
                 tk.Label(
                     det_frame,
                     text="GPU-accelerated TTS (OmniVoice voice cloning) will be available.",
@@ -470,6 +504,7 @@ class InstallerApp:
             "Estimated disk space required (Install + AI Models):\n"
             "  CPU (Kokoro)   ~3.0 GB\n"
             "  GPU CUDA 12.1  ~8.0 GB\n"
+            "  GPU CUDA 12.6  ~8.0 GB\n"
             "  GPU CUDA 12.8  ~8.0 GB"
         )
         tk.Label(
@@ -521,18 +556,24 @@ class InstallerApp:
         options = [
             (
                 1,
-                "CUDA 12.1  -  Standard",
-                "Recommended for most NVIDIA graphics cards.\n"
-                "Works with RTX 20/30/40 series and older GTX cards.",
+                "CUDA 12.1  -  Legacy",
+                "For older NVIDIA cards or systems with an older driver.\n"
+                "Compatible with RTX 20/30/40 series (driver 527+).",
             ),
             (
                 2,
-                "CUDA 12.8  -  Nightly",
-                "For the latest RTX 50-series cards.\n"
-                "Uses PyTorch nightly build (required for RTX 50-series).",
+                "CUDA 12.6  -  Standard",
+                "Recommended for most NVIDIA graphics cards.\n"
+                "Compatible with RTX 20/30/40 series (driver 560+).",
             ),
             (
                 3,
+                "CUDA 12.8  -  Latest",
+                "Required for RTX 50-series (Blackwell) cards.\n"
+                "Also works on RTX 20/30/40 series with a recent driver (570+).",
+            ),
+            (
+                4,
                 "CPU Only  -  Kokoro",
                 "No GPU required. Fast and reliable TTS.\n"
                 "OmniVoice (voice cloning) will NOT be available.",
@@ -968,7 +1009,7 @@ class InstallerApp:
         try:
             install_path = Path(self.install_dir.get())
             choice = self.gpu_choice.get()
-            use_gpu = choice in (1, 2)
+            use_gpu = choice in (1, 2, 3)
 
             # ── Step 1: Acquire uv ──
             self._set_status("Setting up uv package manager...")
