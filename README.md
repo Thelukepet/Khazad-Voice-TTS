@@ -317,3 +317,4 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 ## Contributions
 * **Linux Port:** Thanks to [Marco Di Fresco](https://github.com/marcodifresco) for porting the application to Linux (Bash scripts and cross-platform compatibility).
+* **GPU Driver & CUDA Improvements:** Thanks to [cyberox](https://github.com/cyberox) for adding CUDA 12.6 support, improving GPU auto-detection, and modernizing the installer's driver selection across all platforms.
