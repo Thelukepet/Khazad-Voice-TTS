@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Change working directory to the project root
+cd "$(dirname "$0")/.."
+
 # --- 1. Script Setup & Colors ---
 set -e # Exit immediately if a command fails.
 
@@ -11,8 +14,8 @@ NC='\033[0m' # No Color
 echo -ne "\033]0;KHAZAD VOICE - RETAIL MODE\007"
 
 # --- 2. Check for Environment ---
-if [ ! -d "../venv" ]; then
-    echo -e "${RED}[ERROR]${NC} 'venv' folder not found. Please run './install.sh' first."
+if [ ! -d "venv" ]; then
+    echo -e "${RED}[ERROR]${NC} 'venv' folder not found. Please run './Linux/install.sh' first."
     read -p "Press Enter to exit..."
     exit 1
 fi
@@ -21,7 +24,7 @@ fi
 echo -e "${CYAN}[INFO]${NC} Starting Retail Mode..."
 
 # Activate the virtual environment
-source ../venv/bin/activate
+source venv/bin/activate
 
 # Run the main Python script with the '--mode retail' argument
 python main.py --mode retail
