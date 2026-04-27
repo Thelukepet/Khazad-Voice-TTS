@@ -108,11 +108,14 @@ That's it! No manual Python or Git installation required.
 ### Linux (Manual)
 
 1.  Clone or download this repository.
-2.  Run the installer:
+2.  Install Python3.12 _specifically_.
+    * If your Distribution doesn't provide this version of Python, use `pyenv` to install it.
+3.  Run the installer:
     ```bash
-    ./Linux/install.sh
+    ./Linux/install.sh [--python-bin <PATH>]
     ```
-3.  Follow the on-screen prompts:
+    * If needed, you can specify the Python binary to be used.
+4.  Follow the on-screen prompts:
     * The script will verify **Python 3.12** and **Git** installation.
     * Select your CUDA version when prompted. Choose **12.6** for most cards (driver 560+), **12.1** for older drivers (527+), or **12.8** for RTX 50-series (driver 570+).
     * The script will automatically fetch the required voice models.
