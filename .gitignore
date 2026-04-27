@@ -215,3 +215,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 TODO.md
+
+# Generated files
+models/
+templates/
+data/npc_memory_retail_lux.json
+data/layout_retail.json
