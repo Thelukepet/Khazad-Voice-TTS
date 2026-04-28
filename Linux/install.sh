@@ -40,7 +40,7 @@ if ! git --version &>/dev/null; then
 fi
 
 # Check for user-specified Python binary
-if [ "$1" != "$EOL" ]; then
+if [ "$1" != "" ]; then
   arg1="$1"
   val1="$2"
   if [ "$arg1" == "--python-bin" -a "$val1" != "" ]; then
@@ -76,9 +76,9 @@ echo "[2/6] Stoking the Fires (Activating Environment)..."
 source venv/bin/activate
 
 echo "[3/6] Sharpening the Axe (Updating Setup Tools)..."
-python -m pip install --upgrade pip setuptools wheel
+$PYTHON_CMD -m pip install --upgrade pip setuptools wheel
 # Install NLTK immediately to ensure it is present regardless of later conflicts
-python -m pip install nltk
+$PYTHON_CMD -m pip install nltk
 
 # --- 3. OmniVoice Setup (BEFORE PyTorch to prevent torch overwrite) ---
 echo ""
@@ -125,7 +125,7 @@ fi
 # --- 6. NLTK Data Download ---
 echo ""
 echo "[6/6] Teaching the Runes (Downloading NLTK Data)..."
-python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger')"
+$PYTHON_CMD -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger')"
 
 cat >~/.local/share/applications/Khazad\ Voice\ TTS.desktop <<EOL
 [Desktop Entry]

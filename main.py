@@ -2,8 +2,8 @@
 
 # > Standard Library
 import argparse
-import sys
 import os
+import sys
 import threading
 import time
 from pathlib import Path
@@ -58,15 +58,15 @@ def main():
     )
     args = parser.parse_args()
 
+    print(r"""
+    ========================================
+       LOTRO NARRATOR - AI VOICE OVER
+    ========================================
+    """)
+
     if args.device:
         device_choice = args.device
     else:
-        print(r"""
-        ========================================
-        LOTRO NARRATOR - AI VOICE OVER
-        ========================================
-        """)
-
         # 1. Select TTS Backend
         print("\n[SELECT AUDIO ENGINE]")
         print("1. CPU (Kokoro) [Default]")
