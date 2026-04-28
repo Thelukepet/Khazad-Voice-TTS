@@ -94,7 +94,7 @@ Required for Retail mode to identify NPC metadata (Race/Gender) for accurate voi
 ### Windows (One-Click Installer)
 
 1. Download **`Khazad-Voice-Setup.exe`** from the [latest release](https://github.com/Thelukepet/Khazad-Voice-TTS/releases).
-2. Run the installer — it will automatically:
+2. Run the installer, it will automatically:
    * Install Python 3.12 (via `uv`).
    * Download all dependencies and voice models.
    * Detect your GPU and install the correct PyTorch drivers.
@@ -158,8 +158,6 @@ If you are using the GPU model, switch to the **TTS Tester** tab to verify your 
 
 Before running the bot for the first time, you must calibrate it to your screen resolution and UI layout. **This only needs to be done once** (unless you change your UI skin or game resolution).
 
-**Windows users:** The installer's completion screen has calibration buttons built in — you can run calibration directly from there. You can also re-run calibration at any time using the `.bat` files or desktop shortcuts.
-
 ### Steps
 
 1. Open LOTRO / Echoes of Angmar and **log in**.
@@ -209,7 +207,7 @@ https://www.youtube.com/watch?v=hYPYav5oWh8
 
 ### Static Quest Window Mode (Fallback)
 
-Use this if template matching doesn't work on your screen resolution or UI skin. It manually defines a fixed reading zone — the trade-off is that the quest window must NOT be moved after calibration.
+Use this if template matching doesn't work on your screen resolution or UI skin. It manually defines a fixed reading zone. The trade-off is that the quest window must NOT be moved after calibration.
 
 1. Open LOTRO with a quest window visible.
 2. Run the static calibration script.
@@ -294,7 +292,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 * Yes! Use the **TTS Tester & Voice Adder** in the configuration suite. It handles the file placement and transcription for you.
 
-**Q: I'm a Windows user and installed via the .exe — where are my files?**
+**Q: I'm a Windows user and installed via the .exe, where are my files?**
 
 * By default the installer places everything in `C:\Khazad-Voice-TTS`. Desktop shortcuts are created for all launchers and the configuration suite.
 
@@ -314,7 +312,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 * **LOTROToSpeech by ils94:** Inspired by the original [LOTROToSpeech](https://github.com/ils94/LOTROToSpeech) project.
 * **Kokoro:** Powered by the [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) model.
-* **OmniVoice:** GPU backend powered by [OmniVoice](https://github.com/k2-fsa/OmniVoice) by k2-fsa — 600+ language zero-shot TTS with voice cloning.
+* **OmniVoice:** GPU backend powered by [OmniVoice](https://github.com/k2-fsa/OmniVoice) by k2-fsa: 600+ language zero-shot TTS with voice cloning.
 * **Qwen3-TTS:** [Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) model used for creating the .flac reference audio files.
 * **XTTS-v2:** [coqui/XTTS-v2](https://huggingface.co/coqui/XTTS-v2) model used to generate the .wav reference audio files using the standard TTS speakers.
 
