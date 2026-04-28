@@ -2,6 +2,7 @@
 
 # > Standard Library
 import os
+import sys
 from pathlib import Path
 
 # --- PATHS ---
@@ -101,6 +102,9 @@ possible_paths = [
 ]
 
 TESSERACT_CMD = r"C:\Program Files\Tesseract-OCR\tesseract.exe"  # Default value in the configure.bat  / configure.sh file
+
+if sys.platform == "linux":
+    TESSERACT_CMD = r"tesseract" # On a linux system, the Tesseract binary is installed in a directory that is included in the $PATH variable
 
 for p in possible_paths:
     if os.path.exists(p):

@@ -53,23 +53,29 @@ def main():
     parser.add_argument(
         "--mode", choices=["retail", "echoes"], help="Game mode to start in"
     )
+    parser.add_argument(
+        "--device", choices=["gpu", "cpu"], help="Audio engine to start in"
+    )
     args = parser.parse_args()
 
-    print(r"""
-    ========================================
-       LOTRO NARRATOR - AI VOICE OVER
-    ========================================
-    """)
+    if args.device:
+        device_choice = args.device
+    else:
+        print(r"""
+        ========================================
+        LOTRO NARRATOR - AI VOICE OVER
+        ========================================
+        """)
 
-    # 1. Select TTS Backend
-    print("\n[SELECT AUDIO ENGINE]")
-    print("1. CPU (Kokoro) [Default]")
-    print("   -> Fast, Reliable. Works on all PCs.")
-    print("2. GPU (OmniVoice)")
-    print("   -> Higher Quality. REQUIRES NVIDIA GPU.")
+        # 1. Select TTS Backend
+        print("\n[SELECT AUDIO ENGINE]")
+        print("1. CPU (Kokoro) [Default]")
+        print("   -> Fast, Reliable. Works on all PCs.")
+        print("2. GPU (OmniVoice)")
+        print("   -> Higher Quality. REQUIRES NVIDIA GPU.")
 
-    device_input = input("\nEnter choice (1 or 2): ").strip()
-    device_choice = "gpu" if device_input == "2" else "cpu"
+        device_input = input("\nEnter choice (1 or 2): ").strip()
+        device_choice = "gpu" if device_input == "2" else "cpu"
 
     # 2. Initialize Heavy Components
     try:

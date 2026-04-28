@@ -39,20 +39,30 @@ if ! git --version &>/dev/null; then
   exit 1
 fi
 
-# Try to find Python 3.12 (preferred) or fallback to system python
-PYTHON_CMD="python3"
+# Check for user-specified Python binary
+if [ "$1" != "$EOL" ]; then
+  arg1="$1"
+  val1="$2"
+  if [ "$arg1" == "--python-bin" -a "$val1" != "" ]; then
+    PYTHON_CMD=$val1
+  fi
+fi
 
-if command -v python3.12 &>/dev/null; then
-  echo "[INFO] Found Python 3.12."
-  PYTHON_CMD="python3.12"
-else
-  # Fallback check
-  if ! command -v python3 &>/dev/null; then
-    echo -e "${YELLOW}[ERROR] Python is not installed or not in PATH.${NC}"
-    echo "Please install Python 3.12."
-    read -n 1 -s -r -p "Press any key to continue..."
-    echo ""
-    exit 1
+if [ "$PYTHON_CMD" == "" ]; then
+  # Try to find Python 3.12 (preferred) or fallback to system python
+  PYTHON_CMD="python3"
+  if command -v python3.12 > /dev/null; then
+    echo "[INFO] Found Python 3.12."
+    PYTHON_CMD="python3.12"
+  else
+    # Fallback check
+    if ! command -v python3 > /dev/null; then
+      echo -e "${YELLOW}[ERROR] Python is not installed or not in PATH.${NC}"
+      echo "Please install Python 3.12."
+      read -n 1 -s -r -p "Press any key to continue..."
+      echo ""
+      exit 1
+    fi
   fi
 fi
 
@@ -116,6 +126,22 @@ fi
 echo ""
 echo "[6/6] Teaching the Runes (Downloading NLTK Data)..."
 python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger')"
+
+cat >~/.local/share/applications/Khazad\ Voice\ TTS.desktop <<EOL
+[Desktop Entry]
+Comment=\sImmersive AI Narrator for The Lord of the Rings Online
+Exec=$PWD/Linux/start_lotro.sh
+GenericName=
+Icon=$PWD/installer/logo.ico
+Name=Khazad Voice TTS
+NoDisplay=false
+Path=$PWD/
+PrefersNonDefaultGPU=false
+StartupNotify=true
+Terminal=true
+TerminalOptions=
+Type=Application
+EOL
 
 echo ""
 echo "=================================================="
