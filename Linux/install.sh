@@ -127,20 +127,40 @@ echo ""
 echo "[6/6] Teaching the Runes (Downloading NLTK Data)..."
 $PYTHON_CMD -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger')"
 
-cat >~/.local/share/applications/Khazad\ Voice\ TTS.desktop <<EOL
+cat >~/.local/share/applications/Khazad\ Voice\ TTS\ \(LOTRO\).desktop <<EOL
 [Desktop Entry]
-Comment=\sImmersive AI Narrator for The Lord of the Rings Online
+Name=Khazad Voice TTS (LOTRO)
+Comment=Immersive AI Narrator for The Lord of the Rings Online
+Path=$PWD
 Exec=$PWD/Linux/start_lotro.sh
-GenericName=
 Icon=$PWD/installer/logo.ico
-Name=Khazad Voice TTS
-NoDisplay=false
-Path=$PWD/
-PrefersNonDefaultGPU=false
-StartupNotify=true
 Terminal=true
-TerminalOptions=
 Type=Application
+Categories=Game;
+EOL
+
+cat >~/.local/share/applications/Khazad\ Voice\ TTS\ \(EOA\).desktop <<EOL
+[Desktop Entry]
+Name=Khazad Voice TTS (EOA)
+Comment=Immersive AI Narrator for The Lord of the Rings Online
+Path=$PWD
+Exec=$PWD/Linux/start_eoa.sh
+Icon=$PWD/installer/logo.ico
+Terminal=true
+Type=Application
+Categories=Game;
+EOL
+
+cat >~/.local/share/applications/Khazad\ Voice\ TTS\ Configuration\ Suite.desktop <<EOL
+[Desktop Entry]
+Name=Khazad Voice TTS Configuration Suite
+Comment=TTS engine configuration
+Path=$PWD
+Exec=$PWD/Linux/configure.sh
+Icon=$PWD/installer/logo.ico
+Terminal=true
+Type=Application
+Categories=Game;
 EOL
 
 echo ""
