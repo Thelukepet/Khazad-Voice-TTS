@@ -110,12 +110,18 @@ That's it! No manual Python or Git installation required.
 1.  Clone or download this repository.
 2.  Install Python3.12 _specifically_.
     * If your Distribution doesn't provide this version of Python, use `pyenv` to install it.
-3.  Run the installer:
+3.  Install PortAudio (requirement for PyAudio)
+      ```bash
+      sudo apt install portaudio19-dev # Debian/Ubuntu
+      sudo dnf install portaudio       # Fedora
+      sudo pacman -S portaudio         # Arch
+      ```
+4.  Run the installer:
     ```bash
     ./Linux/install.sh [--python-bin <PATH>]
     ```
     * If needed, you can specify the Python binary to be used.
-4.  Follow the on-screen prompts:
+5.  Follow the on-screen prompts:
     * The script will verify **Python 3.12** and **Git** installation.
     * Select your CUDA version when prompted. Choose **12.6** for most cards (driver 560+), **12.1** for older drivers (527+), or **12.8** for RTX 50-series (driver 570+).
     * The script will automatically fetch the required voice models.
