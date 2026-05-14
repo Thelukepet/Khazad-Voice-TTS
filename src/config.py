@@ -5,6 +5,8 @@ import os
 import sys
 from pathlib import Path
 
+from .path_utils import detect_script_log_path
+
 # --- PATHS ---
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
@@ -54,9 +56,7 @@ DEFAULT_ECHOES_OFFSETS = {
 }
 
 # Retail Mode Paths
-SCRIPT_LOG = os.path.join(
-    os.path.expanduser("~"), "Documents", "The Lord of the Rings Online", "Script.log"
-)
+SCRIPT_LOG = detect_script_log_path()
 TEMPLATES_DIR = BASE_DIR / "templates"
 
 # --- DEVICE ---
