@@ -156,13 +156,16 @@ def create_ui() -> gr.Blocks:
                     with gr.Column():
                         # Library Group
                         with gr.Group(visible=True) as grp_library:
+                            _initial_categories = lib.get_library_categories()
+                            _initial_category = _initial_categories[0] if _initial_categories else None
                             lib_category = gr.Dropdown(
-                                choices=lib.get_library_categories(),
+                                choices=_initial_categories,
+                                value=_initial_category,
                                 label="STEP 1: Pick a voice category",
                                 interactive=True,
                             )
                             lib_sample = gr.Dropdown(
-                                choices=[],
+                                choices=lib.get_samples_for_category(_initial_category) if _initial_category else [],
                                 label="STEP 2: Select Sample File",
                                 interactive=True,
                             )
@@ -280,8 +283,10 @@ def create_ui() -> gr.Blocks:
 
                 # 3. Library Handling
                 def update_samples(cat):
+                    samples = lib.get_samples_for_category(cat)
                     return gr.Dropdown(
-                        choices=lib.get_samples_for_category(cat), value=None
+                        choices=samples,
+                        value=samples[0] if samples else None,
                     )
 
                 lib_category.change(
