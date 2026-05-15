@@ -65,7 +65,7 @@ def create_ui() -> gr.Blocks:
                         )
 
                         # Kokoro-Specific Speed Slider (Using the shared TTS_SPEED config variable)
-                        # Note: Both engines currently share 'TTS_SPEED' in config.py.
+                        # Note: Both engines currently share 'TTS_SPEED' in khazad_config.ini.
                         # If you want them truly separate, we'd need a 'KOKORO_SPEED' config variable.
                         # For now, we assume this slider controls the global speed.
                         speed_slider_conf = gr.Slider(
@@ -156,13 +156,27 @@ def create_ui() -> gr.Blocks:
                     with gr.Column():
                         # Library Group
                         with gr.Group(visible=True) as grp_library:
+                            categories = lib.get_library_categories()
+                            default_cat = categories[0] if categories else None
+
                             lib_category = gr.Dropdown(
-                                choices=lib.get_library_categories(),
+                                choices=categories,
+                                value=default_cat,
                                 label="STEP 1: Pick a voice category",
                                 interactive=True,
                             )
+
                             lib_sample = gr.Dropdown(
-                                choices=[],
+                                # Dynamically fill the first one based on the default category
+                                choices=lib.get_samples_for_category(default_cat)
+                                if default_cat
+                                else [],
+                                value=next(
+                                    iter(lib.get_samples_for_category(default_cat)),
+                                    None,
+                                )
+                                if default_cat
+                                else None,
                                 label="STEP 2: Select Sample File",
                                 interactive=True,
                             )
@@ -280,9 +294,9 @@ def create_ui() -> gr.Blocks:
 
                 # 3. Library Handling
                 def update_samples(cat):
-                    return gr.Dropdown(
-                        choices=lib.get_samples_for_category(cat), value=None
-                    )
+                    choices = lib.get_samples_for_category(cat)
+                    initial_value = choices[0] if choices else None
+                    return gr.Dropdown(choices=choices, value=initial_value)
 
                 lib_category.change(
                     update_samples, inputs=lib_category, outputs=lib_sample
