@@ -3,15 +3,16 @@
 # > Standard Library
 import logging
 import time
-from typing import Optional
 from threading import Event
+from typing import Optional
+
+import numpy as np
 
 # > Third-party Libraries
 import sounddevice as sd
-import numpy as np
 
 # > Local Dependencies
-from .config import DEFAULT_VOLUME
+from .config.ConfigManager import ConfigManager
 
 log = logging.getLogger("AUDIO")
 
@@ -38,7 +39,7 @@ def play_audio(
     audio_data: np.ndarray,
     samplerate: int,
     volume: Optional[float] = None,
-    stop_event: Optional[Event] = None
+    stop_event: Optional[Event] = None,
 ) -> None:
     """
     Plays audio using sounddevice.
@@ -59,7 +60,8 @@ def play_audio(
         return
 
     if volume is None:
-        volume = DEFAULT_VOLUME
+        _cfg = ConfigManager()
+        volume = _cfg.get_float("TTSSettings", "default_volume", fallback=0.4)
 
     try:
         # 1. Normalize & Apply Volume

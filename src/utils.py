@@ -15,24 +15,24 @@ import numpy as np
 from PIL import Image, ImageGrab
 
 # > Local Dependencies
-from .config import (
-    BASE_RESOLUTION,
-    DATA_DIR,
-    DEBUG_TEMPLATE_SCORES,
-    DEFAULT_ECHOES_OFFSETS,
-    DEFAULT_RETAIL_OFFSETS,
-    LOG_LEVEL,
-    QUEST_WINDOW_BOX,
-    QUEST_WINDOW_MODE,
-    TEMPLATE_THRESHOLD,
-    TEMPLATES_DIR,
-)
+from .config.ConfigManager import ConfigManager
 
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+_cfg = ConfigManager()
+
+# --- Cached config values ---
+BASE_RESOLUTION = (
+    _cfg.get_int("Detection", "base_resolution_x", fallback=2560),
+    _cfg.get_int("Detection", "base_resolution_y", fallback=1440),
+)
+TEMPLATES_DIR = Path(_cfg.get_str("Paths", "templates_dir"))
+LOG_LEVEL = _cfg.get_str("LogSettings", "log_level", fallback="INFO")
+
+_data_dir = Path(_cfg.get_str("Paths", "data_dir"))
+_data_dir.mkdir(parents=True, exist_ok=True)
 
 # --- CONFIGURATION FILES ---
-LAYOUT_RETAIL = DATA_DIR / "layout_retail.json"
-LAYOUT_ECHOES = DATA_DIR / "layout_echoes.json"
+LAYOUT_RETAIL = _data_dir / "layout_retail.json"
+LAYOUT_ECHOES = _data_dir / "layout_echoes.json"
 
 # --- RESOLUTION DETECTION & TEMPLATE SCALING ---
 
@@ -272,8 +272,8 @@ def get_file_paths(mode: str) -> Tuple[Path, Path]:
     """
     safe_mode = mode.lower().strip()
     return (
-        DATA_DIR / f"coords_{safe_mode}.json",
-        DATA_DIR / f"npc_memory_{safe_mode}.json",
+        _data_dir / f"coords_{safe_mode}.json",
+        _data_dir / f"npc_memory_{safe_mode}.json",
     )
 
 
@@ -294,7 +294,7 @@ def get_memory_file_path(mode: str, backend: str) -> Path:
     Path
         The full path to the json file.
     """
-    return DATA_DIR / f"npc_memory_{mode.lower()}_{backend.lower()}.json"
+    return _data_dir / f"npc_memory_{mode.lower()}_{backend.lower()}.json"
 
 
 def load_coords(mode: str) -> Dict:
@@ -540,7 +540,36 @@ def load_user_config(mode: str) -> Dict:
             pass
 
     # No layout file or missing offsets — return scaled defaults
-    defaults = DEFAULT_RETAIL_OFFSETS if mode == "retail" else DEFAULT_ECHOES_OFFSETS
+    if mode == "retail":
+        defaults = {
+            "CORNER_OFFSET_X": _cfg.get_int(
+                "DefaultRetailMode", "layout_corner_offset_x", fallback=11
+            ),
+            "CORNER_OFFSET_Y": _cfg.get_int(
+                "DefaultRetailMode", "layout_corner_offset_y", fallback=10
+            ),
+            "PADDING_INTERSECT_X": _cfg.get_int(
+                "DefaultRetailMode", "layout_padding_intersect_x", fallback=-10
+            ),
+            "PADDING_ICON_Y": _cfg.get_int(
+                "DefaultRetailMode", "layout_padding_icon_y", fallback=17
+            ),
+        }
+    else:
+        defaults = {
+            "body_left_margin": _cfg.get_int(
+                "DefaultRetailOffsets", "body_left_margin", fallback=11
+            ),
+            "body_top_margin": _cfg.get_int(
+                "DefaultRetailOffsets", "body_top_margin", fallback=10
+            ),
+            "body_right_padding": _cfg.get_int(
+                "DefaultRetailOffsets", "body_right_padding", fallback=0
+            ),
+            "body_bottom_padding": _cfg.get_int(
+                "DefaultRetailOffsets", "body_bottom_padding", fallback=0
+            ),
+        }
     scale = get_scale_factor()
     scaled = {k: int(v * scale) for k, v in defaults.items()}
     log.info(f"📐 No layout file for {mode} — using scaled default offsets: {scaled}")
@@ -675,13 +704,16 @@ def _extract_retail_auto(
     res_e = cv2.matchTemplate(img_gray, tmpls["end"], cv2.TM_CCOEFF_NORMED)
     _, val_e, _, loc_e = cv2.minMaxLoc(res_e)
 
-    if DEBUG_TEMPLATE_SCORES:
+    template_threshold = _cfg.get_float("Detection", "template_threshold", fallback=0.7)
+    debug_scores = _cfg.get_bool("LogSettings", "debug_template_scores", fallback=False)
+
+    if debug_scores:
         log.debug(
             f"Template scores — start_leaf: {val_s:.3f}, end_leaf: {val_e:.3f} "
-            f"(threshold: {TEMPLATE_THRESHOLD})"
+            f"(threshold: {template_threshold})"
         )
 
-    if val_s <= TEMPLATE_THRESHOLD or val_e <= TEMPLATE_THRESHOLD:
+    if val_s <= template_threshold or val_e <= template_threshold:
         return None, None
 
     # Title Geometry
@@ -697,13 +729,13 @@ def _extract_retail_auto(
         img_gray, tmpls["corner"], 0, title_bot, w_img, h_img - title_bot
     )
 
-    if DEBUG_TEMPLATE_SCORES:
+    if debug_scores:
         log.debug(
             f"Template scores — corner: {val_c:.3f} at ({cx}, {cy}) "
-            f"(threshold: {TEMPLATE_THRESHOLD})"
+            f"(threshold: {template_threshold})"
         )
 
-    if val_c <= TEMPLATE_THRESHOLD:
+    if val_c <= template_threshold:
         return None, None
 
     # Match Intersection (Width) & Icon (Height)
@@ -725,14 +757,14 @@ def _extract_retail_auto(
         h_img - (cy + 50),
     )
 
-    if DEBUG_TEMPLATE_SCORES:
+    if debug_scores:
         log.debug(
             f"Template scores — intersect: {val_int:.3f} at ({ix}, {iy}), "
             f"icon: {val_i:.3f} at ({icx}, {icy}) "
-            f"(threshold: {TEMPLATE_THRESHOLD})"
+            f"(threshold: {template_threshold})"
         )
 
-    if val_int <= TEMPLATE_THRESHOLD or val_i <= TEMPLATE_THRESHOLD:
+    if val_int <= template_threshold or val_i <= template_threshold:
         return None, None
 
     # Apply Layout Offsets
@@ -800,8 +832,16 @@ def extract_quest_areas(
     # --- STATIC MODE ---
     # Simple fixed-box extraction. Assumes the quest window has not moved
     # since calibration. The user triggers capture manually via hotkey.
-    if QUEST_WINDOW_MODE == "static":
-        box = QUEST_WINDOW_BOX
+    quest_window_mode = _cfg.get_str(
+        "TTSSettings", "quest_window_mode", fallback="auto"
+    )
+    if quest_window_mode == "static":
+        box = [
+            _cfg.get_int("TTSSettings", "quest_window_box_x", fallback=555),
+            _cfg.get_int("TTSSettings", "quest_window_box_y", fallback=380),
+            _cfg.get_int("TTSSettings", "quest_window_width", fallback=425),
+            _cfg.get_int("TTSSettings", "quest_window_height", fallback=539),
+        ]
         if len(box) != 4:
             log.warning("QUEST_WINDOW_BOX must be [x, y, width, height]")
             return None, None

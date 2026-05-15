@@ -6,15 +6,16 @@ from typing import List
 
 # > Third-party Libraries
 import cv2
+import nltk
 import numpy as np
 import pytesseract
-import nltk
 from PIL import Image, ImageOps
 
 # > Local Dependencies
-from .config import TESSERACT_CMD
+from .config.ConfigManager import ConfigManager
 
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+_cfg = ConfigManager()
+pytesseract.pytesseract.tesseract_cmd = _cfg.tesseract_cmd
 nltk.download("punkt", quiet=True)
 
 

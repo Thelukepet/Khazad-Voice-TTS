@@ -1,18 +1,29 @@
 # Imports
 
 # > Standard Library
-import urllib.parse
-import string
 import re
+import string
+import urllib.parse
 from difflib import SequenceMatcher
-from typing import Tuple, Optional, List
+from typing import List, Optional, Tuple
+
 import requests
 
 # > Third-party Libraries
 from bs4 import BeautifulSoup
 
 # > Local Dependencies
-from .config import WIKI_BASE_URL, MISSING_TEXT_INDICATOR
+from .config.ConfigManager import ConfigManager
+
+_cfg = ConfigManager()
+WIKI_BASE_URL = _cfg.get_str(
+    "WikiSettings", "wiki_base_url", fallback="https://lotro-wiki.com"
+)
+MISSING_TEXT_INDICATOR = _cfg.get_str(
+    "WikiSettings",
+    "missing_text_indicator",
+    fallback="There is currently no text in this page",
+)
 
 # Cache to prevent repeated network calls
 WIKI_CACHE = {}
