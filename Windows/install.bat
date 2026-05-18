@@ -90,7 +90,7 @@ if %errorlevel% neq 0 goto :error
 :: --- 5. Main Requirements ---
 echo.
 echo [5/6] Finalizing the Craft (Installing Main Requirements)...
-pip install -r requirements.txt
+pip install .
 if %errorlevel% neq 0 (
     echo [WARNING] Main requirements reported an error.
     echo This is usually a version conflict. NLTK was pre-installed to ensure safety.

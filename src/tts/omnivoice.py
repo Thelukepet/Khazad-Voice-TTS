@@ -11,7 +11,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import torch
 
-from src.config import REF_AUDIO_DIR, TTS_SPEED, TTS_WAVE_STEPS
+from src.config.ConfigManager import ConfigManager
 
 # > Local Dependencies
 from src.utils import setup_logger
@@ -41,6 +41,12 @@ class OmniVoiceBackend(TTSBackend):
             dtype=torch.float16,
         )
         self.samplerate = 24000
+        _cfg = ConfigManager()
+        self._ref_audio_dir = Path(_cfg.get_str("Paths", "ref_audio_dir"))
+        self._tts_speed = _cfg.get_float("TTSSettings", "tts_speed", fallback=1.1)
+        self._tts_wave_steps = _cfg.get_int(
+            "TTSSettings", "tts_wave_steps", fallback=16
+        )
         self.voice_library = self._load_voice_library()
 
         total_voices = sum(len(v) for v in self.voice_library.values())
@@ -79,11 +85,11 @@ class OmniVoiceBackend(TTSBackend):
 
     def _load_voice_library(self) -> Dict:
         library = {}
-        if not REF_AUDIO_DIR.exists():
-            log.warning(f"Reference Audio dir not found: {REF_AUDIO_DIR}")
+        if not self._ref_audio_dir.exists():
+            log.warning(f"Reference Audio dir not found: {self._ref_audio_dir}")
             return library
 
-        for folder in REF_AUDIO_DIR.iterdir():
+        for folder in self._ref_audio_dir.iterdir():
             if not folder.is_dir():
                 continue
 
@@ -169,8 +175,8 @@ class OmniVoiceBackend(TTSBackend):
                 text=text,
                 ref_audio=ref_data["audio"],
                 ref_text=ref_data["text"],
-                num_step=TTS_WAVE_STEPS,
-                speed=TTS_SPEED,
+                num_step=self._tts_wave_steps,
+                speed=self._tts_speed,
             )
             audio = result[0]
             if isinstance(audio, torch.Tensor):

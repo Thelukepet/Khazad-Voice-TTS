@@ -15,7 +15,10 @@ using helper functions that replicate the exact same control flow.
 import time
 from unittest.mock import MagicMock
 
-from src.config import NPC_NAME_MAX_AGE
+from src.config.ConfigManager import ConfigManager
+
+_cfg = ConfigManager()
+NPC_NAME_MAX_AGE = _cfg.get_int("TTSSettings", "npc_name_max_age", fallback=60)
 
 # ---------------------------------------------------------------------------
 # Helpers – these replicate the exact logic inside main.py manual-mode branch
@@ -245,26 +248,37 @@ class TestConfigConstants:
         assert NPC_NAME_MAX_AGE == 60
 
     def test_trigger_mode_exists(self):
-        from src.config import QUEST_TRIGGER_MODE
-
-        assert QUEST_TRIGGER_MODE in ("auto", "manual")
+        cfg = ConfigManager()
+        quest_trigger_mode = cfg.get_str(
+            "TTSSettings", "quest_trigger_mode", fallback="manual"
+        )
+        assert quest_trigger_mode in ("auto", "manual")
 
     def test_trigger_key_exists(self):
-        from src.config import QUEST_TRIGGER_KEY
-
-        assert isinstance(QUEST_TRIGGER_KEY, str)
-        assert len(QUEST_TRIGGER_KEY) > 0
+        cfg = ConfigManager()
+        quest_trigger_key = cfg.get_str(
+            "TTSSettings", "quest_trigger_key", fallback="middle_mouse"
+        )
+        assert isinstance(quest_trigger_key, str)
+        assert len(quest_trigger_key) > 0
 
     def test_quest_window_mode_exists(self):
-        from src.config import QUEST_WINDOW_MODE
-
-        assert QUEST_WINDOW_MODE in ("auto", "static")
+        cfg = ConfigManager()
+        quest_window_mode = cfg.get_str(
+            "TTSSettings", "quest_window_mode", fallback="auto"
+        )
+        assert quest_window_mode in ("auto", "static")
 
     def test_quest_window_box_exists(self):
-        from src.config import QUEST_WINDOW_BOX
-
-        assert isinstance(QUEST_WINDOW_BOX, list)
-        assert len(QUEST_WINDOW_BOX) == 4
+        cfg = ConfigManager()
+        quest_window_box = [
+            cfg.get_int("TTSSettings", "quest_window_box_x", fallback=555),
+            cfg.get_int("TTSSettings", "quest_window_box_y", fallback=380),
+            cfg.get_int("TTSSettings", "quest_window_width", fallback=425),
+            cfg.get_int("TTSSettings", "quest_window_height", fallback=539),
+        ]
+        assert isinstance(quest_window_box, list)
+        assert len(quest_window_box) == 4
 
 
 # ---------------------------------------------------------------------------

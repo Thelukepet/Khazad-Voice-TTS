@@ -1,0 +1,112 @@
+# ---------------------------------------------------------------------------
+# Khazad Voice TTS – project metadata & tool configuration
+# ---------------------------------------------------------------------------
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+# ---------------------------------------------------------------------------
+# Project metadata (PEP 621)
+# ---------------------------------------------------------------------------
+[project]
+name = "khazad-voice-tts"
+version = "2.2.0"
+description = "Immersive AI Narrator for The Lord of the Rings Online"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Thelukepet" }]
+keywords = ["tts", "lotro", "ocr", "ai", "narration"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Games/Entertainment",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+# --- Core Math & Data ---
+dependencies = [
+    "numpy>=1.26.0,<2.0.0",
+    "pandas",
+    "scipy>=1.11.0",
+
+    # --- Audio & Processing ---
+    "soundcard",
+    "sounddevice",
+    "soundfile",
+    "librosa>=0.10.0",
+    "numba>=0.60.0",
+
+    # --- AI & ML ---
+    "transformers",
+    "accelerate",
+    "kokoro>=0.3.4",
+    "omnivoice==0.1.4",
+    "torchcodec",
+
+    # --- Vision & OCR ---
+    "opencv-python",
+    "pytesseract",
+
+    # --- Utils & UI ---
+    "nltk",
+    "beautifulsoup4",
+    "pynput",
+    "gradio>=4.0.0",
+]
+
+[project.optional-dependencies]
+# Minimal set for running the test suite without heavy TTS backends.
+# (torch, kokoro, omnivoice, transformers, gradio) are lazily imported
+# at runtime and not needed to collect and run unit tests.
+test = [
+    "pytest>=8.0.0",
+    "pytest-cov",
+    "numpy",
+    "opencv-python",
+    "nltk",
+    "Pillow",
+    "pytesseract",
+    "sounddevice",
+    "pandas",
+    "requests",
+    "beautifulsoup4",
+]
+
+[project.scripts]
+khazad = "main:main"
+
+# ---------------------------------------------------------------------------
+# Setuptools – tells the build backend where packages live.
+# This project is an end-user application, not a library, so we use
+# automatic discovery to keep things simple.
+# ---------------------------------------------------------------------------
+[tool.setuptools.packages.find]
+include = ["src*"]
+
+# Non-Python data folders that must be included in the install.
+[tool.setuptools.package-data]
+"*" = ["*"]
+
+# ---------------------------------------------------------------------------
+# Pytest (replaces pytest.ini)
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --color=yes -ra"
+markers = [
+    "slow: marks tests as slow (deselect with '-m not slow')",
+    "integration: marks tests as integration tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]

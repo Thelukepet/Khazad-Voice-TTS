@@ -1,15 +1,16 @@
 # Imports
 
 # > Standard Library
-from typing import Tuple, Optional, List, Dict
 import difflib
+from typing import Dict, List, Optional, Tuple
 
 # > Third-party Libraries
 import pandas as pd
 
+from .config.ConfigManager import ConfigManager
+
 # > Local Dependencies
 from .utils import setup_logger
-from .config import NPC_DATA_PATH
 
 log = setup_logger(__name__)
 
@@ -24,7 +25,10 @@ class NPCDatabase:
         Path to the `npc_data.csv` file.
     """
 
-    def __init__(self, csv_path: str = str(NPC_DATA_PATH)):
+    def __init__(self, csv_path: Optional[str] = None):
+        if csv_path is None:
+            _cfg = ConfigManager()
+            csv_path = _cfg.get_str("Paths", "npc_data_path")
         self.data = None
         self.all_names = []
         try:

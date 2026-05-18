@@ -65,7 +65,7 @@ def create_ui() -> gr.Blocks:
                         )
 
                         # Kokoro-Specific Speed Slider (Using the shared TTS_SPEED config variable)
-                        # Note: Both engines currently share 'TTS_SPEED' in config.py.
+                        # Note: Both engines currently share 'TTS_SPEED' in khazad_config.ini.
                         # If you want them truly separate, we'd need a 'KOKORO_SPEED' config variable.
                         # For now, we assume this slider controls the global speed.
                         speed_slider_conf = gr.Slider(
@@ -156,13 +156,27 @@ def create_ui() -> gr.Blocks:
                     with gr.Column():
                         # Library Group
                         with gr.Group(visible=True) as grp_library:
+                            categories = lib.get_library_categories()
+                            default_cat = categories[0] if categories else None
+
                             lib_category = gr.Dropdown(
-                                choices=lib.get_library_categories(),
+                                choices=categories,
+                                value=default_cat,
                                 label="STEP 1: Pick a voice category",
                                 interactive=True,
                             )
+
                             lib_sample = gr.Dropdown(
-                                choices=[],
+                                # Dynamically fill the first one based on the default category
+                                choices=lib.get_samples_for_category(default_cat)
+                                if default_cat
+                                else [],
+                                value=next(
+                                    iter(lib.get_samples_for_category(default_cat)),
+                                    None,
+                                )
+                                if default_cat
+                                else None,
                                 label="STEP 2: Select Sample File",
                                 interactive=True,
                             )
@@ -280,9 +294,9 @@ def create_ui() -> gr.Blocks:
 
                 # 3. Library Handling
                 def update_samples(cat):
-                    return gr.Dropdown(
-                        choices=lib.get_samples_for_category(cat), value=None
-                    )
+                    choices = lib.get_samples_for_category(cat)
+                    initial_value = choices[0] if choices else None
+                    return gr.Dropdown(choices=choices, value=initial_value)
 
                 lib_category.change(
                     update_samples, inputs=lib_category, outputs=lib_sample
@@ -349,10 +363,37 @@ def create_ui() -> gr.Blocks:
                     outputs=[audio_output, status_msg],
                 )
 
+                def save_and_refresh(ref_audio, folder_name, voice_name, transcript):
+                    status = lib.save_voice(
+                        ref_audio, folder_name, voice_name, transcript
+                    )
+
+                    # Refresh the category dropdown – keep the saved category selected
+                    categories = lib.get_library_categories()
+                    selected_cat = (
+                        folder_name
+                        if folder_name in categories
+                        else (categories[0] if categories else None)
+                    )
+
+                    # Refresh the sample dropdown – auto-select the first sample
+                    samples = (
+                        lib.get_samples_for_category(selected_cat)
+                        if selected_cat
+                        else []
+                    )
+                    selected_sample = samples[0] if samples else None
+
+                    return (
+                        status,
+                        gr.Dropdown(choices=categories, value=selected_cat),
+                        gr.Dropdown(choices=samples, value=selected_sample),
+                    )
+
                 save_voice_btn.click(
-                    lib.save_voice,
+                    save_and_refresh,
                     inputs=[ref_input, folder_dropdown, name_input, ref_text_input],
-                    outputs=[save_status],
+                    outputs=[save_status, lib_category, lib_sample],
                 )
 
     return demo

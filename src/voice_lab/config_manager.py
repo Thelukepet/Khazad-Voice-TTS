@@ -5,14 +5,16 @@ import re
 from pathlib import Path
 from typing import Dict, Tuple, Union
 
+# > Internal
+from src.config.ConfigManager import ConfigManager
+
 # --- FILE PATHS ---
-CONFIG_PATH = Path("src/config.py")
 ENGINE_PATH = Path("src/engine.py")
 
 
 def get_current_settings() -> Dict[str, Union[float, int, str]]:
     """
-    Reads current settings from config.py and engine.py via Regex.
+    Reads current settings from ConfigManager (INI) and engine.py (chunk_size).
 
     Returns
     -------
@@ -27,40 +29,20 @@ def get_current_settings() -> Dict[str, Union[float, int, str]]:
         - 'tesseract': str
         - 'chunk_size': int
     """
-    settings = {}
+    cfg = ConfigManager()
 
-    # 1. Read src/config.py
-    if CONFIG_PATH.exists():
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            content = f.read()
+    settings = {
+        "volume": cfg.config.getfloat("TTSSettings", "default_volume", fallback=0.4),
+        "lux_volume": cfg.config.getfloat("TTSSettings", "lux_volume", fallback=0.4),
+        "speed": cfg.config.getfloat("TTSSettings", "tts_speed", fallback=1.1),
+        "steps": cfg.config.getint("TTSSettings", "tts_wave_steps", fallback=6),
+        "threshold": cfg.config.getfloat(
+            "Detection", "template_threshold", fallback=0.5
+        ),
+        "tesseract": cfg.tesseract_cmd,
+    }
 
-            vol_match = re.search(r"DEFAULT_VOLUME\s*=\s*([\d\.]+)", content)
-            settings["volume"] = float(vol_match.group(1)) if vol_match else 0.4
-
-            lux_vol_match = re.search(r"LUX_VOLUME\s*=\s*([\d\.]+)", content)
-            settings["lux_volume"] = (
-                float(lux_vol_match.group(1)) if lux_vol_match else 0.4
-            )
-
-            speed_match = re.search(r"TTS_SPEED\s*=\s*([\d\.]+)", content)
-            settings["speed"] = float(speed_match.group(1)) if speed_match else 1.1
-
-            steps_match = re.search(r"TTS_WAVE_STEPS\s*=\s*(\d+)", content)
-            settings["steps"] = int(steps_match.group(1)) if steps_match else 6
-
-            thresh_match = re.search(r"TEMPLATE_THRESHOLD\s*=\s*([\d\.]+)", content)
-            settings["threshold"] = (
-                float(thresh_match.group(1)) if thresh_match else 0.5
-            )
-
-            tess_match = re.search(r'TESSERACT_CMD\s*=\s*r?"([^"]+)"', content)
-            settings["tesseract"] = (
-                tess_match.group(1)
-                if tess_match
-                else r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-            )
-
-    # 2. Read src/engine.py (For Chunk Size)
+    # Read src/engine.py (For Chunk Size)
     if ENGINE_PATH.exists():
         with open(ENGINE_PATH, "r", encoding="utf-8") as f:
             content = f.read()
@@ -82,7 +64,7 @@ def save_settings(
     chunk_size: int,
 ) -> Tuple[str, float, int]:
     """
-    Writes new settings back to the config.py and engine.py files.
+    Writes new settings to ConfigManager (INI) and engine.py (chunk_size).
 
     Parameters
     ----------
@@ -111,42 +93,21 @@ def save_settings(
     """
     log_msgs = []
 
-    # 1. Update Config.py
-    if CONFIG_PATH.exists():
-        with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-            content = f.read()
+    cfg = ConfigManager()
 
-        content = re.sub(
-            r"DEFAULT_VOLUME\s*=\s*[\d\.]+", f"DEFAULT_VOLUME = {vol}", content
-        )
-        content = re.sub(r"TTS_SPEED\s*=\s*[\d\.]+", f"TTS_SPEED = {speed}", content)
-        content = re.sub(
-            r"TTS_WAVE_STEPS\s*=\s*\d+", f"TTS_WAVE_STEPS = {steps}", content
-        )
-        content = re.sub(
-            r"TEMPLATE_THRESHOLD\s*=\s*[\d\.]+",
-            f"TEMPLATE_THRESHOLD = {thresh}",
-            content,
-        )
+    # 1. Update INI config via ConfigManager
+    cfg.config.set("TTSSettings", "default_volume", str(vol))
+    cfg.config.set("TTSSettings", "lux_volume", str(lux_vol))
+    cfg.config.set("TTSSettings", "tts_speed", str(speed))
+    cfg.config.set("TTSSettings", "tts_wave_steps", str(steps))
+    cfg.config.set("Detection", "template_threshold", str(thresh))
 
-        if re.search(r"LUX_VOLUME\s*=", content):
-            content = re.sub(
-                r"LUX_VOLUME\s*=\s*[\d\.]+", f"LUX_VOLUME = {lux_vol}", content
-            )
-        else:
-            content += f"\nLUX_VOLUME = {lux_vol}\n"
-            log_msgs.append("➕ Added LUX_VOLUME to config.")
+    # Update tesseract via the property (also saves the file)
+    cfg.tesseract_cmd = tesseract
 
-        def repl_tess(m):
-            return f'TESSERACT_CMD = r"{tesseract}"'
+    log_msgs.append("✅ Config updated (khazad_config.ini).")
 
-        content = re.sub(r'TESSERACT_CMD\s*=\s*r?".*?"', repl_tess, content)
-
-        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
-            f.write(content)
-        log_msgs.append("✅ Config.py updated.")
-
-    # 2. Update Engine.py
+    # 2. Update Engine.py (Chunk Size)
     if ENGINE_PATH.exists():
         with open(ENGINE_PATH, "r", encoding="utf-8") as f:
             content = f.read()

@@ -219,9 +219,9 @@ Use this if template matching doesn't work on your screen resolution or UI skin.
 2. Run the static calibration script.
 3. Draw a single box around the quest text body area (inside the main text area).
 
-The tool will automatically update `config.py` to use static mode with your coordinates.
+The tool will automatically update `khazad_config.ini` to use static mode with your coordinates.
 
-> **To switch back to auto mode:** Edit `config.py` and change `QUEST_WINDOW_MODE = "static"` to `"auto"`.
+> **To switch back to auto mode:** Edit `khazad_config.ini` and change `quest_window_mode = static` to `auto`.
 
 ---
 
@@ -309,7 +309,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 * **Narrator & NPC Voice Splitting**: Intelligent detection to distinguish between spoken dialogue (quoted text) and descriptive text (unquoted).
 * ☑️ **Configuration UI & TTS Tester (added in V1.3)**: A user-friendly interface to adjust reading speed, audio quality and testing new Voices
 * ☑️ **Windows One-Click Installer (added in V1.4)**: A standalone `.exe` that handles Python, dependencies, and setup automatically
-* 🔧(WIP) **Media Hotkeys**: Global shortcuts to stop the current audio or re-play the previous line. --> **`Currently supports F12 key to stop current TTS`**
+* **Media Hotkeys**: Global shortcuts to stop the current audio or re-play the previous line. --> **`Currently supports F12 key to stop current TTS`**
 * **Quest History Plugin**: An in-game LOTRO plugin to display the last ~10 narrated quests.
 
 ---

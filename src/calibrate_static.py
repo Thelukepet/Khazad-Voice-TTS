@@ -13,7 +13,6 @@ from PIL import ImageGrab
 # Configuration
 BASE_DIR = Path(__file__).parent.parent  # Points to project root (not src/)
 DATA_DIR = BASE_DIR / "data"
-CONFIG_FILE = BASE_DIR / "src" / "config.py"
 
 # Ensure folders exist
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -91,7 +90,8 @@ def select_roi(img: np.ndarray, title: str, instruction: str) -> tuple:
 
 def update_config(box: tuple, trigger_key: str = "middle_mouse"):
     """
-    Updates config.py with the new QUEST_WINDOW_BOX values and sets mode to 'static'.
+    Updates khazad_config.ini with the new quest window values and sets mode to 'static'
+    via ConfigManager.
 
     Parameters
     ----------
@@ -100,33 +100,21 @@ def update_config(box: tuple, trigger_key: str = "middle_mouse"):
     trigger_key : str
         The trigger key to use (default: "middle_mouse")
     """
+    from src.config.ConfigManager import ConfigManager
+
     x, y, w, h = box
-    box_list = [x, y, w, h]
 
-    # Read config.py
-    with open(CONFIG_FILE, "r") as f:
-        lines = f.readlines()
+    cfg = ConfigManager()
+    cfg.config.set("TTSSettings", "quest_window_mode", "static")
+    cfg.config.set("TTSSettings", "quest_window_box_x", str(x))
+    cfg.config.set("TTSSettings", "quest_window_box_y", str(y))
+    cfg.config.set("TTSSettings", "quest_window_width", str(w))
+    cfg.config.set("TTSSettings", "quest_window_height", str(h))
+    cfg.config.set("TTSSettings", "quest_trigger_mode", "manual")
+    cfg.config.set("TTSSettings", "quest_trigger_key", trigger_key)
 
-    # Find and update QUEST_WINDOW_MODE line
-    # Find and update QUEST_WINDOW_BOX line
-    # Find and update QUEST_TRIGGER_MODE line
-    # Find and update QUEST_TRIGGER_KEY line
-    new_lines = []
-    for line in lines:
-        if line.strip().startswith("QUEST_WINDOW_MODE ="):
-            new_lines.append('QUEST_WINDOW_MODE = "static"\n')
-        elif line.strip().startswith("QUEST_WINDOW_BOX ="):
-            new_lines.append(f"QUEST_WINDOW_BOX = {box_list}\n")
-        elif line.strip().startswith("QUEST_TRIGGER_MODE ="):
-            new_lines.append('QUEST_TRIGGER_MODE = "manual"\n')
-        elif line.strip().startswith("QUEST_TRIGGER_KEY ="):
-            new_lines.append(f'QUEST_TRIGGER_KEY = "{trigger_key}"\n')
-        else:
-            new_lines.append(line)
-
-    # Write back
-    with open(CONFIG_FILE, "w") as f:
-        f.writelines(new_lines)
+    with open(cfg.config_path, "w") as f:
+        cfg.config.write(f)
 
 
 def main():
@@ -198,24 +186,26 @@ def main():
 
     print(f"\n✅ Trigger key set to: {trigger_key.upper()}")
 
-    # Save calibration to config.py
+    # Save calibration to khazad_config.ini
     update_config(box, trigger_key)
 
     print("\n=================================================")
     print("✅ CALIBRATION SUCCESS!")
-    print(f"   QUEST_WINDOW_MODE set to 'static'")
-    print(f"   QUEST_WINDOW_BOX set to [{x}, {y}, {w}, {h}]")
-    print(f"   QUEST_TRIGGER_MODE set to 'manual'")
-    print(f"   QUEST_TRIGGER_KEY set to '{trigger_key}'")
-    print(f"   Saved to: {CONFIG_FILE}")
+    print(f"   quest_window_mode set to 'static'")
+    print(f"   quest_window_box set to [{x}, {y}, {w}, {h}]")
+    print(f"   quest_trigger_mode set to 'manual'")
+    print(f"   quest_trigger_key set to '{trigger_key}'")
+    print("   Saved to: khazad_config.ini")
     print("=================================================")
     print("\n🎮 HOW TO USE:")
     print(f"   1. Start the application in RETAIL mode")
     print(f"   2. Press {trigger_key.upper()} whenever you want to read quest text")
     print(f"   3. Press F12 to stop current playback")
-    print("\n📝 To switch back to auto mode, edit config.py and set:")
-    print("   QUEST_WINDOW_MODE = 'auto'")
-    print("   QUEST_TRIGGER_MODE = 'auto'")
+    print(
+        "\n📝 To switch back to auto mode, edit khazad_config.ini or use the ConfigManager:"
+    )
+    print("   quest_window_mode = auto")
+    print("   quest_trigger_mode = auto")
 
 
 if __name__ == "__main__":
@@ -224,5 +214,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
     input("\nPress Enter to exit...")

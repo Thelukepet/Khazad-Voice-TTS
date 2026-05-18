@@ -18,11 +18,7 @@ os.environ["TORCH_HOME"] = str(_install_dir / "models" / "torch")
 from pynput import keyboard, mouse
 
 # > Local Dependencies
-from src.config import (
-    NPC_NAME_MAX_AGE,
-    QUEST_WINDOW_MODE,
-    SCRIPT_LOG,
-)
+from src.config.ConfigManager import ConfigManager
 from src.db import NPCDatabase
 from src.engine import NarratorEngine
 from src.tts import get_tts_backend
@@ -49,6 +45,10 @@ def main():
     """
     Main entry point for Khazad-Voice TTS.
     """
+    cfg = ConfigManager()
+    quest_window_mode = cfg.get_str("TTSSettings", "quest_window_mode", fallback="auto")
+    npc_name_max_age = cfg.get_int("TTSSettings", "npc_name_max_age", fallback=60)
+    script_log = cfg.get_str("DefaultRetailMode", "plugin_script_log_path")
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mode", choices=["retail", "echoes"], help="Game mode to start in"
@@ -110,16 +110,16 @@ def main():
     # 4. Start Logic
     if current_mode == "retail":
         print("\n[RETAIL MODE STARTED]")
-        print(f"Window Mode: {QUEST_WINDOW_MODE.upper()}")
+        print(f"Window Mode: {quest_window_mode.upper()}")
 
-        if QUEST_WINDOW_MODE == "auto":
+        if quest_window_mode == "auto":
             # ----- AUTO MODE: Template matching + Log watcher trigger -----
             # Quest window is found via template matching at any screen position.
             # TTS triggers automatically when the log watcher detects a new NPC
             # in Script.log (requires getNPCNames plugin installed in LOTRO).
             print("Detection : Template matching (finds window anywhere)")
             print("Trigger   : Automatic (NPC appears in Script.log)")
-            print(f"Watching  : {SCRIPT_LOG}")
+            print(f"Watching  : {script_log}")
             print()
             print("1. Ensure 'getNPCNames' plugin is installed.")
             print("2. Open a quest dialog with any NPC.")
@@ -175,7 +175,7 @@ def main():
 
             watcher_thread = threading.Thread(
                 target=watch_npc_file,
-                args=(npc_found_callback, SCRIPT_LOG),
+                args=(npc_found_callback, script_log),
                 daemon=True,
             )
             watcher_thread.start()
@@ -213,7 +213,7 @@ def main():
 
             watcher_thread = threading.Thread(
                 target=watch_npc_file,
-                args=(npc_log_callback, SCRIPT_LOG),
+                args=(npc_log_callback, script_log),
                 daemon=True,
             )
             watcher_thread.start()
@@ -233,7 +233,7 @@ def main():
                             if (
                                 npc_tracking["name"] != "[MANUAL]"
                                 and time.time() - npc_tracking["time"]
-                                <= NPC_NAME_MAX_AGE
+                                <= npc_name_max_age
                             ):
                                 npc_name = npc_tracking["name"]
                                 log.info(f"Using tracked NPC: {npc_name}")

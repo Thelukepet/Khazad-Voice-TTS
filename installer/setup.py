@@ -1091,22 +1091,32 @@ class InstallerApp:
             self._log("  STEP 6/9  Application requirements", "step")
             self._log("=" * 50, "step")
 
-            req_file = install_path / "requirements.txt"
-            if req_file.exists():
-                self._run_cmd(
-                    [
+            pyproject = install_path / "pyproject.toml"
+            if pyproject.exists():
+                # Extract dependencies from pyproject.toml so we can install
+                # them without building the project as a package.
+                try:
+                    import tomllib
+
+                    with open(pyproject, "rb") as f:
+                        data = tomllib.load(f)
+                    deps = data.get("project", {}).get("dependencies", [])
+                except Exception:
+                    deps = []
+
+                if deps:
+                    cmd = [
                         str(uv_exe),
                         "pip",
                         "install",
                         "--python",
                         str(python_exe),
-                        "-r",
-                        str(req_file),
-                    ],
-                    check=False,
-                )
+                    ] + deps
+                    self._run_cmd(cmd, check=False)
+                else:
+                    self._log("No dependencies found in pyproject.toml.", "warn")
             else:
-                self._log("requirements.txt not found - skipping.", "warn")
+                self._log("pyproject.toml not found - skipping.", "warn")
 
             self._run_cmd(
                 [str(uv_exe), "pip", "install", "--python", str(python_exe), "nltk"],
@@ -1290,20 +1300,26 @@ class InstallerApp:
             self._log("  STEP 2/3  Updating dependencies", "step")
             self._log("=" * 50, "step")
 
-            req_file = install_path / "requirements.txt"
-            if req_file.exists():
-                self._run_cmd(
-                    [
+            pyproject = install_path / "pyproject.toml"
+            if pyproject.exists():
+                try:
+                    import tomllib
+
+                    with open(pyproject, "rb") as f:
+                        data = tomllib.load(f)
+                    deps = data.get("project", {}).get("dependencies", [])
+                except Exception:
+                    deps = []
+
+                if deps:
+                    cmd = [
                         str(uv_exe),
                         "pip",
                         "install",
                         "--python",
                         str(python_exe),
-                        "-r",
-                        str(req_file),
-                    ],
-                    check=False,
-                )
+                    ] + deps
+                    self._run_cmd(cmd, check=False)
 
             self._run_cmd(
                 [

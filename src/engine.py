@@ -10,21 +10,14 @@ from datetime import datetime
 import cv2
 import nltk
 
+from . import wiki
 from .audio import play_audio, stop_audio
+from .config.ConfigManager import ConfigManager
 from .models import NPC, QuestText, QuestTextLine, TextSourceType, VoiceSelection
 from .ocr import run_name_ocr, run_ocr, run_title_ocr
 
 # > Local Dependencies
 from .utils import extract_quest_areas, load_npc_memory, save_npc_memory, setup_logger
-
-try:
-    from .config import DEFAULT_VOLUME, ENABLE_WIKI, LUX_VOLUME
-except ImportError:
-    # Fallback if config hasn't been updated by the tool yet
-    from .config import DEFAULT_VOLUME, ENABLE_WIKI
-
-    LUX_VOLUME = DEFAULT_VOLUME
-from . import wiki
 
 log = setup_logger("ENGINE")
 
@@ -183,7 +176,9 @@ class NarratorEngine:
         quest_title = None
 
         # 3. Wiki Logic (Conditional)
-        if ENABLE_WIKI and title_pil is not None:
+        _cfg = ConfigManager()
+        enable_wiki = _cfg.get_bool("WikiSettings", "enable_wiki", fallback=False)
+        if enable_wiki and title_pil is not None:
             # OCR Title only if we need Wiki
             quest_title = run_title_ocr(title_pil)
             log.info(f"📜 Quest Title: '{quest_title}'")
@@ -208,7 +203,7 @@ class NarratorEngine:
                     source_label = f"OCR (Low Wiki Acc: {accuracy:.1f}%)"
             else:
                 source_label = "OCR (No Wiki Data)"
-        elif ENABLE_WIKI and title_pil is None:
+        elif enable_wiki and title_pil is None:
             log.info("⏩ Skipping Wiki Lookup (Static mode - no title)")
         else:
             log.info("⏩ Skipping Wiki Lookup (Config Disabled)")
@@ -401,7 +396,12 @@ class NarratorEngine:
 
             print(f"▶️ Speaking: {text[:60]}...")
             if len(audio) > 0:
-                vol = LUX_VOLUME if self.backend_id == "lux" else DEFAULT_VOLUME
+                _cfg = ConfigManager()
+                vol = (
+                    _cfg.get_float("TTSSettings", "lux_volume", fallback=0.5)
+                    if self.backend_id == "lux"
+                    else _cfg.get_float("TTSSettings", "default_volume", fallback=0.4)
+                )
                 play_audio(audio, sr, volume=vol, stop_event=self.stop_event)
 
                 time.sleep(0.1)

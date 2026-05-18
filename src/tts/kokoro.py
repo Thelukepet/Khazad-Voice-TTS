@@ -8,9 +8,11 @@ from typing import Tuple
 import numpy as np
 from kokoro import KPipeline
 
+from src.config.ConfigManager import ConfigManager
+
 # > Local Dependencies
 from src.utils import setup_logger
-from src.config import SAMPLE_RATE, TTS_SPEED
+
 from .base import TTSBackend
 
 log = setup_logger(__name__)
@@ -73,7 +75,9 @@ class KokoroBackend(TTSBackend):
         try:
             self.backend_id = "kokoro"  # Explicit ID for memory separation
             self.pipeline = KPipeline(lang_code="a", device="cpu")
-            self.samplerate = SAMPLE_RATE
+            _cfg = ConfigManager()
+            self.samplerate = _cfg.get_int("TTSSettings", "sample_rate", fallback=24000)
+            self._tts_speed = _cfg.get_float("TTSSettings", "tts_speed", fallback=1.1)
             log.info("✅ Voice Model Ready (CPU Mode).")
         except Exception as e:
             log.error(f"Failed to initialize Kokoro: {e}")
@@ -103,7 +107,9 @@ class KokoroBackend(TTSBackend):
         """
         Generates audio using Kokoro.
         """
-        generator = self.pipeline(text, voice=voice_id, speed=TTS_SPEED, split_pattern=r"\n+")
+        generator = self.pipeline(
+            text, voice=voice_id, speed=self._tts_speed, split_pattern=r"\n+"
+        )
 
         chunks = [audio for _, _, audio in generator if audio is not None]
 

@@ -116,7 +116,7 @@ if [ $? -ne 0 ]; then error_exit; fi
 # --- 5. Main Requirements ---
 echo ""
 echo "[5/6] Finalizing the Craft (Installing Main Requirements)..."
-pip install -r requirements.txt
+pip install .
 if [ $? -ne 0 ]; then
   echo -e "${YELLOW}[WARNING] Main requirements reported an error.${NC}"
   echo "This is usually a version conflict. NLTK was pre-installed to ensure safety."
