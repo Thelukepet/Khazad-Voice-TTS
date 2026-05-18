@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 # ---------------------------------------------------------------------------
 [project]
 name = "khazad-voice-tts"
-version = "1.0.0"
+version = "2.2.0"
 description = "Immersive AI Narrator for The Lord of the Rings Online"
 readme = "README.md"
 license = "MIT"
