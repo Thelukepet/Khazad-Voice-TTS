@@ -363,10 +363,37 @@ def create_ui() -> gr.Blocks:
                     outputs=[audio_output, status_msg],
                 )
 
+                def save_and_refresh(ref_audio, folder_name, voice_name, transcript):
+                    status = lib.save_voice(
+                        ref_audio, folder_name, voice_name, transcript
+                    )
+
+                    # Refresh the category dropdown – keep the saved category selected
+                    categories = lib.get_library_categories()
+                    selected_cat = (
+                        folder_name
+                        if folder_name in categories
+                        else (categories[0] if categories else None)
+                    )
+
+                    # Refresh the sample dropdown – auto-select the first sample
+                    samples = (
+                        lib.get_samples_for_category(selected_cat)
+                        if selected_cat
+                        else []
+                    )
+                    selected_sample = samples[0] if samples else None
+
+                    return (
+                        status,
+                        gr.Dropdown(choices=categories, value=selected_cat),
+                        gr.Dropdown(choices=samples, value=selected_sample),
+                    )
+
                 save_voice_btn.click(
-                    lib.save_voice,
+                    save_and_refresh,
                     inputs=[ref_input, folder_dropdown, name_input, ref_text_input],
-                    outputs=[save_status],
+                    outputs=[save_status, lib_category, lib_sample],
                 )
 
     return demo

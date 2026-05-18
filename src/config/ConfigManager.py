@@ -40,6 +40,45 @@ class ConfigManager(metaclass=SingletonMeta):
             # This overwrites memory defaults with user's custom settings,
             self.config.read(self.config_path)
 
+    def _detect_script_log_path(self) -> str:
+        """Resolve the LOTRO Script.log path for the current platform.
+
+        On Windows, the Documents folder can be relocated (e.g. to ``D:\\Documents``).
+        This method reads the actual location from the Windows registry and falls
+        back to ~/Documents on other platforms.
+        """
+        lotro_rel = os.path.join("The Lord of the Rings Online", "Script.log")
+
+        if sys.platform != "win32":
+            return os.path.join(os.path.expanduser("~"), "Documents", lotro_rel)
+
+        # Try to read the real Documents folder from the Windows registry.
+        doc_dirs: list[str] = []
+        try:
+            import winreg
+
+            with winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders",
+            ) as key:
+                docs_raw, _ = winreg.QueryValueEx(key, "Personal")
+                docs = os.path.expandvars(docs_raw)
+                doc_dirs.append(docs)
+
+                # If the resolved path exists, check for Script.log inside it.
+                candidate = os.path.join(docs, lotro_rel)
+                if os.path.exists(candidate):
+                    return candidate
+        except Exception:
+            pass
+
+        # Fallback to the registry-resolved Documents dir (even if Script.log
+        # doesn't exist there yet) or finally to ~/Documents.
+        if doc_dirs:
+            return os.path.join(doc_dirs[0], lotro_rel)
+
+        return os.path.join(os.path.expanduser("~"), "Documents", lotro_rel)
+
     def _load_memory_defaults(self):
         """
         Generates the default configuration file if it doesn't exist.
@@ -73,12 +112,7 @@ class ConfigManager(metaclass=SingletonMeta):
 
         # Layout offsets for retail mode
         self.config["DefaultRetailMode"] = {
-            "plugin_script_log_path": os.path.join(
-                os.path.expanduser("~"),
-                "Documents",
-                "The Lord of the Rings Online",
-                "Script.log",
-            ),
+            "plugin_script_log_path": self._detect_script_log_path(),
             "layout_corner_offset_x": "11",
             "layout_corner_offset_y": "10",
             "layout_padding_intersect_x": "-10",
