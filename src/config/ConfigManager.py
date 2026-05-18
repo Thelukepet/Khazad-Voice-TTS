@@ -20,9 +20,9 @@ class SingletonMeta(type):
 class ConfigManager(metaclass=SingletonMeta):
     def __init__(self):
         self.config = configparser.ConfigParser()
-        self.config_path = Path("khazad_config.ini")
+        self.base_dir = self._find_project_root()
+        self.config_path = self.base_dir / "khazad_config.ini"
         self.config.read(self.config_path)
-        self.base_dir = Path(__file__).resolve().parent.parent
 
         self._cached_device = None
         self._cached_tesseract_cmd = None
@@ -39,6 +39,17 @@ class ConfigManager(metaclass=SingletonMeta):
             # If it does exist, read it.
             # This overwrites memory defaults with user's custom settings,
             self.config.read(self.config_path)
+
+    @staticmethod
+    def _find_project_root() -> Path:
+        """Walk up from this file until we find the project root (has pyproject.toml)."""
+        current = Path(__file__).resolve().parent
+        while current != current.parent:
+            if (current / "pyproject.toml").exists():
+                return current
+            current = current.parent
+        # Fallback if pyproject.toml was removed or we're in a weird environment
+        return Path(__file__).resolve().parent.parent.parent
 
     def _detect_script_log_path(self) -> str:
         """Resolve the LOTRO Script.log path for the current platform.
@@ -87,10 +98,10 @@ class ConfigManager(metaclass=SingletonMeta):
         # Paths
         self.config["Paths"] = {
             "data_dir": str(self.base_dir / "data"),
-            "samples_dir": str(self.base_dir / "screenshots"),
-            "ref_audio_dir": str(self.base_dir / "reference_audio"),
+            "samples_dir": str(self.base_dir / "data" / "screenshots"),
+            "ref_audio_dir": str(self.base_dir / "data" / "reference_audio"),
             "templates_dir": str(self.base_dir / "templates"),
-            "npc_data_path": str(self.base_dir / "npc_data.csv"),
+            "npc_data_path": str(self.base_dir / "data" / "npc_data.csv"),
         }
 
         # Detection settings
