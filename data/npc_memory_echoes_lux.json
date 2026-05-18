@@ -1,0 +1,275 @@
+{
+    "ted pickthorn": {
+        "name": "Ted Pickthorn",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|10",
+        "category": "man_male"
+    },
+    "geoffrey fuller": {
+        "name": "Geoffrey Fuller",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|11",
+        "category": "man_male"
+    },
+    "leighton howard": {
+        "name": "Leighton Howard",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|9",
+        "category": "man_male"
+    },
+    "townsperson": {
+        "name": "Townsperson",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|7",
+        "category": "man_male"
+    },
+    "janie sprigleaf": {
+        "name": "Janie Sprigleaf",
+        "race": "Man",
+        "gender": "Female",
+        "voice_id": "man_female|12",
+        "category": "man_female"
+    },
+    "maida woodwright": {
+        "name": "Maida Woodwright",
+        "race": "Man",
+        "gender": "Female",
+        "voice_id": "man_female|0",
+        "category": "man_female"
+    },
+    "woodcutter": {
+        "name": "Narrator",
+        "race": "Narrator",
+        "gender": "Narrator",
+        "voice_id": "narrator|0",
+        "category": "narrator"
+    },
+    "nan ragwort": {
+        "name": "Nan Ragwort",
+        "race": "Man",
+        "gender": "Female",
+        "voice_id": "man_female|3",
+        "category": "man_female"
+    },
+    "postman took": {
+        "name": "Postman Took",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|11",
+        "category": "hobbit_male"
+    },
+    "bounder boffin": {
+        "name": "Bounder Boffin",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|12",
+        "category": "hobbit_male"
+    },
+    "gildor": {
+        "name": "Narrator",
+        "race": "Narrator",
+        "gender": "Narrator",
+        "voice_id": "narrator|1",
+        "category": "narrator"
+    },
+    "amdir": {
+        "name": "Amdir",
+        "race": "Men",
+        "gender": "Male",
+        "voice_id": "narrator|0",
+        "category": "narrator"
+    },
+    "kate henseed": {
+        "name": "Kate Henseed",
+        "race": "Man",
+        "gender": "Female",
+        "voice_id": "man_female|12",
+        "category": "man_female"
+    },
+    "captain brackenbrook": {
+        "name": "Captain Brackenbrook",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|13",
+        "category": "man_male"
+    },
+    "fastred burrows": {
+        "name": "Fastred Burrows",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|11",
+        "category": "hobbit_male"
+    },
+    "celandine brandybuck": {
+        "name": "Celandine Brandybuck",
+        "race": "Hobbit",
+        "gender": "Female",
+        "voice_id": "hobbit_female|20",
+        "category": "hobbit_female"
+    },
+    "dirk mudbrick": {
+        "name": "Dirk Mudbrick",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|8",
+        "category": "man_male"
+    },
+    "jailor ned pruner": {
+        "name": "Jailor Ned Pruner",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|7",
+        "category": "man_male"
+    },
+    "constable thistlewool": {
+        "name": "Constable Thistlewool",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|6",
+        "category": "man_male"
+    },
+    "ann granger": {
+        "name": "Ann Granger",
+        "race": "Man",
+        "gender": "Female",
+        "voice_id": "man_female|13",
+        "category": "man_female"
+    },
+    "atli spider-bane": {
+        "name": "Atli Spider-bane",
+        "race": "Dwarf",
+        "gender": "Male",
+        "voice_id": "dwarf_male|12",
+        "category": "dwarf_male"
+    },
+    "jon brackenbrook": {
+        "name": "Jon Brackenbrook",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|0",
+        "category": "man_male"
+    },
+    "dead hunter": {
+        "name": "Dead Hunter",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|8",
+        "category": "man_male"
+    },
+    "cal sprigley": {
+        "name": "Cal Sprigley",
+        "race": "Man",
+        "gender": "Male",
+        "voice_id": "man_male|12",
+        "category": "man_male"
+    },
+    "corpse of calder cob": {
+        "name": "Narrator",
+        "race": "Narrator",
+        "gender": "Narrator",
+        "voice_id": "narrator|1",
+        "category": "narrator"
+    },
+    "mundo sackville-baggins": {
+        "name": "Mundo Sackville-Baggins",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|1",
+        "category": "hobbit_male"
+    },
+    "bounder": {
+        "name": "Bounder",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|13",
+        "category": "hobbit_male"
+    },
+    "alf goodcliff": {
+        "name": "Alf Goodcliff",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|8",
+        "category": "hobbit_male"
+    },
+    "postman newbuck": {
+        "name": "Postman Newbuck",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|9",
+        "category": "hobbit_male"
+    },
+    "mayor will whitfoot": {
+        "name": "Mayor Will Whitfoot",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|4",
+        "category": "hobbit_male"
+    },
+    "second shirriff bodo bunce": {
+        "name": "Second Shirriff Bodo Bunce",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|2",
+        "category": "hobbit_male"
+    },
+    "unknown": {
+        "name": "Narrator",
+        "race": "Narrator",
+        "gender": "Narrator",
+        "voice_id": "narrator|1",
+        "category": "narrator"
+    },
+    "rollo newbuck": {
+        "name": "Rollo Newbuck",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|14",
+        "category": "hobbit_male"
+    },
+    "carlo blagrove": {
+        "name": "Carlo Blagrove",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|12",
+        "category": "hobbit_male"
+    },
+    "keeper brombard foxtail": {
+        "name": "Keeper Brombard Foxtail",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|5",
+        "category": "hobbit_male"
+    },
+    "ned diggins": {
+        "name": "Ned Diggins",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|11",
+        "category": "hobbit_male"
+    },
+    "farmer sandson": {
+        "name": "Farmer Sandson",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|15",
+        "category": "hobbit_male"
+    },
+    "wald sandson": {
+        "name": "Wald Sandson",
+        "race": "Hobbit",
+        "gender": "Male",
+        "voice_id": "hobbit_male|14",
+        "category": "hobbit_male"
+    },
+    "lobelia sackville-baggins": {
+        "name": "Lobelia Sackville-Baggins",
+        "race": "Hobbit",
+        "gender": "Female",
+        "voice_id": "hobbit_female|5",
+        "category": "hobbit_female"
+    }
+}

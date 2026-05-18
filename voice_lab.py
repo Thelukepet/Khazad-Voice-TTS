@@ -2,13 +2,14 @@ import os
 import sys
 from pathlib import Path
 
-# Force AI models to download into the local installation folder
-_install_dir = Path(__file__).resolve().parent
-os.environ["HF_HOME"] = str(_install_dir / "models" / "huggingface")
-os.environ["TORCH_HOME"] = str(_install_dir / "models" / "torch")
+# Force AI models to download into the user data directory
+from src.config.ConfigManager import ConfigManager
+
+os.environ["HF_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "huggingface")
+os.environ["TORCH_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "torch")
 
 # Ensure src is in python path
-sys.path.append(str(_install_dir))
+sys.path.append(str(Path(__file__).resolve().parent))
 
 from src.voice_lab.ui import create_ui
 

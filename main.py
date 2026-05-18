@@ -9,10 +9,11 @@ import time
 from pathlib import Path
 from threading import Event
 
-# Force AI models to download into the local installation folder
-_install_dir = Path(__file__).resolve().parent
-os.environ["HF_HOME"] = str(_install_dir / "models" / "huggingface")
-os.environ["TORCH_HOME"] = str(_install_dir / "models" / "torch")
+# Force AI models to download into the user data directory
+from src.config.ConfigManager import ConfigManager
+
+os.environ["HF_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "huggingface")
+os.environ["TORCH_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "torch")
 
 # > Third Party Imports
 from pynput import keyboard, mouse
@@ -29,6 +30,51 @@ log = setup_logger("MAIN")
 # Shared events for cross-thread signalling
 capture_trigger = Event()  # Echoes mode: middle-click
 retail_capture_trigger = Event()  # Retail static mode: middle-click
+
+
+def _run_calibration(mode: str):
+    """Launch the calibration script for the given mode."""
+    if mode == "retail":
+        from src.calibrate_retail import main as calibrate_main
+    elif mode == "echoes":
+        from src.calibrate_echoes import main as calibrate_main
+    else:
+        from src.calibrate_static import main as calibrate_main
+    calibrate_main()
+
+
+def _run_voice_lab():
+    """Launch the Voice Lab configuration suite."""
+    from src.voice_lab.ui import create_ui
+
+    demo = create_ui()
+    demo.launch(inbrowser=True)
+
+
+def _run_install_plugin():
+    """Install the getNPCNames LOTRO plugin to the user's Documents folder."""
+    import shutil
+
+    base_dir = ConfigManager._find_project_root()
+    src_plugin = base_dir / "plugins" / "Dt192"
+    if not src_plugin.exists():
+        print(f"ERROR: Plugin source not found at {src_plugin}")
+        return
+
+    # Standard LOTRO plugin directory
+    lotro_plugins = (
+        Path.home() / "Documents" / "The Lord of the Rings Online" / "plugins"
+    )
+    dst_plugin = lotro_plugins / "Dt192"
+
+    if dst_plugin.exists():
+        print(f"Plugin already installed at {dst_plugin}")
+        print("Updating...")
+        shutil.rmtree(dst_plugin)
+
+    shutil.copytree(src_plugin, dst_plugin)
+    print(f"Plugin installed to {dst_plugin}")
+    print("You may need to reload plugins in-game with /plugins refresh")
 
 
 def on_click(x, y, button, pressed):
@@ -49,14 +95,44 @@ def main():
     quest_window_mode = cfg.get_str("TTSSettings", "quest_window_mode", fallback="auto")
     npc_name_max_age = cfg.get_int("TTSSettings", "npc_name_max_age", fallback=60)
     script_log = cfg.get_str("DefaultRetailMode", "plugin_script_log_path")
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Khazad Voice TTS – AI Narrator for LOTRO"
+    )
     parser.add_argument(
         "--mode", choices=["retail", "echoes"], help="Game mode to start in"
     )
     parser.add_argument(
         "--device", choices=["gpu", "cpu"], help="Audio engine to start in"
     )
+    parser.add_argument(
+        "--calibrate",
+        choices=["retail", "echoes", "static"],
+        help="Run calibration for the given game mode",
+    )
+    parser.add_argument(
+        "--voice-lab",
+        action="store_true",
+        help="Launch the Voice Lab configuration suite",
+    )
+    parser.add_argument(
+        "--install-retail-plugin",
+        action="store_true",
+        help="Install the getNPCNames LOTRO plugin",
+    )
     args = parser.parse_args()
+
+    # --- Sub-commands that exit early ---
+    if args.calibrate:
+        _run_calibration(args.calibrate)
+        return
+
+    if args.voice_lab:
+        _run_voice_lab()
+        return
+
+    if args.install_retail_plugin:
+        _run_install_plugin()
+        return
 
     print(r"""
     ========================================

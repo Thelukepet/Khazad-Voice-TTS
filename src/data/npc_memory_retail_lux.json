@@ -1,0 +1,9 @@
+{
+    "thranduil": {
+        "name": "Thranduil",
+        "race": "Elf",
+        "gender": "Male",
+        "voice_id": "test_voice",
+        "category": "test_category"
+    }
+}

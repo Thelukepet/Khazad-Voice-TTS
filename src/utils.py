@@ -30,9 +30,13 @@ LOG_LEVEL = _cfg.get_str("LogSettings", "log_level", fallback="INFO")
 _data_dir = Path(_cfg.get_str("Paths", "data_dir"))
 _data_dir.mkdir(parents=True, exist_ok=True)
 
-# --- CONFIGURATION FILES ---
-LAYOUT_RETAIL = _data_dir / "layout_retail.json"
-LAYOUT_ECHOES = _data_dir / "layout_echoes.json"
+# User data directory for generated files
+_user_data_dir = ConfigManager.USER_DATA_DIR
+_user_data_dir.mkdir(parents=True, exist_ok=True)
+
+# --- CONFIGURATION FILES (generated, in user data dir) ---
+LAYOUT_RETAIL = _user_data_dir / "layout_retail.json"
+LAYOUT_ECHOES = _user_data_dir / "layout_echoes.json"
 
 # --- RESOLUTION DETECTION & TEMPLATE SCALING ---
 
@@ -272,8 +276,8 @@ def get_file_paths(mode: str) -> Tuple[Path, Path]:
     """
     safe_mode = mode.lower().strip()
     return (
-        _data_dir / f"coords_{safe_mode}.json",
-        _data_dir / f"npc_memory_{safe_mode}.json",
+        _user_data_dir / f"coords_{safe_mode}.json",
+        _user_data_dir / f"npc_memory_{safe_mode}.json",
     )
 
 
@@ -294,7 +298,7 @@ def get_memory_file_path(mode: str, backend: str) -> Path:
     Path
         The full path to the json file.
     """
-    return _data_dir / f"npc_memory_{mode.lower()}_{backend.lower()}.json"
+    return _user_data_dir / f"npc_memory_{mode.lower()}_{backend.lower()}.json"
 
 
 def load_coords(mode: str) -> Dict:

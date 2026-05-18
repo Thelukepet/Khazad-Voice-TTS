@@ -18,10 +18,29 @@ class SingletonMeta(type):
 
 
 class ConfigManager(metaclass=SingletonMeta):
+    """Central configuration manager for Khazad Voice TTS.
+
+    Paths are split into two categories:
+
+    * ``base_dir`` – the project root (where pyproject.toml lives).
+      Holds **embedded resources** that ship with the app (templates,
+      reference audio, npc_data.csv).
+    * ``user_data_dir`` – ``~/.khazad-voice-tts/``.
+      Holds **generated data** produced at runtime (config, calibration
+      layouts, NPC memory, downloaded models, screenshots).
+    """
+
+    # --- Cross-platform user data directory ---
+    USER_DATA_DIR = Path.home() / ".khazad-voice-tts"
+
     def __init__(self):
         self.config = configparser.ConfigParser()
         self.base_dir = self._find_project_root()
-        self.config_path = self.base_dir / "khazad_config.ini"
+
+        # Ensure user data directory exists
+        self.USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+        self.config_path = self.USER_DATA_DIR / "config.ini"
         self.config.read(self.config_path)
 
         self._cached_device = None
@@ -95,13 +114,15 @@ class ConfigManager(metaclass=SingletonMeta):
         Generates the default configuration file if it doesn't exist.
         """
 
-        # Paths
+        # Paths – embedded resources (ship with the app)
         self.config["Paths"] = {
             "data_dir": str(self.base_dir / "data"),
-            "samples_dir": str(self.base_dir / "data" / "screenshots"),
             "ref_audio_dir": str(self.base_dir / "data" / "reference_audio"),
             "templates_dir": str(self.base_dir / "templates"),
             "npc_data_path": str(self.base_dir / "data" / "npc_data.csv"),
+            # Generated data (user-specific, in home directory)
+            "user_data_dir": str(self.USER_DATA_DIR),
+            "screenshots_dir": str(self.USER_DATA_DIR / "screenshots"),
         }
 
         # Detection settings
