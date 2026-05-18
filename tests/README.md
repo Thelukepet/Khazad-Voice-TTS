@@ -87,8 +87,11 @@ Each test file follows this structure:
 
 To add test coverage reporting:
 1. Install pytest-cov: `pip install pytest-cov`
-2. Uncomment the coverage line in `pytest.ini`
-3. Run: `pytest --cov=src --cov-report=html`
+2. Add a coverage option to `pyproject.toml` under `[tool.pytest.ini_options]`:
+   ```toml
+   addopts = "--cov=src --cov-report=html"
+   ```
+3. Run: `pytest`
 
 ## Fixtures
 
