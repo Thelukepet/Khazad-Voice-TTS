@@ -1571,6 +1571,11 @@ class InstallerApp:
                 "desc": "Khazad Voice - Echoes of Angmar",
             },
             {
+                "name": "Khazad Voice (Static)",
+                "args": "main.py --mode static",
+                "desc": "Khazad Voice - Static Quest Window",
+            },
+            {
                 "name": "Khazad Voice Lab",
                 "args": "main.py --voice-lab",
                 "desc": "Khazad Voice Lab",

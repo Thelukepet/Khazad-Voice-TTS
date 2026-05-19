@@ -218,10 +218,11 @@ Use this if template matching doesn't work on your screen resolution or UI skin.
 1. Open LOTRO with a quest window visible.
 2. Run the static calibration script.
 3. Draw a single box around the quest text body area (inside the main text area).
+4. Launch using `Windows/start_static.bat` (or `./Linux/start_static.sh`).
 
-The tool will automatically update `khazad_config.ini` to use static mode with your coordinates.
+The tool will save your calibration coordinates automatically.
 
-> **To switch back to auto mode:** Edit `khazad_config.ini` and change `quest_window_mode = static` to `auto`.
+> **To switch back to auto mode:** Simply launch with `start_lotro.bat` instead of `start_static.bat`.
 
 ---
 
@@ -253,6 +254,19 @@ To launch the application, run the file corresponding to your game version.
 3. The tool captures and reads the text based on your calibration and narrates it.
 
 * **Note:** You can freely move the quest window in-game, but the NPC name box (tooltip box) should remain at the same location.
+* Press **F12** at any time to stop current playback.
+
+### 3. Static Mode (Retail Fallback)
+
+* **Windows:** `Windows/start_static.bat` (or desktop shortcut)
+* **Linux:** `./Linux/start_static.sh`
+
+**How it works:**
+1. After running the static calibration, launch using the static mode shortcut.
+2. Click the **Middle Mouse Button** to capture and narrate the quest text.
+3. The tool reads from the fixed screen coordinates you defined during calibration.
+
+* **Note:** The quest window must NOT be moved after calibration.
 * Press **F12** at any time to stop current playback.
 
 ---
@@ -292,7 +306,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 **Q: How do I reset the NPC Voice Memory?**
 
-* To wipe the saved voice associations for NPCs (resetting who sounds like what), delete the `npc_memory_retail.json` file from the `data/` folder.
+* To wipe the saved voice associations for NPCs (resetting who sounds like what), delete the `npc_memory_retail.json` file from your user data folder (`~/.khazad-voice-tts/` on Linux, or `%USERPROFILE%\.khazad-voice-tts\` on Windows).
 
 **Q: Can I add my own custom voice references?**
 
