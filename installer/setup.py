@@ -1572,7 +1572,7 @@ class InstallerApp:
             },
             {
                 "name": "Khazad Voice Lab",
-                "args": "voice_lab.py",
+                "args": "main.py --voice-lab",
                 "desc": "Khazad Voice Lab",
             },
         ]
@@ -1657,30 +1657,17 @@ $sc.Save()
         python_exe = str(install_path / "venv" / "Scripts" / "python.exe")
 
         if mode == "lab":
-            script = str(install_path / "voice_lab.py")
+            script = str(install_path / "main.py")
             subprocess.Popen(
-                [python_exe, script],
+                [python_exe, script, "--voice-lab"],
                 cwd=str(install_path),
                 creationflags=subprocess.CREATE_NEW_CONSOLE,
             )
-        elif mode == "calibrate_retail":
-            script = str(install_path / "src" / "calibrate_retail.py")
+        elif mode.startswith("calibrate_"):
+            cal_mode = mode.replace("calibrate_", "")
+            script = str(install_path / "main.py")
             subprocess.Popen(
-                [python_exe, script],
-                cwd=str(install_path),
-                creationflags=subprocess.CREATE_NEW_CONSOLE,
-            )
-        elif mode == "calibrate_echoes":
-            script = str(install_path / "src" / "calibrate_echoes.py")
-            subprocess.Popen(
-                [python_exe, script],
-                cwd=str(install_path),
-                creationflags=subprocess.CREATE_NEW_CONSOLE,
-            )
-        elif mode == "calibrate_static":
-            script = str(install_path / "src" / "calibrate_static.py")
-            subprocess.Popen(
-                [python_exe, script],
+                [python_exe, script, "--calibrate", cal_mode],
                 cwd=str(install_path),
                 creationflags=subprocess.CREATE_NEW_CONSOLE,
             )
