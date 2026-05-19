@@ -86,7 +86,7 @@ def print_usage():
     """Print CLI usage information."""
     print("Usage:")
     print("python main.py --voice-lab")
-    print("python main.py --mode <retail/echoes> [--device <cpu/gpu>]")
+    print("python main.py --mode <retail/static/echoes> [--device <cpu/gpu>]")
     print("python main.py --calibrate <retail/echoes/static>")
     print("python main.py --install-retail-plugin")
     print("")
@@ -98,7 +98,7 @@ def get_args():
         description="Khazad Voice TTS – AI Narrator for LOTRO"
     )
     parser.add_argument(
-        "--mode", choices=["retail", "echoes"], help="Game mode to start in"
+        "--mode", choices=["retail", "static", "echoes"], help="Game mode to start in"
     )
     parser.add_argument(
         "--device", choices=["gpu", "cpu"], help="Audio engine to start in"
