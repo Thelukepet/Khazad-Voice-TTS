@@ -5,23 +5,14 @@ import argparse
 import os
 from pathlib import Path
 
+# > Local Dependencies
+from src.engine_startup import EngineStartup
+
 # Force AI models to download into the user data directory
 from src.config.ConfigManager import ConfigManager
 
 os.environ["HF_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "huggingface")
 os.environ["TORCH_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "torch")
-
-# > Local Dependencies
-from src.engine_startup import EngineStartup
-from src.utils import setup_logger
-
-log = setup_logger("MAIN")
-
-
-# ---------------------------------------------------------------------------
-# Sub-command helpers
-# ---------------------------------------------------------------------------
-
 
 def _run_calibration(mode: str):
     """Launch the calibration script for the given mode."""
@@ -66,11 +57,6 @@ def _run_install_plugin():
     shutil.copytree(src_plugin, dst_plugin)
     print(f"Plugin installed to {dst_plugin}")
     print("You may need to reload plugins in-game with /plugins refresh")
-
-
-# ---------------------------------------------------------------------------
-# CLI helpers
-# ---------------------------------------------------------------------------
 
 
 def print_header():
@@ -135,18 +121,12 @@ def get_device_arg(args: argparse.Namespace) -> str:
     return "gpu" if device_input == "2" else "cpu"
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-
 def main():
     """Main entry point for Khazad-Voice TTS."""
     print_header()
 
     args = get_args()
 
-    # --- Sub-commands that exit early ---
     if args.calibrate:
         _run_calibration(args.calibrate)
         return
@@ -159,7 +139,6 @@ def main():
         _run_install_plugin()
         return
 
-    # --- Engine start (requires device selection) ---
     if args.mode:
         EngineStartup(args.mode, get_device_arg(args))
     else:
