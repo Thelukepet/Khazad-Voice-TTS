@@ -5,14 +5,15 @@ import argparse
 import os
 from pathlib import Path
 
-# > Local Dependencies
-from src.engine_startup import EngineStartup
-
 # Force AI models to download into the user data directory
 from src.config.ConfigManager import ConfigManager
 
+# > Local Dependencies
+from src.engine_startup import EngineStartup
+
 os.environ["HF_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "huggingface")
 os.environ["TORCH_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "torch")
+
 
 def _run_calibration(mode: str):
     """Launch the calibration script for the given mode."""
@@ -68,16 +69,6 @@ def print_header():
     """)
 
 
-def print_usage():
-    """Print CLI usage information."""
-    print("Usage:")
-    print("python main.py --voice-lab")
-    print("python main.py --mode <retail/static/echoes> [--device <cpu/gpu>]")
-    print("python main.py --calibrate <retail/echoes/static>")
-    print("python main.py --install-retail-plugin")
-    print("")
-
-
 def get_args():
     """Parse and return CLI arguments."""
     parser = argparse.ArgumentParser(
@@ -107,11 +98,8 @@ def get_args():
     return parser.parse_args()
 
 
-def get_device_arg(args: argparse.Namespace) -> str:
-    """Return the TTS backend choice from *args* or prompt the user."""
-    if args.device:
-        return args.device
-
+def _select_device() -> str:
+    """Prompt the user to choose a TTS backend."""
     print("\n[SELECT AUDIO ENGINE]")
     print("1. CPU (Kokoro) [Default]")
     print("   -> Fast, Reliable. Works on all PCs.")
@@ -119,6 +107,49 @@ def get_device_arg(args: argparse.Namespace) -> str:
     print("   -> Higher Quality. REQUIRES NVIDIA GPU.")
     device_input = input("\nEnter choice (1 or 2): ").strip()
     return "gpu" if device_input == "2" else "cpu"
+
+
+def get_device_arg(args: argparse.Namespace) -> str:
+    """Return the TTS backend choice from *args* or prompt the user."""
+    if args.device:
+        return args.device
+    return _select_device()
+
+
+def _interactive_menu():
+    """Show an interactive menu when launched with no arguments."""
+    print("What would you like to do?\n")
+    print("  1. Start Retail Mode (Auto-detect quest window)")
+    print("  2. Start Echoes of Angmar Mode")
+    print("  3. Start Static Mode (Fixed quest window)")
+    print("  4. Calibrate Retail")
+    print("  5. Calibrate Echoes of Angmar")
+    print("  6. Calibrate Static Mode")
+    print("  7. Voice Lab & Configuration")
+    print("  8. Install LOTRO Plugin")
+    print()
+
+    choice = input("Enter choice (1-8): ").strip()
+
+    match choice:
+        case "1":
+            EngineStartup("retail", _select_device())
+        case "2":
+            EngineStartup("echoes", _select_device())
+        case "3":
+            EngineStartup("static", _select_device())
+        case "4":
+            _run_calibration("retail")
+        case "5":
+            _run_calibration("echoes")
+        case "6":
+            _run_calibration("static")
+        case "7":
+            _run_voice_lab()
+        case "8":
+            _run_install_plugin()
+        case _:
+            print(f"Invalid choice: {choice}")
 
 
 def main():
@@ -142,7 +173,7 @@ def main():
     if args.mode:
         EngineStartup(args.mode, get_device_arg(args))
     else:
-        print_usage()
+        _interactive_menu()
 
 
 if __name__ == "__main__":
