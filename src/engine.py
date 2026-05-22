@@ -32,11 +32,11 @@ class NarratorEngine:
     db : Database
         The NPC database interface for race/gender lookups.
     tts : TTSBackend
-        The initialized Text-to-Speech backend (e.g., Kokoro, Lux).
+        The initialized Text-to-Speech backend (e.g., Kokoro, OmniVoice).
     mode : str
         The operation mode ('echoes' for manual, 'retail' for auto).
     backend_id: str
-        The backend identifier (e.g., 'kokoro', 'lux').
+        The backend identifier (e.g., 'kokoro', 'omnivoice').
     memory : dict
         A runtime cache of NPC-to-Voice mappings to ensure consistency.
     audio_queue : queue.Queue
@@ -62,7 +62,7 @@ class NarratorEngine:
         self.tts = tts_backend
         self.mode = mode
 
-        self.backend_id = getattr(self.tts, "backend_id", "lux")
+        self.backend_id = getattr(self.tts, "backend_id", "omnivoice")
 
         self.memory = load_npc_memory(self.mode, self.backend_id)
         log.info(f"🧠 Loaded Memory for mode: {self.mode} | Backend: {self.backend_id}")
@@ -261,17 +261,19 @@ class NarratorEngine:
             voice_id = self.memory[key]["voice_id"]
             category = self.memory[key].get("category", "")
 
-            # If we are on Kokoro (CPU) but found a Lux ID (contains '|'), force a re-roll.
+            # If we are on Kokoro (CPU) but found an OmniVoice ID (contains '|'),
+            # force a re-roll.
             if self.backend_id == "kokoro" and "|" in voice_id:
                 log.warning(
-                    f"⚠️ Found invalid Lux ID '{voice_id}' for Kokoro backend. Re-assigning voice."
+                    f"⚠️ Found invalid OmniVoice ID '{voice_id}' for Kokoro backend. "
+                    f"Re-assigning voice."
                 )
             elif (
-                self.backend_id == "lux"
+                self.backend_id == "omnivoice"
                 and "|" not in voice_id
                 and voice_id != "default"
             ):
-                # If on Lux but found a Kokoro ID (no pipe), allow re-roll logic (optional)
+                # If on OmniVoice but found a Kokoro ID (no pipe), allow re-roll.
                 pass
             else:
                 matched_name = self.memory[key].get("name", npc_name)
@@ -348,7 +350,7 @@ class NarratorEngine:
         def producer():
             clean_lines = [line for line in quest_text.lines if line.text.strip()]
 
-            if self.backend_id == "lux":
+            if self.backend_id == "omnivoice":
                 chunk_size = 2
                 for i in range(0, len(clean_lines), chunk_size):
                     if self.stop_event.is_set():
@@ -398,8 +400,8 @@ class NarratorEngine:
             if len(audio) > 0:
                 _cfg = ConfigManager()
                 vol = (
-                    _cfg.get_float("TTSSettings", "lux_volume", fallback=0.5)
-                    if self.backend_id == "lux"
+                    _cfg.get_float("TTSSettings", "omnivoice_volume", fallback=0.5)
+                    if self.backend_id == "omnivoice"
                     else _cfg.get_float("TTSSettings", "default_volume", fallback=0.4)
                 )
                 play_audio(audio, sr, volume=vol, stop_event=self.stop_event)

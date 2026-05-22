@@ -291,7 +291,7 @@ def get_memory_file_path(mode: str, backend: str) -> Path:
     mode : str
         Game mode ('retail' or 'echoes').
     backend : str
-        TTS backend ('lux' or 'kokoro').
+        TTS backend ('omnivoice' or 'kokoro').
 
     Returns
     -------
@@ -299,6 +299,23 @@ def get_memory_file_path(mode: str, backend: str) -> Path:
         The full path to the json file.
     """
     return _user_data_dir / f"npc_memory_{mode.lower()}_{backend.lower()}.json"
+
+
+def _migrate_legacy_memory_files():
+    """One-time migration: rename *_lux.json memory files to *_omnivoice.json.
+
+    The project renamed the GPU backend from "Lux" to "OmniVoice". This ensures
+    existing users keep their NPC voice associations after upgrading.
+    """
+    for mode in ("retail", "echoes"):
+        legacy = _user_data_dir / f"npc_memory_{mode}_lux.json"
+        target = _user_data_dir / f"npc_memory_{mode}_omnivoice.json"
+        if legacy.exists() and not target.exists():
+            try:
+                legacy.rename(target)
+                log.info(f"Migrated memory file: {legacy.name} → {target.name}")
+            except OSError as exc:
+                log.warning(f"Could not migrate {legacy.name}: {exc}")
 
 
 def load_coords(mode: str) -> Dict:
@@ -341,7 +358,7 @@ def save_coords(coords: dict, mode: str):
         json.dump(coords, f, indent=4)
 
 
-def load_npc_memory(mode: str, backend: str = "lux") -> Dict:
+def load_npc_memory(mode: str, backend: str = "omnivoice") -> Dict:
     """
     Loads the database of previously seen NPCs for the specific engine backend.
 
@@ -350,18 +367,21 @@ def load_npc_memory(mode: str, backend: str = "lux") -> Dict:
     mode : str
         Game mode ('retail' or 'echoes').
     backend : str
-        TTS backend name ('lux' or 'kokoro').
+        TTS backend name ('omnivoice' or 'kokoro').
 
     Returns
     -------
     dict
         Memory database.
     """
+    # One-time migration: rename *_lux.json → *_omnivoice.json for existing users
+    _migrate_legacy_memory_files()
+
     memory_file = get_memory_file_path(mode, backend)
 
     # Fallback to legacy file if new backend-specific file doesn't exist yet
     # This prevents data loss for existing users updating to the new version.
-    if not memory_file.exists() and backend == "lux":
+    if not memory_file.exists() and backend == "omnivoice":
         _, legacy_path = get_file_paths(mode)
         if legacy_path.exists():
             log.info(f"Migrating legacy memory file to {memory_file}")
@@ -382,7 +402,7 @@ def load_npc_memory(mode: str, backend: str = "lux") -> Dict:
     return {}
 
 
-def save_npc_memory(memory: Dict, mode: str, backend: str = "lux"):
+def save_npc_memory(memory: Dict, mode: str, backend: str = "omnivoice"):
     """
     Saves the NPC memory database to disk, specific to the backend.
 
@@ -393,7 +413,7 @@ def save_npc_memory(memory: Dict, mode: str, backend: str = "lux"):
     mode : str
         Game mode.
     backend : str
-        TTS backend ('lux' or 'kokoro').
+        TTS backend ('omnivoice' or 'kokoro').
     """
     memory_file = get_memory_file_path(mode, backend)
     with open(memory_file, "w") as f:

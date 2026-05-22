@@ -163,7 +163,7 @@ class ConfigManager(metaclass=SingletonMeta):
         self.config["TTSSettings"] = {
             "sample_rate": "24000",
             "default_volume": "0.4",
-            "lux_volume": "0.5",
+            "omnivoice_volume": "0.5",
             "tts_speed": "1.1",
             "tts_wave_steps": "16",
             "quest_window_mode": "auto",

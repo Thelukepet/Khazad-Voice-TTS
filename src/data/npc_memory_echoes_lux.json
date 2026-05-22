@@ -1,9 +1,0 @@
-{
-    "abb": {
-        "name": "Abb",
-        "race": "Man",
-        "gender": "Male",
-        "voice_id": "am_echo",
-        "category": "narrator"
-    }
-}

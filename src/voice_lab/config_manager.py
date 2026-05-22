@@ -22,7 +22,7 @@ def get_current_settings() -> Dict[str, Union[float, int, str]]:
         A dictionary containing the current configuration values.
         Keys include:
         - 'volume': float
-        - 'lux_volume': float
+        - 'omnivoice_volume': float
         - 'speed': float
         - 'steps': int
         - 'threshold': float
@@ -33,7 +33,9 @@ def get_current_settings() -> Dict[str, Union[float, int, str]]:
 
     settings = {
         "volume": cfg.config.getfloat("TTSSettings", "default_volume", fallback=0.4),
-        "lux_volume": cfg.config.getfloat("TTSSettings", "lux_volume", fallback=0.4),
+        "omnivoice_volume": cfg.config.getfloat(
+            "TTSSettings", "omnivoice_volume", fallback=0.4
+        ),
         "speed": cfg.config.getfloat("TTSSettings", "tts_speed", fallback=1.1),
         "steps": cfg.config.getint("TTSSettings", "tts_wave_steps", fallback=6),
         "threshold": cfg.config.getfloat(
@@ -47,7 +49,7 @@ def get_current_settings() -> Dict[str, Union[float, int, str]]:
         with open(ENGINE_PATH, "r", encoding="utf-8") as f:
             content = f.read()
             chunk_match = re.search(
-                r'if self\.backend_id == "lux":\s+chunk_size\s*=\s*(\d+)', content
+                r'if self\.backend_id == "omnivoice":\s+chunk_size\s*=\s*(\d+)', content
             )
             settings["chunk_size"] = int(chunk_match.group(1)) if chunk_match else 2
 
@@ -56,7 +58,7 @@ def get_current_settings() -> Dict[str, Union[float, int, str]]:
 
 def save_settings(
     vol: float,
-    lux_vol: float,
+    omnivoice_vol: float,
     speed: float,
     steps: int,
     thresh: float,
@@ -70,7 +72,7 @@ def save_settings(
     ----------
     vol : float
         The master volume for CPU (Kokoro) TTS.
-    lux_vol : float
+    omnivoice_vol : float
         The volume for GPU (OmniVoice).
     speed : float
         The TTS speaking speed multiplier.
@@ -97,7 +99,7 @@ def save_settings(
 
     # 1. Update INI config via ConfigManager
     cfg.config.set("TTSSettings", "default_volume", str(vol))
-    cfg.config.set("TTSSettings", "lux_volume", str(lux_vol))
+    cfg.config.set("TTSSettings", "omnivoice_volume", str(omnivoice_vol))
     cfg.config.set("TTSSettings", "tts_speed", str(speed))
     cfg.config.set("TTSSettings", "tts_wave_steps", str(steps))
     cfg.config.set("Detection", "template_threshold", str(thresh))
@@ -112,7 +114,7 @@ def save_settings(
         with open(ENGINE_PATH, "r", encoding="utf-8") as f:
             content = f.read()
 
-        pattern = r'(if self\.backend_id == "lux":\s+chunk_size\s*=\s*)(\d+)'
+        pattern = r'(if self\.backend_id == "omnivoice":\s+chunk_size\s*=\s*)(\d+)'
         if re.search(pattern, content):
             content = re.sub(pattern, f"\\g<1>{int(chunk_size)}", content)
             with open(ENGINE_PATH, "w", encoding="utf-8") as f:

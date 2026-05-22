@@ -34,7 +34,7 @@ class OmniVoiceBackend(TTSBackend):
 
         from omnivoice import OmniVoice
 
-        self.backend_id = "lux"  # Keep same ID for memory compatibility
+        self.backend_id = "omnivoice"
         self.tts = OmniVoice.from_pretrained(
             "k2-fsa/OmniVoice",
             device_map="cuda:0",

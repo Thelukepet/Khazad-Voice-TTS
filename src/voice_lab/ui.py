@@ -80,18 +80,16 @@ def create_ui() -> gr.Blocks:
                     # --- GPU MODE ---
                     with gr.Column(variant="panel"):
                         gr.Markdown("## GPU Mode (OmniVoice)")
-                        lux_vol_slider = gr.Slider(
+                        omnivoice_vol_slider = gr.Slider(
                             0.1,
                             1.0,
-                            value=defaults.get("lux_volume", 0.4),
+                            value=defaults.get("omnivoice_volume", 0.4),
                             step=0.1,
-                            label="Lux Volume",
+                            label="OmniVoice Volume",
                         )
 
-                        # Note: We display the SAME speed slider here visually if they share the underlying config.
-                        # Or, if you want Lux to have a different speed, we reuse the same 'TTS_SPEED' logic.
-                        # To avoid confusion in the UI, usually one master speed slider is better unless they differ.
-                        # However, based on your request, I will place speed controls here too, but they will update the same 'TTS_SPEED'.
+                        # Both engines currently share 'TTS_SPEED' in khazad_config.ini.
+                        # The slider in the CPU panel controls the shared speed.
 
                         gr.Markdown(
                             "*Note: TTS Speed setting (left) applies to OmniVoice as well.*"
@@ -258,10 +256,10 @@ def create_ui() -> gr.Blocks:
                 # --- EVENTS & LOGIC ---
 
                 # 1. Save Configuration
-                def save_wrapper(vol, lux_vol, spd, stp, tess, chk_idx, thresh):
+                def save_wrapper(vol, omnivoice_vol, spd, stp, tess, chk_idx, thresh):
                     real_chunk = 2 if chk_idx == 0 else 1
                     msg, new_speed, new_steps = cfg.save_settings(
-                        vol, lux_vol, spd, stp, thresh, tess, real_chunk
+                        vol, omnivoice_vol, spd, stp, thresh, tess, real_chunk
                     )
                     return (
                         msg + "\n\n🚀 Configuration Saved! Switch tabs to test.",
@@ -273,7 +271,7 @@ def create_ui() -> gr.Blocks:
                     save_wrapper,
                     inputs=[
                         vol_slider,
-                        lux_vol_slider,
+                        omnivoice_vol_slider,
                         speed_slider_conf,
                         steps_slider_conf,
                         tess_input,

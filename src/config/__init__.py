@@ -115,7 +115,7 @@
 # # ---------------------------------------------------------------------------
 # SAMPLE_RATE = _cfg.get_int("TTSSettings", "sample_rate", fallback=24000)
 # DEFAULT_VOLUME = _cfg.get_float("TTSSettings", "default_volume", fallback=0.4)
-# LUX_VOLUME = _cfg.get_float("TTSSettings", "lux_volume", fallback=0.5)
+# LUX_VOLUME = _cfg.get_float("TTSSettings", "lux_volume", fallback=0.5)  # Renamed to omnivoice_volume
 
 # # ---------------------------------------------------------------------------
 # # TTS Settings
