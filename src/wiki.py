@@ -175,7 +175,8 @@ def handle_special_search(search_url: str) -> Optional[str]:
             if link and "href" in link.attrs:
                 return WIKI_BASE_URL + link["href"]
         return None
-    except:
+    except Exception as e:
+        print(f"Error handling special search: {e}")
         return None
 
 
@@ -238,7 +239,8 @@ def fetch_quest_stages(wiki_url: str) -> dict:
 
         WIKI_CACHE[wiki_url] = stages
         return stages
-    except:
+    except Exception as e:
+        print(f"Error parsing Wiki page: {e}")
         return {}
 
 
@@ -284,7 +286,8 @@ def get_best_wiki_url(raw_text: str) -> Tuple[Optional[str], str]:
         resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
         if MISSING_TEXT_INDICATOR not in resp.text:
             return url
-    except:
+    except Exception as e:
+        print(f"Error checking Wiki URL: {e}")
         pass
 
     query = urllib.parse.quote_plus(cased)

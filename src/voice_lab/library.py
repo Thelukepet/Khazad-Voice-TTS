@@ -189,7 +189,10 @@ def trim_audio(audio_path: str, max_duration: float = 20.0) -> Optional[str]:
             sf.write(tmp_path, data[:max_samples], sr)
             return tmp_path
         return audio_path
-    except:
+    except FileNotFoundError:
+        print(f"Audio file not found: {audio_path}")
+    except Exception as e:
+        print(f"Error processing audio: {e}")
         return audio_path
 
 

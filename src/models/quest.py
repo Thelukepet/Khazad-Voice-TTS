@@ -45,7 +45,7 @@ class QuestTextLine:
     def __repr__(self) -> str:
         return (
             f"QuestTextLine(line={self.line_number}, source={self.source.name}, "
-            f"text='{self.text[:40]}...')",
+            f"text='{self.text[:40]}...')"
         )
 
 
