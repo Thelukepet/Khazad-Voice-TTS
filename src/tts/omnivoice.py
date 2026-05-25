@@ -153,6 +153,29 @@ class OmniVoiceBackend(TTSBackend):
         voice_id = f"{key}|{sample['id']}"
         return voice_id, key
 
+    def pick_narrator_voice(self) -> Tuple[str, str]:
+        """
+        Returns the dedicated narrator voice (narrator_3.flac).
+
+        Falls back to any available narrator voice, or "default" if none exist.
+
+        Returns
+        -------
+        tuple[str, str]
+            (voice_id, category) for the narrator voice.
+        """
+        if "narrator" not in self.voice_library or not self.voice_library["narrator"]:
+            return "default", "fallback"
+
+        # Prefer narrator_3.flac
+        for entry in self.voice_library["narrator"]:
+            if Path(entry["audio"]).name == "narrator_3.flac":
+                return f"narrator|{entry['id']}", "narrator"
+
+        # Fallback to any narrator voice
+        sample = self.voice_library["narrator"][0]
+        return f"narrator|{sample['id']}", "narrator"
+
     def generate(self, text: str, voice_id: str, warmup: bool = False) -> np.ndarray:
         if "|" not in voice_id:
             return np.array([], dtype=np.float32)

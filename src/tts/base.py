@@ -34,6 +34,17 @@ class TTSBackend(ABC):
         """
         pass
 
+    def pick_narrator_voice(self) -> tuple[str, str]:
+        """
+        Returns the dedicated narrator voice for non-dialogue text.
+
+        Returns
+        -------
+        tuple[str, str]
+            (voice_id, category) for the narrator voice.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def generate(self, text: str, voice_id: str) -> np.ndarray:
         """

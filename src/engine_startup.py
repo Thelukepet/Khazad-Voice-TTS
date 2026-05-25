@@ -28,9 +28,10 @@ class EngineStartup:
     TTS Engine startup handler
     """
 
-    def __init__(self, mode: str, device: str):
+    def __init__(self, mode: str, device: str, voice_mix: bool = False):
         self.mode = mode
         self.device = device
+        self.voice_mix = voice_mix
 
         cfg = ConfigManager()
         self.npc_name_max_age = cfg.get_int(
@@ -46,7 +47,7 @@ class EngineStartup:
             input("Press Enter to exit...")
             sys.exit(1)
 
-        self.engine = NarratorEngine(db, tts, mode=self.mode)
+        self.engine = NarratorEngine(db, tts, mode=self.mode, voice_mix=self.voice_mix)
         self.kb_listener = self.start_keyboard_listener()
 
         if self.mode == "retail":
@@ -102,14 +103,14 @@ class EngineStartup:
         _last_played = {"name": "", "time": 0.0}
 
         def npc_found_callback(npc_name):
-            # Skip stale duplicate: same NPC played within the last 5 seconds.
+            # Skip stale duplicate: same NPC played within the last 2 seconds.
             # The LOTRO plugin can write the same name multiple times per
             # interaction; these pile up while we're blocked in playback.
             now = time.time()
             if (
                 npc_name == _last_played["name"]
                 and _last_played["time"] > 0
-                and now - _last_played["time"] < 5.0
+                and now - _last_played["time"] < 2.0
             ):
                 log.info(
                     f"Skipping stale trigger for '{npc_name}' "

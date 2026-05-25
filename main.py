@@ -91,6 +91,11 @@ def get_args():
         help="Launch the Voice Lab configuration suite",
     )
     parser.add_argument(
+        "--voice-mix",
+        action="store_true",
+        help="[Experimental] Use separate voices for NPC dialogue (quoted) and narrator text",
+    )
+    parser.add_argument(
         "--install-retail-plugin",
         action="store_true",
         help="Install the getNPCNames LOTRO plugin",
@@ -127,9 +132,12 @@ def _interactive_menu():
     print("  6. Calibrate Static Mode")
     print("  7. Voice Lab & Configuration")
     print("  8. Install LOTRO Plugin")
+    print("  9. Start Retail Mode + Voice Mix (Experimental)")
+    print(" 10. Start Echoes Mode + Voice Mix (Experimental)")
+    print(" 11. Start Static Mode + Voice Mix (Experimental)")
     print()
 
-    choice = input("Enter choice (1-8): ").strip()
+    choice = input("Enter choice (1-11): ").strip()
 
     match choice:
         case "1":
@@ -148,6 +156,12 @@ def _interactive_menu():
             _run_voice_lab()
         case "8":
             _run_install_plugin()
+        case "9":
+            EngineStartup("retail", _select_device(), voice_mix=True)
+        case "10":
+            EngineStartup("echoes", _select_device(), voice_mix=True)
+        case "11":
+            EngineStartup("static", _select_device(), voice_mix=True)
         case _:
             print(f"Invalid choice: {choice}")
 
@@ -171,7 +185,7 @@ def main():
         return
 
     if args.mode:
-        EngineStartup(args.mode, get_device_arg(args))
+        EngineStartup(args.mode, get_device_arg(args), voice_mix=args.voice_mix)
     else:
         _interactive_menu()
 

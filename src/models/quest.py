@@ -31,18 +31,16 @@ class QuestTextLine:
         Where this text came from (OCR, Wiki, or Hybrid).
     confidence : float, optional
         Confidence score for wiki matches (0-100).
-    is_quoted : bool, optional
-        # TODO: Future feature - indicates if text is spoken by NPC (quoted)
-        # vs narrated by the system. When True, use NPC voice.
-        # When False, use narrator voice.
-        # Currently not implemented - defaults to False.
+    is_quoted : bool
+        Whether this line is NPC dialogue (in quotes).
+        When True, use NPC voice. When False, use narrator voice.
     """
 
     text: str
     line_number: int
     source: TextSourceType = TextSourceType.OCR
     confidence: Optional[float] = None
-    is_quoted: bool = False  # TODO: Not yet implemented
+    is_quoted: bool = False
 
     def __repr__(self) -> str:
         return (
@@ -129,19 +127,14 @@ class QuestText:
         """
         return " ".join(line.text for line in self.lines)
 
-    # TODO: Future feature - separate quoted vs narrator lines
     def get_quoted_lines(self) -> List[QuestTextLine]:
         """
         Return only lines marked as NPC dialogue (quoted).
-        # TODO: Not yet implemented - will return empty list until
-        # quote detection logic is added to OCR/wiki processing.
         """
         return [line for line in self.lines if line.is_quoted]
 
     def get_narrator_lines(self) -> List[QuestTextLine]:
         """
         Return only lines marked as narrator text (non-quoted).
-        # TODO: Not yet implemented - will return all lines until
-        # quote detection logic is added to OCR/wiki processing.
         """
         return [line for line in self.lines if not line.is_quoted]
