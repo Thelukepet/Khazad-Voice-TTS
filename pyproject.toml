@@ -32,7 +32,6 @@ classifiers = [
 # --- Core Math & Data ---
 dependencies = [
     "numpy>=1.26.0,<2.0.0",
-    "pandas",
     "scipy>=1.11.0",
 
     # --- Audio & Processing ---
@@ -73,7 +72,6 @@ test = [
     "Pillow",
     "pytesseract",
     "sounddevice",
-    "pandas",
     "requests",
     "beautifulsoup4",
     "jupyter",

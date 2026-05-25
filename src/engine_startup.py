@@ -11,7 +11,7 @@ from pynput import keyboard, mouse
 
 # > Local Dependencies
 from src.config.ConfigManager import ConfigManager
-from src.db import NPCDatabase
+from src.db_sqlite import NPCDatabaseSQLite
 from src.engine import NarratorEngine
 from src.tts import get_tts_backend
 from src.utils import capture_screen_areas, setup_logger, watch_npc_file
@@ -21,6 +21,7 @@ log = setup_logger("ENGINE_STARTUP")
 # Shared events for cross-thread signaling
 capture_trigger = Event()  # Echoes mode: middle-click
 retail_capture_trigger = Event()  # Retail static mode: middle-click
+
 
 class EngineStartup:
     """
@@ -32,11 +33,13 @@ class EngineStartup:
         self.device = device
 
         cfg = ConfigManager()
-        self.npc_name_max_age = cfg.get_int("TTSSettings", "npc_name_max_age", fallback=60)
+        self.npc_name_max_age = cfg.get_int(
+            "TTSSettings", "npc_name_max_age", fallback=60
+        )
         self.script_log = cfg.get_str("DefaultRetailMode", "plugin_script_log_path")
 
         try:
-            db = NPCDatabase()
+            db = NPCDatabaseSQLite()
             tts = get_tts_backend(device_choice=self.device)
         except Exception as e:
             log.error(f"Initialization Failed: {e}")
@@ -63,14 +66,14 @@ class EngineStartup:
         -------
         keyboard.Listener
         """
-        def on_key_release(key: (keyboard.Key |keyboard.KeyCode | None)):
+
+        def on_key_release(key: (keyboard.Key | keyboard.KeyCode | None)):
             if key == keyboard.Key.f12:
                 self.engine.stop()
 
         kb_listener = keyboard.Listener(on_release=on_key_release)
         kb_listener.start()
         return kb_listener
-
 
     def start_retail(self):
         """
@@ -104,9 +107,9 @@ class EngineStartup:
             # interaction; these pile up while we're blocked in playback.
             now = time.time()
             if (
-                    npc_name == _last_played["name"]
-                    and _last_played["time"] > 0
-                    and now - _last_played["time"] < 5.0
+                npc_name == _last_played["name"]
+                and _last_played["time"] > 0
+                and now - _last_played["time"] < 5.0
             ):
                 log.info(
                     f"Skipping stale trigger for '{npc_name}' "
@@ -126,9 +129,7 @@ class EngineStartup:
                 if q_img is not None:
                     break
                 if attempt < 2:
-                    log.info(
-                        f"Quest window not found, retrying ({attempt + 2}/3)..."
-                    )
+                    log.info(f"Quest window not found, retrying ({attempt + 2}/3)...")
 
             if q_img is not None:
                 self.engine.process_retail(q_img, full_img, npc_name)
@@ -154,7 +155,6 @@ class EngineStartup:
                 time.sleep(1)
         except KeyboardInterrupt:
             print("Exiting...")
-
 
     def start_echoes(self):
         """
@@ -196,7 +196,6 @@ class EngineStartup:
         except KeyboardInterrupt:
             listener.stop()
             self.kb_listener.stop()
-
 
     def start_static(self):
         """
@@ -255,9 +254,9 @@ class EngineStartup:
                     if full_img is not None:
                         # Resolve NPC name from the log (with staleness check)
                         if (
-                                npc_tracking["name"] != "[MANUAL]"
-                                and time.time() - npc_tracking["time"]
-                                <= self.npc_name_max_age
+                            npc_tracking["name"] != "[MANUAL]"
+                            and time.time() - npc_tracking["time"]
+                            <= self.npc_name_max_age
                         ):
                             npc_name = f"{npc_tracking['name']}"
                             log.info(f"Using tracked NPC: {npc_name}")

@@ -4,20 +4,20 @@ Khazad-Voice TTS - Main package.
 Exports core modules and models.
 """
 
-from . import models, utils, db, ocr, wiki, audio, engine, config
-from .models import NPC, QuestText, QuestTextLine, VoiceSelection, TextSourceType
+from . import audio, config, db_sqlite, engine, models, ocr, utils, wiki
+from .models import NPC, QuestText, QuestTextLine, TextSourceType, VoiceSelection
 
 __all__ = [
     # Models
     "NPC",
-    "QuestText", 
+    "QuestText",
     "QuestTextLine",
     "VoiceSelection",
     "TextSourceType",
     # Modules
     "models",
     "utils",
-    "db",
+    "db_sqlite",
     "ocr",
     "wiki",
     "audio",
