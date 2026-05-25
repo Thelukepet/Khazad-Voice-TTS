@@ -38,9 +38,9 @@ class NPCDatabase:
                 self.data["Name"].astype(str).str.lower().str.strip()
             )
             self.all_names = sorted(self.data["Name"].dropna().unique().tolist())
-            log.info(f"✅ Database loaded: {len(self.data)} NPCs found.")
+            log.info(f"Database loaded: {len(self.data)} NPCs found.")
         except Exception as e:
-            log.error(f"❌ Failed to load database: {e}")
+            log.error(f"Failed to load database: {e}")
 
     def get_random_npcs(self, count: int = 10) -> List[Dict]:
         """
@@ -98,7 +98,7 @@ class NPCDatabase:
             match = self.data[self.data["Name"] == best_match]
             if not match.empty:
                 row = match.iloc[0]
-                log.info(f"🔍 Fuzzy Match: '{name}' -> '{best_match}'")
+                log.info(f"Fuzzy match: '{name}' -> '{best_match}'")
                 return row["Gender"], row["Race"], best_match
 
         return None, None, name
