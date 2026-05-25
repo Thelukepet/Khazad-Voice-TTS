@@ -3,13 +3,14 @@ Quest text models representing OCR'd quest content and individual lines.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 from datetime import datetime
 from enum import Enum, auto
+from typing import Iterator, List, Optional
 
 
 class TextSourceType(Enum):
     """Source of the text content."""
+
     OCR = auto()
     WIKI = auto()
     HYBRID = auto()
@@ -36,6 +37,7 @@ class QuestTextLine:
         # When False, use narrator voice.
         # Currently not implemented - defaults to False.
     """
+
     text: str
     line_number: int
     source: TextSourceType = TextSourceType.OCR
@@ -69,12 +71,34 @@ class QuestText:
     source_label : str
         Human-readable source description (e.g., "Wiki (Bestowal, 85.3%)").
     """
+
     timestamp: datetime
     raw_ocr_text: str
     lines: List[QuestTextLine] = field(default_factory=list)
     npc_name: Optional[str] = None
     quest_title: Optional[str] = None
     source_label: str = "OCR"
+
+    def __str__(self) -> str:
+        return (
+            f"QuestText(npc='{self.npc_name}', title='{self.quest_title}', "
+            f"lines={len(self.lines)}, source='{self.source_label}')"
+        )
+
+    def __repr__(self) -> str:
+        return (
+            f"QuestText(npc='{self.npc_name!r}', title='{self.quest_title!r}', "
+            f"lines={len(self.lines)}, source={self.source_label!r})"
+        )
+
+    def __getitem__(self, index: int | slice) -> QuestTextLine | List[QuestTextLine]:
+        return self.lines[index]
+
+    def __len__(self) -> int:
+        return len(self.lines)
+
+    def __iter__(self) -> Iterator[QuestTextLine]:
+        return iter(self.lines)
 
     def get_line(self, index: int) -> Optional[QuestTextLine]:
         """
@@ -121,9 +145,3 @@ class QuestText:
         # quote detection logic is added to OCR/wiki processing.
         """
         return [line for line in self.lines if not line.is_quoted]
-
-    def __repr__(self) -> str:
-        return (
-            f"QuestText(npc='{self.npc_name}', title='{self.quest_title}', "
-            f"lines={len(self.lines)}, source={self.source_label})"
-        )

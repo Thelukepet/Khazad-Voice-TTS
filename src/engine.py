@@ -65,7 +65,7 @@ class NarratorEngine:
         self.backend_id = getattr(self.tts, "backend_id", "omnivoice")
 
         self.memory = load_npc_memory(self.mode, self.backend_id)
-        log.info(f"🧠 Loaded Memory for mode: {self.mode} | Backend: {self.backend_id}")
+        log.info(f"Loaded memory for mode: {self.mode} | Backend: {self.backend_id}")
 
         self.audio_queue = queue.Queue()
         self.stop_event = threading.Event()
@@ -77,7 +77,7 @@ class NarratorEngine:
         """
         Immediate stop: Wipes the queue, kills the producer, and kills audio hardware.
         """
-        log.info("🛑 Stop requested. Interrupting playback...")
+        log.info("Stop requested. Interrupting playback...")
 
         # 1. Signal threads to stop
         self.stop_event.set()
@@ -93,7 +93,7 @@ class NarratorEngine:
         #    immediately re-firing after F12 wipe)
         self._suppress_until = time.time() + 2.0
 
-        log.info("🛑 Audio queue wiped and playback stopped.")
+        log.info("Audio queue wiped and playback stopped.")
 
     def process_capture(self, quest_img_pil, name_img_pil):
         """
@@ -127,7 +127,7 @@ class NarratorEngine:
         log.info("Reading NPC Name...")
         npc_name = run_name_ocr(name_img_pil) or "Unknown"
         quest_text.npc_name = npc_name
-        log.info(f"📝 NPC Name: '{npc_name}'")
+        log.info(f"NPC Name: '{npc_name}'")
 
         voice_selection = self._resolve_voice(npc_name)
         self._start_streaming(quest_text, voice_selection)
@@ -160,7 +160,7 @@ class NarratorEngine:
         # In static mode, title_pil may be None (we only extract body)
         # In auto mode, both should be present
         if not body_pil:
-            log.info("🙈 NPC in log, but valid Quest Window not found.")
+            log.info("NPC in log, but valid Quest Window not found.")
             return
 
         # 2. OCR Body (Always needed for fallback/reference)
@@ -181,8 +181,8 @@ class NarratorEngine:
         if enable_wiki and title_pil is not None:
             # OCR Title only if we need Wiki
             quest_title = run_title_ocr(title_pil)
-            log.info(f"📜 Quest Title: '{quest_title}'")
-            log.info("🌍 Checking Wiki...")
+            log.info(f"Quest Title: '{quest_title}'")
+            log.info("Checking Wiki...")
 
             wiki_url = wiki.get_best_wiki_url(quest_title)
             stages = wiki.fetch_quest_data(wiki_url)
@@ -204,11 +204,11 @@ class NarratorEngine:
             else:
                 source_label = "OCR (No Wiki Data)"
         elif enable_wiki and title_pil is None:
-            log.info("⏩ Skipping Wiki Lookup (Static mode - no title)")
+            log.info("Skipping Wiki Lookup (Static mode - no title)")
         else:
-            log.info("⏩ Skipping Wiki Lookup (Config Disabled)")
+            log.info("Skipping Wiki Lookup (Config Disabled)")
 
-        log.info(f"✅ Source: {source_label}")
+        log.info(f"Source: {source_label}")
 
         # 4. Build QuestText model
         final_sentences = nltk.sent_tokenize(final_text)
@@ -265,7 +265,7 @@ class NarratorEngine:
             # force a re-roll.
             if self.backend_id == "kokoro" and "|" in voice_id:
                 log.warning(
-                    f"⚠️ Found invalid OmniVoice ID '{voice_id}' for Kokoro backend. "
+                    f"Found invalid OmniVoice ID '{voice_id}' for Kokoro backend. "
                     f"Re-assigning voice."
                 )
             elif (
@@ -336,7 +336,7 @@ class NarratorEngine:
         """
         # Guard: if stop was recently requested, suppress this auto-trigger
         if time.time() < self._suppress_until:
-            log.info("⏸️ Suppressed auto-trigger (recent F12 stop)")
+            log.info("Suppressed auto-trigger (recent F12 stop)")
             return
 
         # Reset stop event for new playback
@@ -379,8 +379,9 @@ class NarratorEngine:
 
         threading.Thread(target=producer, daemon=True).start()
 
-        print("\n--- 🟢 PLAYBACK STARTED ---")
-        print(f"  NPC: {voice_selection.npc_name} | Voice: {voice_selection.category}")
+        log.info(
+            f"Playback started: NPC={voice_selection.npc_name} | Voice={voice_selection.category}"
+        )
         while not self.stop_event.is_set():
             try:
                 # Polling wait to keep loop responsive
@@ -396,7 +397,7 @@ class NarratorEngine:
             if self.stop_event.is_set():
                 break
 
-            print(f"▶️ Speaking: {text[:60]}...")
+            log.info(f"Speaking: {text[:60]}{'...' if len(text) > 60 else ''}")
             if len(audio) > 0:
                 _cfg = ConfigManager()
                 vol = (
@@ -408,4 +409,4 @@ class NarratorEngine:
 
                 time.sleep(0.1)
 
-        print("--- 🔴 PLAYBACK ENDED ---\n")
+        log.info("Playback ended")

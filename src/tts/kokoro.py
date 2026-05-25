@@ -78,7 +78,7 @@ class KokoroBackend(TTSBackend):
             _cfg = ConfigManager()
             self.samplerate = _cfg.get_int("TTSSettings", "sample_rate", fallback=24000)
             self._tts_speed = _cfg.get_float("TTSSettings", "tts_speed", fallback=1.1)
-            log.info("✅ Voice Model Ready (CPU Mode).")
+            log.info("Voice model ready (CPU mode).")
         except Exception as e:
             log.error(f"Failed to initialize Kokoro: {e}")
             raise
