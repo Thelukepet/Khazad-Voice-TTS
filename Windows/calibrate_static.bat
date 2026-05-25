@@ -3,5 +3,5 @@ cd /d "%~dp0.."
 
 title CALIBRATE - STATIC QUEST WINDOW
 call venv\Scripts\activate.bat
-python src\calibrate_static.py
+python main.py --calibrate static
 pause

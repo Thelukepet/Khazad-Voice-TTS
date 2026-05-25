@@ -74,7 +74,10 @@ class NPCDatabaseSQLite:
         """
         log.info("Connecting to local database...")
 
-        conn = sqlite3.connect(npc_csv_path.replace(".csv", ".db"))
+        conn = sqlite3.connect(
+            npc_csv_path.replace(".csv", ".db"),
+            check_same_thread=False,
+        )
 
         conn.execute("""
             CREATE TABLE IF NOT EXISTS npcs (
