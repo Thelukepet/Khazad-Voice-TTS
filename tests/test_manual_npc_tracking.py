@@ -122,7 +122,10 @@ class TestStalenessCheck:
         tracking = _make_npc_tracking()
         max_age = 60
         tracking["name"] = "Thranduil"
-        tracking["time"] = time.time() - max_age
+        # Use a small buffer (0.5 s) so that the microsecond gap between
+        # setting tracking["time"] and calling time.time() inside
+        # _resolve_npc_name doesn't push the age just past the boundary.
+        tracking["time"] = time.time() - max_age + 0.5
         result = _resolve_npc_name(tracking, max_age=max_age)
         assert result == "Thranduil"
 
