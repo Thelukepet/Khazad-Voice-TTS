@@ -13,7 +13,19 @@ if not exist venv (
 )
 
 echo [INFO] Starting Echoes of Angmar Mode...
-:: Launch commands (removed ..\)
-call venv\Scripts\activate.bat
-python main.py --mode echoes
+echo.
+echo   1. Echoes Mode
+echo   2. Echoes Mode + Voice Mix [Experimental]
+echo.
+set /p choice="Enter choice (1 or 2): "
+
+if "%choice%"=="2" (
+    echo [INFO] Starting Echoes Mode with Voice Mix...
+    call venv\Scripts\activate.bat
+    python main.py --mode echoes --voice-mix
+) else (
+    echo [INFO] Starting Echoes Mode...
+    call venv\Scripts\activate.bat
+    python main.py --mode echoes
+)
 pause

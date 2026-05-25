@@ -12,6 +12,19 @@ if not exist venv (
 )
 
 echo [INFO] Starting Retail Mode...
-call venv\Scripts\activate.bat
-python main.py --mode retail
+echo.
+echo   1. Retail Mode
+echo   2. Retail Mode + Voice Mix [Experimental]
+echo.
+set /p choice="Enter choice (1 or 2): "
+
+if "%choice%"=="2" (
+    echo [INFO] Starting Retail Mode with Voice Mix...
+    call venv\Scripts\activate.bat
+    python main.py --mode retail --voice-mix
+) else (
+    echo [INFO] Starting Retail Mode...
+    call venv\Scripts\activate.bat
+    python main.py --mode retail
+)
 pause

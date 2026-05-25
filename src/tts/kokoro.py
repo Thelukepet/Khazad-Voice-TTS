@@ -103,6 +103,17 @@ class KokoroBackend(TTSBackend):
 
         return "am_echo", "fallback"
 
+    def pick_narrator_voice(self) -> Tuple[str, str]:
+        """
+        Returns the dedicated narrator voice.
+
+        Returns
+        -------
+        tuple[str, str]
+            (voice_id, category) for the narrator voice.
+        """
+        return "am_echo", "narrator"
+
     def generate(self, text: str, voice_id: str) -> np.ndarray:
         """
         Generates audio using Kokoro.

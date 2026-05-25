@@ -2,7 +2,6 @@
 
 # > Standard Library
 import re
-import string
 import urllib.parse
 from difflib import SequenceMatcher
 from typing import List, Optional, Tuple
@@ -180,9 +179,17 @@ def handle_special_search(search_url: str) -> Optional[str]:
         return None
 
 
-def fetch_quest_stages(wiki_url: str) -> dict:
+def fetch_quest_stages(wiki_url: str, search_fallback: bool = True) -> dict:
     """
     Scrapes the Wiki page for Quest stages (Background, Objectives, Bestowal).
+
+    Parameters
+    ----------
+    wiki_url : str
+        The wiki page URL to scrape.
+    search_fallback : bool
+        If True and the direct URL yields no data, try the wiki search
+        as a fallback.
 
     Returns
     -------
@@ -201,9 +208,31 @@ def fetch_quest_stages(wiki_url: str) -> dict:
             return {}
         wiki_url = resolved
 
+    stages = _scrape_quest_page(wiki_url)
+
+    # If direct URL yielded nothing, try search fallback
+    if not stages and search_fallback:
+        # Extract quest name from URL for search
+        slug = wiki_url.split("/Quest:")[-1] if "/Quest:" in wiki_url else ""
+        if slug:
+            search_name = slug.replace("_", " ")
+            query = urllib.parse.quote_plus(search_name)
+            search_url = (
+                f"{WIKI_BASE_URL}/w/index.php?title=Special:Search&search={query}"
+            )
+            resolved = handle_special_search(search_url)
+            if resolved:
+                stages = _scrape_quest_page(resolved)
+
+    WIKI_CACHE[wiki_url] = stages
+    return stages
+
+
+def _scrape_quest_page(wiki_url: str) -> dict:
+    """Fetch and parse a single wiki page into quest stages."""
     try:
         headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(wiki_url, headers=headers, timeout=5)
+        response = requests.get(wiki_url, headers=headers, timeout=3)
         if "localized depending on the race" in response.text:
             return {}
 
@@ -237,7 +266,6 @@ def fetch_quest_stages(wiki_url: str) -> dict:
             if current_text:
                 stages[current_stage] = " ".join(current_text)
 
-        WIKI_CACHE[wiki_url] = stages
         return stages
     except Exception as e:
         print(f"Error parsing Wiki page: {e}")
@@ -269,26 +297,53 @@ def get_best_match(ocr_text: str, stages: dict) -> Tuple[str, str, float]:
     return best_stage, best_text, best_score
 
 
-def get_best_wiki_url(raw_text: str) -> Tuple[Optional[str], str]:
-    """
-    Generates a Wiki URL based on the Quest Title (raw_text).
-    Checks cache and attempts direct URL access before falling back to Search.
+def _build_wiki_slug(raw_text: str) -> str:
+    """Convert an OCR quest title into a wiki URL slug.
+
+    Preserves the original casing of short words (of, the, a, an, in, etc.)
+    because MediaWiki URLs are case-sensitive and the wiki uses lowercase
+    for these words in page titles.
     """
     allowed = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ,:.-'"
-    clean = "".join([c for c in raw_text if c in allowed]).strip()
-    cased = string.capwords(clean)
+    clean = "".join(c for c in raw_text if c in allowed).strip()
+    words = clean.split()
 
-    slug = cased.replace(" ", "_")
-    url = f"{WIKI_BASE_URL}/wiki/Quest:{slug}"
-    try:
-        if url in WIKI_CACHE:
-            return url
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
-        if MISSING_TEXT_INDICATOR not in resp.text:
-            return url
-    except Exception as e:
-        print(f"Error checking Wiki URL: {e}")
-        pass
+    # Words that should stay lowercase (common in LOTRO wiki page titles)
+    lower_words = {
+        "of",
+        "the",
+        "a",
+        "an",
+        "in",
+        "to",
+        "for",
+        "and",
+        "or",
+        "at",
+        "by",
+        "from",
+        "with",
+        "on",
+        "is",
+    }
 
-    query = urllib.parse.quote_plus(cased)
-    return f"{WIKI_BASE_URL}/w/index.php?title=Special:Search&search={query}"
+    result = []
+    for i, word in enumerate(result if False else words):
+        if i > 0 and word.lower() in lower_words:
+            result.append(word.lower())
+        else:
+            result.append(word.capitalize())
+
+    return "_".join(result)
+
+
+def get_best_wiki_url(raw_text: str) -> str:
+    """
+    Generates a Wiki URL based on the Quest Title (raw_text).
+
+    No longer makes an HTTP request – just builds the most likely URL.
+    The actual page fetch and validation happens in :func:`fetch_quest_stages`
+    which handles ``Special:Search`` redirects internally.
+    """
+    slug = _build_wiki_slug(raw_text)
+    return f"{WIKI_BASE_URL}/wiki/Quest:{slug}"
