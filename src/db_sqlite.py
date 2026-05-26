@@ -3,15 +3,115 @@
 # > Standard library
 import csv
 import difflib
+import os
+import re
 import sqlite3
+import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Tuple
 
+from .config.ConfigManager import ConfigManager
 
 # > Local dependencies
 from .utils import setup_logger
-from .config.ConfigManager import ConfigManager
 
 log = setup_logger(__name__)
+
+
+# > Variables that are progress counters – stripped during ingest because
+# they are never part of the narrated dialogue.
+_COUNTER_VARS = {
+    "${NUMBER}",
+    "${TOTAL}",
+    "${CURRENT}",
+    "${MAX}",
+    "${VALUE}",
+    "${NOS}",
+    "${NAME}",
+}
+
+# > Variables that carry player identity – kept in stored text as markers
+# so they can be replaced at match time with the actual name read by OCR.
+_PLAYER_VARS = {"${PLAYER}", "${PLAYER_NAME}"}
+_IDENTITY_VARS = {"${RACE}", "${CLASS}"}
+
+
+def _replace_player_vars(text: str, player_name: str = "Traveler") -> str:
+    """Replace player-identity placeholders in matched DB text.
+
+    Parameters
+    ----------
+    text : str
+        DB text that may contain ``${PLAYER}``, ``${RACE}``, etc.
+    player_name : str
+        The actual player name to substitute.
+
+    Returns
+    -------
+    str
+        Text with all player variables resolved.
+    """
+    for var in _PLAYER_VARS:
+        text = text.replace(var, player_name)
+    for var in _IDENTITY_VARS:
+        text = text.replace(var, "adventurer")
+    return text
+
+
+def _extract_player_name(ocr_text: str, db_text: str) -> str:
+    """Extract the player name by aligning OCR text with DB text.
+
+    Finds ``${PLAYER}`` in the DB text, locates the same position in
+    the OCR text using the surrounding context, and extracts the word(s)
+    that appear there.
+
+    Falls back to ``"Traveler"`` when extraction fails.
+    """
+    marker = "${PLAYER}"
+    if marker not in db_text:
+        return "Traveler"
+
+    idx = db_text.index(marker)
+    prefix = db_text[:idx]
+    suffix = db_text[idx + len(marker) :]
+
+    # Find prefix in OCR text (case-insensitive)
+    pi = ocr_text.lower().find(prefix.lower())
+    if pi == -1:
+        return "Traveler"
+    start = pi + len(prefix)
+
+    # Find suffix after the prefix position
+    si = ocr_text.lower().find(suffix.lower(), start)
+    if si == -1:
+        # Try just the first few chars of suffix for robustness
+        si = ocr_text.lower().find(suffix.lower()[:8], start)
+    if si == -1:
+        return "Traveler"
+
+    name = ocr_text[start:si].strip().strip(",.!?;:")
+    return name if name else "Traveler"
+
+
+def _clean_xml_text(text: str) -> str:
+    """Clean resolved text from the XML database.
+
+    Strips RGB markup tags, replaces ``\\q`` quote markers,
+    removes counter variables, and normalises whitespace.
+    Player-identity variables (``${PLAYER}``, ``${RACE}``, etc.)
+    are **preserved** so they can be replaced at match time with
+    the actual values from OCR.
+    """
+    if not text:
+        return ""
+
+    text = re.sub(r"<rgb=[^>]*>(.*?)</rgb>", r"\1", text)
+    text = text.replace("\\q", '"')
+
+    for var in _COUNTER_VARS:
+        text = text.replace(var, "")
+
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 class NPCDatabaseSQLite:
@@ -42,7 +142,7 @@ class NPCDatabaseSQLite:
         # Connect to database / init database if not exists
         self.conn = self.init_database(db_path)
 
-        # Fill if empty
+        # Fill NPC table if empty
         cursor = self.conn.execute("SELECT COUNT(*) FROM npcs")
         count = cursor.fetchone()[0]
         if count == 0:
@@ -52,7 +152,28 @@ class NPCDatabaseSQLite:
         cursor = self.conn.execute("SELECT name_lower FROM npcs")
         self.all_names = sorted(set(row[0] for row in cursor.fetchall()))
 
-        log.info(f"Database ready: {len(self.all_names)} NPCs loaded")
+        # Fill quest tables if empty
+        cursor = self.conn.execute("SELECT COUNT(*) FROM quests")
+        quest_count = cursor.fetchone()[0]
+        if quest_count == 0:
+            _cfg = ConfigManager()
+            quests_xml = _cfg.get_str("Paths", "quests_xml_path")
+            labels_xml = _cfg.get_str("Paths", "quest_labels_xml_path")
+            if os.path.exists(quests_xml) and os.path.exists(labels_xml):
+                self.fill_quests_from_xml(quests_xml, labels_xml)
+            else:
+                log.warning(
+                    f"Quest XML files not found. Checked: {quests_xml}, {labels_xml}"
+                )
+
+        # Cache all quest titles for fuzzy matching
+        cursor = self.conn.execute("SELECT title_lower FROM quests")
+        self.quest_titles = sorted(set(row[0] for row in cursor.fetchall()))
+
+        log.info(
+            f"Database ready: {len(self.all_names)} NPCs, "
+            f"{len(self.quest_titles)} quests loaded"
+        )
 
     def init_database(self, npc_csv_path: str) -> sqlite3.Connection:
         """
@@ -92,6 +213,37 @@ class NPCDatabaseSQLite:
 
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_name_lower ON npcs(name_lower)
+        """)
+
+        # Quest tables
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS quests (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                quest_id TEXT NOT NULL,
+                title TEXT NOT NULL,
+                title_lower TEXT NOT NULL
+            )
+        """)
+
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_quest_title_lower
+                ON quests(title_lower)
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS quest_text (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                quest_id TEXT NOT NULL,
+                text_type TEXT NOT NULL,
+                npc_name TEXT,
+                text_content TEXT NOT NULL,
+                order_index INTEGER NOT NULL,
+                objective_index INTEGER
+            )
+        """)
+
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_qt_quest_id ON quest_text(quest_id)
         """)
 
         return conn
@@ -180,6 +332,257 @@ class NPCDatabaseSQLite:
                 return row[0], row[1], row[2]
 
         return None, None, name
+
+
+    def fill_quests_from_xml(self, quests_xml_path: str, labels_xml_path: str) -> None:
+        """Parse datamined XML files and populate the quest tables.
+
+        Resolves all ``key:hash1:hash2`` references using the labels file,
+        cleans markup, substitutes variables, and inserts into SQLite.
+
+        Parameters
+        ----------
+        quests_xml_path : str
+            Path to ``quests.xml`` containing quest structure.
+        labels_xml_path : str
+            Path to ``quest_dialogue.xml`` containing localised strings.
+        """
+        cursor = self.conn.execute("SELECT COUNT(*) FROM quests")
+        if cursor.fetchone()[0] > 0:
+            return
+
+        log.info("Building quest database from XML...")
+
+        # 1. Load label lookup dict from dialogue XML
+        log.info(f"  Parsing labels: {labels_xml_path}")
+        labels_root = ET.parse(labels_xml_path).getroot()
+        labels: Dict[str, str] = {}
+        for label_elem in labels_root.findall(".//label"):
+            key = label_elem.get("key")
+            value = label_elem.get("value", "")
+            if key and value:
+                labels[key] = value
+        log.info(f"  Loaded {len(labels)} label entries")
+
+        # 2. Parse quests.xml
+        log.info(f"  Parsing quests: {quests_xml_path}")
+        quests_root = ET.parse(quests_xml_path).getroot()
+
+        quest_rows = []
+        text_rows = []
+        quest_count = 0
+
+        for quest_elem in quests_root.findall("quest"):
+            quest_id = quest_elem.get("id", "")
+            title = quest_elem.get("name", "")
+            if not quest_id or not title:
+                continue
+
+            title_lower = title.lower().strip()
+            quest_rows.append((quest_id, title, title_lower))
+            order = 0
+
+            # --- Description (narration) ---
+            desc_key = quest_elem.get("description", "")
+            if desc_key in labels:
+                cleaned = _clean_xml_text(labels[desc_key])
+                if cleaned:
+                    text_rows.append(
+                        (quest_id, "description", None, cleaned, order, None)
+                    )
+                    order += 1
+
+            # --- Bestower dialogue ---
+            for bestower in quest_elem.findall("bestower"):
+                best_key = bestower.get("text", "")
+                best_npc = bestower.get("npcName")
+                if best_key in labels:
+                    cleaned = _clean_xml_text(labels[best_key])
+                    if cleaned:
+                        text_rows.append(
+                            (quest_id, "bestower", best_npc, cleaned, order, None)
+                        )
+                        order += 1
+
+            # --- Objectives ---
+            for obj_elem in quest_elem.findall(".//objective"):
+                obj_idx_str = obj_elem.get("index")
+                obj_idx = int(obj_idx_str) if obj_idx_str else None
+
+                # Objective description (narration)
+                obj_key = obj_elem.get("text", "")
+                if obj_key in labels:
+                    cleaned = _clean_xml_text(labels[obj_key])
+                    if cleaned:
+                        text_rows.append(
+                            (
+                                quest_id,
+                                "objective",
+                                None,
+                                cleaned,
+                                order,
+                                obj_idx,
+                            )
+                        )
+                        order += 1
+
+                # Dialog lines within objective (NPC speech)
+                for dialog in obj_elem.findall("dialog"):
+                    dlg_key = dialog.get("text", "")
+                    dlg_npc = dialog.get("npcName")
+                    if dlg_key in labels:
+                        cleaned = _clean_xml_text(labels[dlg_key])
+                        if cleaned:
+                            text_rows.append(
+                                (
+                                    quest_id,
+                                    "dialog",
+                                    dlg_npc,
+                                    cleaned,
+                                    order,
+                                    obj_idx,
+                                )
+                            )
+                            order += 1
+
+            quest_count += 1
+            if quest_count % 5000 == 0:
+                log.info(f"  Processed {quest_count} quests...")
+
+        # 3. Bulk insert
+        with self.conn:
+            self.conn.executemany(
+                "INSERT INTO quests (quest_id, title, title_lower) VALUES (?, ?, ?)",
+                quest_rows,
+            )
+            self.conn.executemany(
+                "INSERT INTO quest_text "
+                "(quest_id, text_type, npc_name, text_content, order_index, objective_index) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                text_rows,
+            )
+
+        log.info(
+            f"  Imported {len(quest_rows)} quests with {len(text_rows)} text entries"
+        )
+
+    def _resolve_quest_id(self, ocr_title: str):
+        """Find a quest by OCR title. Returns (quest_id, canonical_title) or (None, None)."""
+        if not ocr_title:
+            return None, None
+
+        title_lower = ocr_title.lower().strip()
+
+        cursor = self.conn.execute(
+            "SELECT quest_id, title FROM quests WHERE title_lower = ?",
+            (title_lower,),
+        )
+        row = cursor.fetchone()
+
+        if not row:
+            close = difflib.get_close_matches(
+                title_lower, self.quest_titles, n=1, cutoff=0.6
+            )
+            if close:
+                cursor = self.conn.execute(
+                    "SELECT quest_id, title FROM quests WHERE title_lower = ?",
+                    (close[0],),
+                )
+                row = cursor.fetchone()
+                if row:
+                    log.info(f"Quest title match: '{ocr_title}' -> '{row[1]}'")
+
+        if not row:
+            return None, None
+        return row[0], row[1]
+
+    def match_quest_text(self, ocr_title: str, ocr_body: str) -> Optional[Dict]:
+        """Fuzzy-match OCR body text against the DB to find pristine text.
+
+        Resolves the quest by title, then compares the OCR body against
+        every text segment stored for that quest using
+        :class:`difflib.SequenceMatcher`.  The best-scoring segment is
+        returned with its text replaced from the DB (pristine), the
+        player name extracted from the OCR text, and pre-tagged
+        ``is_dialogue`` / ``npc_name`` metadata.
+
+        Parameters
+        ----------
+        ocr_title : str
+            The quest title as read by OCR.
+        ocr_body : str
+            The quest body text as read by OCR.
+
+        Returns
+        -------
+        dict | None
+            ``{text, npc_name, text_type, is_dialogue, player_name, score}``
+            or ``None`` when no quest or no segment matches.
+        """
+        if not ocr_body:
+            return None
+
+        quest_id, canonical_title = self._resolve_quest_id(ocr_title)
+        if not quest_id:
+            return None
+
+        # Fetch all segments for this quest
+        cursor = self.conn.execute(
+            "SELECT text_type, npc_name, text_content "
+            "FROM quest_text WHERE quest_id = ? ORDER BY order_index",
+            (quest_id,),
+        )
+        segments = cursor.fetchall()
+        if not segments:
+            return None
+
+        # Fuzzy match: find the DB segment that best matches the OCR body
+        ocr_clean = ocr_body.lower().strip()
+        best_score = 0.0
+        best_seg = None
+
+        for text_type, npc_name, text_content in segments:
+            db_clean = text_content.lower()
+            # For segments containing ${PLAYER}, replace with a generic
+            # token so the matcher can align around it
+            db_for_cmp = db_clean
+            for var in _PLAYER_VARS | _IDENTITY_VARS:
+                db_for_cmp = db_for_cmp.replace(var, "")
+
+            score = difflib.SequenceMatcher(None, ocr_clean, db_for_cmp).ratio()
+            if score > best_score:
+                best_score = score
+                best_seg = (text_type, npc_name, text_content)
+
+        if best_score < 0.4 or not best_seg:
+            log.info(
+                f"Quest DB: no segment matched '{canonical_title}' "
+                f"(best={best_score:.1%})"
+            )
+            return None
+
+        text_type, npc_name, db_text = best_seg
+
+        # Extract player name from OCR and resolve variables
+        player_name = _extract_player_name(ocr_body, db_text)
+        clean_text = _replace_player_vars(db_text, player_name)
+
+        is_dialogue = text_type in ("bestower", "dialog")
+
+        log.info(
+            f"Quest DB match: '{canonical_title}' "
+            f"[{text_type}] score={best_score:.1%} "
+            f"player={player_name}"
+        )
+
+        return {
+            "text": clean_text,
+            "npc_name": npc_name,
+            "text_type": text_type,
+            "is_dialogue": is_dialogue,
+            "player_name": player_name,
+            "score": best_score,
+        }
 
     def get_random_npcs(self, count: int = 10) -> List[Dict]:
         """
