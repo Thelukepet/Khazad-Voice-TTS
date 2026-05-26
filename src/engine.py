@@ -220,11 +220,10 @@ class NarratorEngine:
                 source_type = TextSourceType.OFFLINE_DB
                 log.info(f"Source: {source_label}")
 
-        # 4. No wiki fallback — offline DB replaces wiki entirely
         if source_type == TextSourceType.OCR:
             log.info(f"Source: {source_label}")
 
-        # 5. Build QuestText model
+        # 4. Build QuestText model
         final_sentences = nltk.sent_tokenize(final_text)
         quest_text = QuestText(
             timestamp=datetime.now(),
@@ -242,7 +241,7 @@ class NarratorEngine:
             source_label=source_label,
         )
 
-        # 6. Playback
+        # 5. Playback
         voice_selection = self._resolve_voice(db_npc or npc_name)
         self._start_streaming(quest_text, voice_selection)
 

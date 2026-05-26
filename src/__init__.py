@@ -3,7 +3,7 @@ Khazad-Voice TTS - Main package.
 
 Exports core modules and models.
 
-Heavy submodules (audio, engine, ocr, wiki, …) are lazily imported
+Heavy submodules (audio, engine, ocr, …) are lazily imported
 via __getattr__ so that tests and lightweight consumers don't need
 every runtime dependency (numpy, torch, kokoro, …) installed.
 """
@@ -24,7 +24,6 @@ __all__ = [
     "utils",
     "db_sqlite",
     "ocr",
-    "wiki",
     "audio",
     "engine",
     "config",
@@ -39,7 +38,6 @@ _SUBMODULES = {
     "models": ".models",
     "ocr": ".ocr",
     "utils": ".utils",
-    "wiki": ".wiki",
 }
 
 

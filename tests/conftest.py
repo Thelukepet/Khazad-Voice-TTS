@@ -52,7 +52,7 @@ def sample_quest_text():
         raw_ocr_text="Test quest text",
         lines=[
             QuestTextLine(text="Line 1", line_number=0, source=TextSourceType.OCR),
-            QuestTextLine(text="Line 2", line_number=1, source=TextSourceType.WIKI, confidence=85.0),
+            QuestTextLine(text="Line 2", line_number=1, source=TextSourceType.HYBRID, confidence=85.0),
             QuestTextLine(text="Line 3", line_number=2, source=TextSourceType.OCR)
         ],
         npc_name="Thranduil",

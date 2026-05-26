@@ -12,7 +12,6 @@ class TextSourceType(Enum):
     """Source of the text content."""
 
     OCR = auto()
-    WIKI = auto()
     HYBRID = auto()
     OFFLINE_DB = auto()
 
