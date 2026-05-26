@@ -21,18 +21,6 @@
 # TEMPLATES_DIR = Path(_cfg.get_str("Paths", "templates_dir"))
 
 # # ---------------------------------------------------------------------------
-# # Wiki Settings
-# # ---------------------------------------------------------------------------
-# WIKI_BASE_URL = _cfg.get_str(
-#     "WikiSettings", "wiki_base_url", fallback="https://lotro-wiki.com"
-# )
-# MISSING_TEXT_INDICATOR = _cfg.get_str(
-#     "WikiSettings",
-#     "missing_text_indicator",
-#     fallback="There is currently no text in this page",
-# )
-
-# # ---------------------------------------------------------------------------
 # # Detection Settings
 # # ---------------------------------------------------------------------------
 # TEMPLATE_THRESHOLD = _cfg.get_float("Detection", "template_threshold", fallback=0.7)
@@ -134,11 +122,7 @@
 # LOG_LEVEL = _cfg.get_str("LogSettings", "log_level", fallback="INFO")
 
 # # ---------------------------------------------------------------------------
-# # Features
-# # ---------------------------------------------------------------------------
-# ENABLE_WIKI = _cfg.get_bool("WikiSettings", "enable_wiki", fallback=False)
 
-# # ---------------------------------------------------------------------------
 # # Quest Window Detection
 # # ---------------------------------------------------------------------------
 # QUEST_WINDOW_MODE = _cfg.get_str("TTSSettings", "quest_window_mode", fallback="auto")
