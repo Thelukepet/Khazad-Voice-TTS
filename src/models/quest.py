@@ -14,6 +14,7 @@ class TextSourceType(Enum):
     OCR = auto()
     WIKI = auto()
     HYBRID = auto()
+    OFFLINE_DB = auto()
 
 
 @dataclass

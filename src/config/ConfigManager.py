@@ -120,6 +120,8 @@ class ConfigManager(metaclass=SingletonMeta):
             "ref_audio_dir": str(self.base_dir / "data" / "reference_audio"),
             "templates_dir": str(self.base_dir / "templates"),
             "npc_data_path": str(self.base_dir / "data" / "npc_data.csv"),
+            "quests_xml_path": str(self.base_dir / "data" / "quests.xml"),
+            "quest_labels_xml_path": str(self.base_dir / "data" / "quest_dialogue.xml"),
             # Generated data (user-specific, in home directory)
             "user_data_dir": str(self.USER_DATA_DIR),
             "screenshots_dir": str(self.USER_DATA_DIR / "screenshots"),
@@ -185,13 +187,6 @@ class ConfigManager(metaclass=SingletonMeta):
         self.config["LogSettings"] = {
             "log_level": "INFO",
             "debug_template_scores": "False",
-        }
-
-        # Wiki settings
-        self.config["WikiSettings"] = {
-            "enable_wiki": "False",
-            "wiki_base_url": "https://lotro-wiki.com",
-            "missing_text_indicator": "There is currently no text in this page",
         }
 
     def get_int(self, section: str, key: str, fallback: int = 0) -> int:

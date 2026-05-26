@@ -7,13 +7,11 @@ import time
 from datetime import datetime
 
 # > Third Party Dependencies
-import cv2
 import nltk
 
-from . import wiki
 from .audio import play_audio, stop_audio
 from .config.ConfigManager import ConfigManager
-from .models import NPC, QuestText, QuestTextLine, TextSourceType, VoiceSelection
+from .models import QuestText, QuestTextLine, TextSourceType, VoiceSelection
 from .ocr import run_name_ocr, run_ocr, run_title_ocr
 
 # > Local Dependencies
@@ -25,7 +23,7 @@ log = setup_logger("ENGINE")
 class NarratorEngine:
     """
     Core engine that orchestrates the workflow between OCR, Database lookups,
-    Wiki fetching, and Text-to-Speech generation.
+    and Text-to-Speech generation.
 
     Attributes
     ----------
@@ -101,145 +99,61 @@ class NarratorEngine:
 
     def process_capture(self, quest_img_pil, name_img_pil):
         """
-        Handles the 'Echoes' (Classic) mode workflow, which relies on manual
-        screen region selection.
+        Handles the 'Echoes' (Classic) mode workflow.
 
-        Parameters
-        ----------
-        quest_img_pil : PIL.Image.Image
-            The cropped image containing the quest body text.
-        name_img_pil : PIL.Image.Image
-            The cropped image containing the NPC name.
+        Reads the NPC name and quest body via OCR, then tries to match
+        the OCR text against the offline quest database for pristine text.
+        Falls back to raw OCR if no match is found.
         """
-        # ECHOES MODE (Manual)
+        log.info("Reading NPC Name...")
+        npc_name = run_name_ocr(name_img_pil) or "Unknown"
+        log.info(f"NPC Name: '{npc_name}'")
+
+        # OCR the body (always needed)
         log.info("Reading Quest Text...")
         sentences = run_ocr(quest_img_pil)
         if not sentences:
             log.warning("No quest text found.")
             return
 
-        # Build QuestText model
-        quest_text = QuestText(
-            timestamp=datetime.now(),
-            raw_ocr_text=" ".join(sentences),
-            lines=[
-                QuestTextLine(text=s, line_number=i) for i, s in enumerate(sentences)
-            ],
-            source_label="OCR",
-        )
+        full_ocr_text = " ".join(sentences)
 
-        log.info("Reading NPC Name...")
-        npc_name = run_name_ocr(name_img_pil) or "Unknown"
-        quest_text.npc_name = npc_name
-        log.info(f"NPC Name: '{npc_name}'")
-
-        voice_selection = self._resolve_voice(npc_name)
-        self._start_streaming(quest_text, voice_selection)
-
-    def process_retail(self, _, full_screen_np, npc_name):
-        """
-        Handles the 'Retail' (Live) mode workflow, which uses automatic detection
-        via calibration anchors and log monitoring.
-
-        1. Extracts Title/Body using calibrated layout.
-        2. Runs OCR on the extracted areas.
-        3. (Optional) Fetches cleaned text from the Wiki to fix OCR errors.
-        4. Queues text for TTS.
-
-        Parameters
-        ----------
-        _ : Any
-            Legacy/unused parameter (placeholder for raw quest crop).
-        full_screen_np : np.ndarray
-            The full screenshot in NumPy format (BGR).
-        npc_name : str
-            The name of the NPC detected from the game logs.
-        """
-        # RETAIL MODE (Auto/Static)
-        log.info(f"Detecting Quest Window for: {npc_name}...")
-
-        # 1. Extraction
-        title_pil, body_pil = extract_quest_areas(full_screen_np)
-
-        # In static mode, title_pil may be None (we only extract body)
-        # In auto mode, both should be present
-        if not body_pil:
-            log.info("NPC in log, but valid Quest Window not found.")
-            return
-
-        # 2. OCR Body (Always needed for fallback/reference)
-        ocr_sentences = run_ocr(body_pil)
-        if not ocr_sentences:
-            log.warning("Quest body OCR empty.")
-            return
-
-        full_ocr_text = " ".join(ocr_sentences)
-        final_text = full_ocr_text
-        source_label = "OCR (Default)"
-        source_type = TextSourceType.OCR
+        # Try to get a title hint from the first line of the body image
         quest_title = None
+        try:
+            import numpy as np
+            import pytesseract
 
-        # 3. Wiki Logic (Non-blocking)
-        #    Start TTS with OCR immediately.  If wiki data arrives in time
-        #    (within 2 seconds), use it instead.  Otherwise cache it for the
-        #    next interaction with this quest.
-        _cfg = ConfigManager()
-        enable_wiki = _cfg.get_bool("WikiSettings", "enable_wiki", fallback=False)
-        wiki_result = {}
+            from .ocr import preprocess_title_image
 
-        if enable_wiki and title_pil is not None:
-            quest_title = run_title_ocr(title_pil)
-            log.info(f"Quest Title: '{quest_title}'")
-            log.info("Checking Wiki (background)...")
-
-            wiki_url = wiki.get_best_wiki_url(quest_title)
-
-            # Check cache first (instant, no network)
-            if wiki_url in wiki.WIKI_CACHE:
-                wiki_result = wiki.WIKI_CACHE[wiki_url]
-                if wiki_result:
-                    log.info("Wiki data loaded from cache.")
-            else:
-                # Fetch in background thread
-                wiki_result = {}
-
-                def _fetch_wiki():
-                    nonlocal wiki_result
-                    wiki_result = wiki.fetch_quest_stages(wiki_url)
-
-                wiki_thread = threading.Thread(target=_fetch_wiki, daemon=True)
-                wiki_thread.start()
-                wiki_thread.join(timeout=2.0)  # Wait max 2 seconds
-
-                if wiki_thread.is_alive():
-                    log.info(
-                        "Wiki fetch still running — starting with OCR. "
-                        "Wiki data will be cached for next time."
-                    )
-        elif enable_wiki and title_pil is None:
-            log.info("Skipping Wiki Lookup (Static mode - no title)")
-        else:
-            log.info("Skipping Wiki Lookup (Config Disabled)")
-
-        # Resolve final text source
-        if wiki_result:
-            best_stage, matched_text, accuracy = wiki.get_best_match(
-                full_ocr_text, wiki_result
+            title_hint_thresh = preprocess_title_image(quest_img_pil)
+            title_hint = (
+                pytesseract.pytesseract.image_to_string(
+                    title_hint_thresh, config="--psm 7"
+                )
+                .strip()
+                .replace("\n", " ")
             )
-            if accuracy >= 50.0 and not wiki.has_name_placeholder(matched_text):
-                final_text = matched_text
-                source_label = f"Wiki ({best_stage}, {accuracy:.1f}%)"
-                source_type = TextSourceType.WIKI
-            elif wiki.has_name_placeholder(matched_text):
-                source_label = "OCR (Wiki had placeholder)"
-            else:
-                source_label = f"OCR (Low Wiki Acc: {accuracy:.1f}%)"
-        elif enable_wiki and title_pil is not None:
-            source_label = "OCR (No Wiki Data)"
+            if title_hint:
+                quest_title = title_hint
+        except Exception:
+            pass
 
-        log.info(f"Source: {source_label}")
+        # Try DB match
+        source_label = "OCR"
+        source_type = TextSourceType.OCR
+        final_text = full_ocr_text
+        db_npc = None
 
-        # 4. Build QuestText model
+        if quest_title:
+            db_match = self.db.match_quest_text(quest_title, full_ocr_text)
+            if db_match:
+                final_text = db_match["text"]
+                db_npc = db_match["npc_name"]
+                source_label = f"OfflineDB ({db_match['score']:.0%})"
+                source_type = TextSourceType.OFFLINE_DB
+
+        # Build QuestText
         final_sentences = nltk.sent_tokenize(final_text)
         quest_text = QuestText(
             timestamp=datetime.now(),
@@ -249,17 +163,87 @@ class NarratorEngine:
                     text=s,
                     line_number=i,
                     source=source_type,
-                    confidence=accuracy if source_type == TextSourceType.WIKI else None,
                 )
                 for i, s in enumerate(final_sentences)
             ],
-            npc_name=npc_name,
+            npc_name=db_npc or npc_name,
             quest_title=quest_title,
             source_label=source_label,
         )
 
-        # 5. Playback
-        voice_selection = self._resolve_voice(npc_name)
+        log.info(f"Source: {source_label}")
+        voice_selection = self._resolve_voice(db_npc or npc_name)
+        self._start_streaming(quest_text, voice_selection)
+
+    def process_retail(self, _, full_screen_np, npc_name):
+        """
+        Handles the 'Retail' (Live) mode workflow.
+
+        1. Extracts Title/Body using calibrated layout.
+        2. OCR on body (always).
+        3. Tries offline DB fuzzy match to get pristine text.
+        4. Falls back to raw OCR if DB misses.
+        5. Queues text for TTS.
+        """
+        log.info(f"Detecting Quest Window for: {npc_name}...")
+
+        # 1. Extraction
+        title_pil, body_pil = extract_quest_areas(full_screen_np)
+        if not body_pil:
+            log.info("NPC in log, but valid Quest Window not found.")
+            return
+
+        # 2. OCR Title + Body (always)
+        quest_title = None
+        if title_pil is not None:
+            quest_title = run_title_ocr(title_pil)
+            log.info(f"Quest Title: '{quest_title}'")
+
+        ocr_sentences = run_ocr(body_pil)
+        if not ocr_sentences:
+            log.warning("Quest body OCR empty.")
+            return
+
+        full_ocr_text = " ".join(ocr_sentences)
+        final_text = full_ocr_text
+        source_label = "OCR (Default)"
+        source_type = TextSourceType.OCR
+        db_npc = None
+
+        # 3. Try Offline DB (instant, local fuzzy match)
+        if quest_title:
+            db_match = self.db.match_quest_text(quest_title, full_ocr_text)
+            if db_match:
+                final_text = db_match["text"]
+                db_npc = db_match["npc_name"]
+                source_label = f"OfflineDB ({db_match['score']:.0%})"
+                source_type = TextSourceType.OFFLINE_DB
+                log.info(f"Source: {source_label}")
+
+        # 4. No wiki fallback — offline DB replaces wiki entirely
+        if source_type == TextSourceType.OCR:
+            log.info(f"Source: {source_label}")
+
+        # 5. Build QuestText model
+        final_sentences = nltk.sent_tokenize(final_text)
+        quest_text = QuestText(
+            timestamp=datetime.now(),
+            raw_ocr_text=full_ocr_text,
+            lines=[
+                QuestTextLine(
+                    text=s,
+                    line_number=i,
+                    source=source_type,
+                )
+                for i, s in enumerate(final_sentences)
+            ],
+            npc_name=db_npc or npc_name,
+            quest_title=quest_title,
+            source_label=source_label,
+        )
+
+        # 6. Playback
+        voice_selection = self._resolve_voice(db_npc or npc_name)
         self._start_streaming(quest_text, voice_selection)
 
     def _resolve_voice(self, npc_name: str) -> VoiceSelection:
@@ -345,14 +329,17 @@ class NarratorEngine:
 
     @staticmethod
     def _tag_quoted_lines(quest_text: QuestText) -> None:
-        """
-        Tags each QuestTextLine with ``is_quoted`` using a state machine.
+        """Tag each QuestTextLine with ``is_quoted`` using a state machine.
 
-        LOTRO wiki dialogue uses single quotes (``'``) to mark NPC speech that
-        can span multiple sentences.  A leading ``'`` opens a dialogue block;
-        a trailing ``'`` closes it.  Apostrophes inside words (e.g. "can't")
-        are ignored because they never appear at the absolute start/end of the
-        text.
+        LOTRO quest text uses single quotes (``'``) to mark NPC speech
+        that can span multiple sentences.  A leading ``'`` opens a
+        dialogue block; a trailing ``'`` closes it.  Apostrophes inside
+        words (e.g. "can't") are ignored because they never appear at the
+        absolute start/end of the line.
+
+        This works reliably on pristine database text which has correct
+        punctuation.  It is also used as a fallback for raw OCR text
+        (where apostrophe errors may cause misclassification).
 
         Rules applied per line (in order):
         1. If the line starts with ``'``  → enter dialogue mode.
@@ -377,6 +364,49 @@ class NarratorEngine:
 
             if ends and in_quote:
                 in_quote = False
+
+    def _build_quest_from_db(
+        self,
+        db_segments: list,
+        npc_name: str,
+        quest_title: str,
+    ) -> QuestText:
+        """Construct a :class:`QuestText` from offline DB segments.
+
+        Parameters
+        ----------
+        db_segments : list[dict]
+            Output of :meth:`NPCDatabaseSQLite.get_quest_text`.
+        npc_name : str
+            The NPC name (from OCR or game log).
+        quest_title : str
+            The quest title matched from the database.
+
+        Returns
+        -------
+        QuestText
+            A fully populated model with ``is_quoted`` pre-tagged.
+        """
+        lines = []
+        for i, seg in enumerate(db_segments):
+            lines.append(
+                QuestTextLine(
+                    text=seg["text"],
+                    line_number=i,
+                    source=TextSourceType.OFFLINE_DB,
+                    is_quoted=seg["is_dialogue"],
+                )
+            )
+
+        raw_text = " ".join(seg["text"] for seg in db_segments)
+        return QuestText(
+            timestamp=datetime.now(),
+            raw_ocr_text=raw_text,
+            lines=lines,
+            npc_name=npc_name,
+            quest_title=quest_title,
+            source_label="OfflineDB",
+        )
 
     def _start_streaming(self, quest_text: QuestText, voice_selection: VoiceSelection):
         """
