@@ -105,12 +105,23 @@ class KokoroBackend(TTSBackend):
 
     def pick_narrator_voice(self) -> Tuple[str, str]:
         """
-        Returns the dedicated narrator voice.
+        Returns the dedicated narrator voice for narration lines.
 
         Returns
         -------
         tuple[str, str]
             (voice_id, category) for the narrator voice.
+        """
+        return "am_echo", "narrator"
+
+    def pick_default_voice(self) -> Tuple[str, str]:
+        """
+        Returns the fallback voice for unknown NPCs.
+
+        Returns
+        -------
+        tuple[str, str]
+            (voice_id, category) for the default voice.
         """
         return "am_echo", "narrator"
 

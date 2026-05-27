@@ -157,6 +157,7 @@ class OmniVoiceBackend(TTSBackend):
         """
         Returns the dedicated narrator voice (narrator_3.flac).
 
+        Used for unquoted narration lines in voice-mix mode.
         Falls back to any available narrator voice, or "default" if none exist.
 
         Returns
@@ -164,12 +165,29 @@ class OmniVoiceBackend(TTSBackend):
         tuple[str, str]
             (voice_id, category) for the narrator voice.
         """
+        return self._pick_named_narrator("narrator_3.flac")
+
+    def pick_default_voice(self) -> Tuple[str, str]:
+        """
+        Returns the fallback voice for unknown NPCs (narrator_1.flac).
+
+        Used when no NPC match is found in the database.
+        Falls back to any available narrator voice, or "default" if none exist.
+
+        Returns
+        -------
+        tuple[str, str]
+            (voice_id, category) for the default voice.
+        """
+        return self._pick_named_narrator("narrator_1.flac")
+
+    def _pick_named_narrator(self, filename: str) -> Tuple[str, str]:
+        """Pick a specific narrator voice file, with fallback."""
         if "narrator" not in self.voice_library or not self.voice_library["narrator"]:
             return "default", "fallback"
 
-        # Prefer narrator_3.flac
         for entry in self.voice_library["narrator"]:
-            if Path(entry["audio"]).name == "narrator_3.flac":
+            if Path(entry["audio"]).name == filename:
                 return f"narrator|{entry['id']}", "narrator"
 
         # Fallback to any narrator voice
