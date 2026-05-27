@@ -306,8 +306,9 @@ class NarratorEngine:
             matched_name = "Narrator"
             race, gender = "Narrator", "Narrator"
             is_default = True
-
-        voice_id, category = self.tts.pick_voice(gender, race)
+            voice_id, category = self.tts.pick_default_voice()
+        else:
+            voice_id, category = self.tts.pick_voice(gender, race)
         self.memory[key] = {
             "name": matched_name,
             "race": race,

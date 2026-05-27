@@ -23,6 +23,9 @@ class MockTTS:
     def pick_voice(self, gender, race):
         return "test_voice", "test_category"
 
+    def pick_default_voice(self):
+        return "default_voice", "narrator"
+
     def generate(self, text, voice_id):
         # Return dummy audio data
         return bytearray([65] * 100)  # 100 bytes of dummy audio
@@ -132,24 +135,24 @@ class TestNarratorEngine:
             quest_text.get_full_text() == "Sentence one. Sentence two. Sentence three."
         )
 
-    def test_quest_text_with_wiki_source(self):
-        """Test QuestText with Wiki source and confidence."""
+    def test_quest_text_with_offline_db_source(self):
+        """Test QuestText with OfflineDB source and confidence."""
         quest_text = QuestText(
             timestamp=datetime.now(),
             raw_ocr_text="Test text",
             lines=[
                 QuestTextLine(
-                    text="Wiki text",
+                    text="DB text",
                     line_number=0,
-                    source=TextSourceType.WIKI,
-                    confidence=85.3,
+                    source=TextSourceType.OFFLINE_DB,
+                    confidence=99.8,
                 )
             ],
-            source_label="Wiki (Bestowal, 85.3%)",
+            source_label="OfflineDB (99.8%)",
         )
 
-        assert quest_text.lines[0].source == TextSourceType.WIKI
-        assert quest_text.lines[0].confidence == 85.3
+        assert quest_text.lines[0].source == TextSourceType.OFFLINE_DB
+        assert quest_text.lines[0].confidence == 99.8
 
     @patch("src.engine.stop_audio")
     @patch("src.engine.play_audio")
@@ -232,10 +235,9 @@ class TestEngineIntegration:
                     text="OCR text", line_number=0, source=TextSourceType.OCR
                 ),
                 QuestTextLine(
-                    text="Wiki text",
+                    text="DB text",
                     line_number=1,
-                    source=TextSourceType.WIKI,
-                    confidence=90.0,
+                    source=TextSourceType.OFFLINE_DB,
                 ),
                 QuestTextLine(
                     text="More OCR", line_number=2, source=TextSourceType.OCR
@@ -244,7 +246,7 @@ class TestEngineIntegration:
         )
 
         assert quest.lines[0].source == TextSourceType.OCR
-        assert quest.lines[1].source == TextSourceType.WIKI
+        assert quest.lines[1].source == TextSourceType.OFFLINE_DB
         assert quest.lines[2].source == TextSourceType.OCR
 
     def test_build_quest_from_db(self):

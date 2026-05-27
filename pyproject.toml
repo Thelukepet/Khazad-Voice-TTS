@@ -54,7 +54,6 @@ dependencies = [
 
     # --- Utils & UI ---
     "nltk",
-    "beautifulsoup4",
     "pynput",
     "gradio>=4.0.0",
 ]
@@ -72,8 +71,6 @@ test = [
     "Pillow",
     "pytesseract",
     "sounddevice",
-    "requests",
-    "beautifulsoup4",
     "jupyter",
     "jupyterlab",
     "matplotlib",
