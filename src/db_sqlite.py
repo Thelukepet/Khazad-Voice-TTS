@@ -166,13 +166,66 @@ class NPCDatabaseSQLite:
                     f"Quest XML files not found. Checked: {quests_xml}, {labels_xml}"
                 )
 
-        # Cache all quest titles for fuzzy matching
-        cursor = self.conn.execute("SELECT title_lower FROM quests")
-        self.quest_titles = sorted(set(row[0] for row in cursor.fetchall()))
+        # --- Load quest data into memory for fast lookups ---
+
+        _NON_ALPHA = re.compile(r"[^a-z0-9 ]")
+        _MULTI_SPACE = re.compile(r"  +")
+
+        def _normalize(title: str) -> str:
+            """Strip punctuation and collapse whitespace for fuzzy-resilient matching."""
+            return _MULTI_SPACE.sub(" ", _NON_ALPHA.sub("", title)).strip()
+
+        # title_lower → (quest_id, canonical_title)
+        cursor = self.conn.execute("SELECT quest_id, title, title_lower FROM quests")
+        self._quest_by_title: Dict[str, tuple] = {}
+        self._quest_by_norm: Dict[str, tuple] = {}  # normalized title → result
+        self._word_index: Dict[str, List[str]] = {}  # word → [title_lower, ...]
+        for quest_id, title, title_lower in cursor.fetchall():
+            entry = (quest_id, title)
+            self._quest_by_title[title_lower] = entry
+            norm = _normalize(title_lower)
+            if norm != title_lower:
+                self._quest_by_norm[norm] = entry
+            # Build word index (skip short common words)
+            for word in norm.split():
+                if len(word) >= 3:
+                    self._word_index.setdefault(word, []).append(title_lower)
+
+        # quest_id → list of (text_type, npc_name, text_content, order_index)
+        cursor = self.conn.execute(
+            "SELECT quest_id, text_type, npc_name, text_content, order_index "
+            "FROM quest_text ORDER BY quest_id, order_index"
+        )
+        self._segments_by_quest: Dict[str, List[tuple]] = {}
+        seg_count = 0
+        for (
+            quest_id,
+            text_type,
+            npc_name,
+            text_content,
+            order_index,
+        ) in cursor.fetchall():
+            self._segments_by_quest.setdefault(quest_id, []).append(
+                (text_type, npc_name, text_content)
+            )
+            seg_count += 1
+
+        # Pre-compute lowercase comparison text for each segment
+        # (avoids repeated .lower() calls during matching)
+        self._seg_cmp_text: Dict[str, List[str]] = {}
+        for quest_id, segments in self._segments_by_quest.items():
+            cmp_list = []
+            for text_type, npc_name, text_content in segments:
+                cmp = text_content.lower()
+                for var in _PLAYER_VARS | _IDENTITY_VARS:
+                    cmp = cmp.replace(var, "")
+                cmp_list.append(cmp)
+            self._seg_cmp_text[quest_id] = cmp_list
 
         log.info(
             f"Database ready: {len(self.all_names)} NPCs, "
-            f"{len(self.quest_titles)} quests loaded"
+            f"{len(self._quest_by_title)} quests, "
+            f"{seg_count} segments loaded in-memory"
         )
 
     def init_database(self, npc_csv_path: str) -> sqlite3.Connection:
@@ -333,7 +386,6 @@ class NPCDatabaseSQLite:
 
         return None, None, name
 
-
     def fill_quests_from_xml(self, quests_xml_path: str, labels_xml_path: str) -> None:
         """Parse datamined XML files and populate the quest tables.
 
@@ -466,45 +518,85 @@ class NPCDatabaseSQLite:
             f"  Imported {len(quest_rows)} quests with {len(text_rows)} text entries"
         )
 
+    _NON_ALPHA = re.compile(r"[^a-z0-9 ]")
+    _MULTI_SPACE = re.compile(r"  +")
+
+    @classmethod
+    def _normalize(cls, title: str) -> str:
+        """Strip punctuation and collapse whitespace."""
+        return cls._MULTI_SPACE.sub(" ", cls._NON_ALPHA.sub("", title)).strip()
+
     def _resolve_quest_id(self, ocr_title: str):
-        """Find a quest by OCR title. Returns (quest_id, canonical_title) or (None, None)."""
+        """Find a quest by OCR title. Returns (quest_id, canonical_title) or (None, None).
+
+        Three-layer lookup, fastest first:
+        1. Exact dict hit (O(1))
+        2. Normalised dict hit — strips OCR punctuation noise (O(1))
+        3. Word-overlap fuzzy — only runs SequenceMatcher against titles
+           that share ≥2 significant words with the input (typically 5-20
+           candidates instead of 14 000+).
+        """
         if not ocr_title:
             return None, None
 
-        title_lower = ocr_title.lower().strip()
+        raw = ocr_title.lower().strip()
 
-        cursor = self.conn.execute(
-            "SELECT quest_id, title FROM quests WHERE title_lower = ?",
-            (title_lower,),
-        )
-        row = cursor.fetchone()
+        # Layer 1: exact match
+        if raw in self._quest_by_title:
+            return self._quest_by_title[raw]
 
-        if not row:
-            close = difflib.get_close_matches(
-                title_lower, self.quest_titles, n=1, cutoff=0.6
-            )
-            if close:
-                cursor = self.conn.execute(
-                    "SELECT quest_id, title FROM quests WHERE title_lower = ?",
-                    (close[0],),
-                )
-                row = cursor.fetchone()
-                if row:
-                    log.info(f"Quest title match: '{ocr_title}' -> '{row[1]}'")
+        # Layer 2: normalised match (strips quotes, semicolons, etc.)
+        norm = self._normalize(raw)
+        if norm in self._quest_by_norm:
+            return self._quest_by_norm[norm]
+        # Also try normalised as a plain key (handles case where DB title
+        # has no punctuation but OCR added some)
+        if norm in self._quest_by_title:
+            return self._quest_by_title[norm]
 
-        if not row:
+        # Layer 3: word-overlap pre-filter → fuzzy match on small candidate set
+        words = [w for w in norm.split() if len(w) >= 3]
+        if not words:
             return None, None
-        return row[0], row[1]
+
+        # Count how many index words each DB title shares with the input
+        title_hits: Dict[str, int] = {}
+        for word in words:
+            for tl in self._word_index.get(word, []):
+                title_hits[tl] = title_hits.get(tl, 0) + 1
+
+        # Only consider titles sharing ≥2 words (or ≥1 if input is very short)
+        min_overlap = 2 if len(words) >= 3 else 1
+        candidates = [tl for tl, cnt in title_hits.items() if cnt >= min_overlap]
+
+        if not candidates:
+            return None, None
+
+        best_score = 0.0
+        best_tl = None
+        for tl in candidates:
+            score = difflib.SequenceMatcher(None, norm, self._normalize(tl)).ratio()
+            if score > best_score:
+                best_score = score
+                best_tl = tl
+
+        if best_score >= 0.6 and best_tl:
+            result = self._quest_by_title.get(best_tl)
+            if result:
+                log.info(
+                    f"Quest title match: '{ocr_title}' -> '{result[1]}' "
+                    f"(score={best_score:.1%}, {len(candidates)} candidates)"
+                )
+                return result
+
+        return None, None
 
     def match_quest_text(self, ocr_title: str, ocr_body: str) -> Optional[Dict]:
-        """Fuzzy-match OCR body text against the DB to find pristine text.
+        """Fuzzy-match OCR body text against in-memory DB to find pristine text.
 
-        Resolves the quest by title, then compares the OCR body against
-        every text segment stored for that quest using
-        :class:`difflib.SequenceMatcher`.  The best-scoring segment is
-        returned with its text replaced from the DB (pristine), the
-        player name extracted from the OCR text, and pre-tagged
-        ``is_dialogue`` / ``npc_name`` metadata.
+        Resolves the quest by title via dict lookup, then compares the OCR
+        body against every text segment using :class:`difflib.SequenceMatcher`.
+        Segment comparison text is pre-computed at init time.
 
         Parameters
         ----------
@@ -526,42 +618,31 @@ class NPCDatabaseSQLite:
         if not quest_id:
             return None
 
-        # Fetch all segments for this quest
-        cursor = self.conn.execute(
-            "SELECT text_type, npc_name, text_content "
-            "FROM quest_text WHERE quest_id = ? ORDER BY order_index",
-            (quest_id,),
-        )
-        segments = cursor.fetchall()
+        segments = self._segments_by_quest.get(quest_id)
         if not segments:
             return None
+
+        cmp_texts = self._seg_cmp_text[quest_id]
 
         # Fuzzy match: find the DB segment that best matches the OCR body
         ocr_clean = ocr_body.lower().strip()
         best_score = 0.0
-        best_seg = None
+        best_idx = -1
 
-        for text_type, npc_name, text_content in segments:
-            db_clean = text_content.lower()
-            # For segments containing ${PLAYER}, replace with a generic
-            # token so the matcher can align around it
-            db_for_cmp = db_clean
-            for var in _PLAYER_VARS | _IDENTITY_VARS:
-                db_for_cmp = db_for_cmp.replace(var, "")
-
-            score = difflib.SequenceMatcher(None, ocr_clean, db_for_cmp).ratio()
+        for i, cmp in enumerate(cmp_texts):
+            score = difflib.SequenceMatcher(None, ocr_clean, cmp).ratio()
             if score > best_score:
                 best_score = score
-                best_seg = (text_type, npc_name, text_content)
+                best_idx = i
 
-        if best_score < 0.4 or not best_seg:
+        if best_score < 0.4 or best_idx < 0:
             log.info(
                 f"Quest DB: no segment matched '{canonical_title}' "
                 f"(best={best_score:.1%})"
             )
             return None
 
-        text_type, npc_name, db_text = best_seg
+        text_type, npc_name, db_text = segments[best_idx]
 
         # Extract player name from OCR and resolve variables
         player_name = _extract_player_name(ocr_body, db_text)
