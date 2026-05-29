@@ -6,15 +6,14 @@ import threading
 import time
 from datetime import datetime
 
-# > Third Party Dependencies
+# > Third-party Libraries
 import nltk
 
+# > Local Dependencies
 from .audio import play_audio, stop_audio
 from .config.ConfigManager import ConfigManager
 from .models import QuestText, QuestTextLine, TextSourceType, VoiceSelection
 from .ocr import run_name_ocr, run_ocr, run_title_ocr
-
-# > Local Dependencies
 from .utils import extract_quest_areas, load_npc_memory, save_npc_memory, setup_logger
 
 log = setup_logger("ENGINE")
@@ -460,7 +459,10 @@ class NarratorEngine:
             clean_lines = [line for line in quest_text.lines if line.text.strip()]
 
             if self.backend_id == "omnivoice":
-                chunk_size = 2
+                _cfg = ConfigManager()
+                chunk_size = _cfg.get_int(
+                    "TTSSettings", "omnivoice_chunk_size", fallback=2
+                )
                 for i in range(0, len(clean_lines), chunk_size):
                     if self.stop_event.is_set():
                         return

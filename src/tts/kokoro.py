@@ -8,11 +8,9 @@ from typing import Tuple
 import numpy as np
 from kokoro import KPipeline
 
-from src.config.ConfigManager import ConfigManager
-
 # > Local Dependencies
-from src.utils import setup_logger
-
+from ..config.ConfigManager import ConfigManager
+from ..utils import setup_logger
 from .base import TTSBackend
 
 log = setup_logger(__name__)

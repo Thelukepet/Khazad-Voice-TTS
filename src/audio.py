@@ -6,9 +6,8 @@ import time
 from threading import Event
 from typing import Optional
 
-import numpy as np
-
 # > Third-party Libraries
+import numpy as np
 import sounddevice as sd
 
 # > Local Dependencies

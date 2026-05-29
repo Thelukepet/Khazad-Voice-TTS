@@ -17,9 +17,9 @@ from PIL import Image, ImageGrab
 # > Local Dependencies
 from .config.ConfigManager import ConfigManager
 
+# --- Module-level config (cheap local operations, fine at import time) ---
 _cfg = ConfigManager()
 
-# --- Cached config values ---
 BASE_RESOLUTION = (
     _cfg.get_int("Detection", "base_resolution_x", fallback=2560),
     _cfg.get_int("Detection", "base_resolution_y", fallback=1440),
@@ -30,13 +30,12 @@ LOG_LEVEL = _cfg.get_str("LogSettings", "log_level", fallback="INFO")
 _data_dir = Path(_cfg.get_str("Paths", "data_dir"))
 _data_dir.mkdir(parents=True, exist_ok=True)
 
-# User data directory for generated files
 _user_data_dir = ConfigManager.USER_DATA_DIR
 _user_data_dir.mkdir(parents=True, exist_ok=True)
 
-# --- CONFIGURATION FILES (generated, in user data dir) ---
 LAYOUT_RETAIL = _user_data_dir / "layout_retail.json"
 LAYOUT_ECHOES = _user_data_dir / "layout_echoes.json"
+
 
 # --- RESOLUTION DETECTION & TEMPLATE SCALING ---
 

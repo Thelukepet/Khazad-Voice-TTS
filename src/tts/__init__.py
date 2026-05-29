@@ -3,7 +3,8 @@ Text-to-Speech Package Initializer.
 Exposes the factory function to select between Kokoro (CPU) and OmniVoice (GPU).
 """
 
-from src.utils import setup_logger
+# > Local Dependencies
+from ..utils import setup_logger
 
 log = setup_logger("TTS_FACTORY")
 

@@ -3,7 +3,6 @@
 # > Standard Library
 import os
 import re
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -11,9 +10,12 @@ from typing import Dict, List, Optional, Tuple
 # > Third-party Libraries
 import soundfile as sf
 
+# > Local Dependencies
+from src.tts.voice_library import load_voice_library
+
 # --- CONFIGURATION ---
 AUDIO_DIR = Path("data/reference_audio")
-VOICE_LIBRARY = {}
+VOICE_LIBRARY: Dict[str, List[Dict]] = {}
 
 
 def read_clean_lines(txt_path: Path) -> List[str]:
@@ -44,62 +46,24 @@ def read_clean_lines(txt_path: Path) -> List[str]:
 
 def refresh_library() -> None:
     """
-    Scans the Reference Audio directory and builds the library cache.
-    Replicates the exact matching logic from src/tts/omnivoice.py.
+    Scans the Reference Audio directory and builds the library cache
+    using the shared ``load_voice_library`` from ``src.tts.voice_library``.
 
     Populates the global VOICE_LIBRARY dictionary with structure:
     { 'category': [ {'name': filename, 'path': fullpath, 'text': transcript}, ... ] }
     """
     global VOICE_LIBRARY
+
+    raw = load_voice_library(AUDIO_DIR)
+
+    # Convert from shared format {cat: [{id, text, audio, type}]} to
+    # the voice_lab format {cat: [{name, path, text}]}
     VOICE_LIBRARY = {}
-
-    if not AUDIO_DIR.exists():
-        return
-
-    for folder in AUDIO_DIR.iterdir():
-        if not folder.is_dir():
-            continue
-
-        category = folder.name
-        samples = []
-
-        # Load Legacy Bulk Transcripts
-        flac_lines = read_clean_lines(folder / f"{category}.txt")
-        wav_lines = read_clean_lines(folder / f"{category}_wav.txt")
-
-        def add_voices(pattern: str, fallback_lines: List[str]):
-            files = sorted(list(folder.glob(pattern)), key=lambda x: x.name)
-            for i, fpath in enumerate(files):
-                transcript = None
-
-                # 1. Check for specific sidecar .txt file (Priority)
-                sidecar_path = fpath.with_suffix(".txt")
-                if sidecar_path.exists():
-                    try:
-                        raw_text = sidecar_path.read_text(encoding="utf-8").strip()
-                        # Clean quotes and newlines
-                        clean_text = re.sub(r"[\"\n]", " ", raw_text).strip()
-                        if len(clean_text) > 1:
-                            transcript = clean_text
-                    except Exception:
-                        pass
-
-                # 2. Fallback to bulk list
-                if not transcript and fallback_lines:
-                    if i < len(fallback_lines):
-                        transcript = fallback_lines[i]
-                    else:
-                        transcript = fallback_lines[0]
-
-                # 3. Add to library if we found text
-                if transcript:
-                    samples.append(
-                        {"name": fpath.name, "path": str(fpath), "text": transcript}
-                    )
-
-        add_voices("*.flac", flac_lines)
-        add_voices("*.wav", wav_lines)
-
+    for category, entries in raw.items():
+        samples = [
+            {"name": Path(e["audio"]).name, "path": e["audio"], "text": e["text"]}
+            for e in entries
+        ]
         if samples:
             VOICE_LIBRARY[category] = samples
 

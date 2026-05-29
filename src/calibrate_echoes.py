@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from PIL import ImageGrab
 
-# --- CONFIGURATION ---
+# > Local Dependencies
 from src.config.ConfigManager import ConfigManager
 
 BASE_DIR = Path(__file__).parent.parent  # Points to project root (not src/)
