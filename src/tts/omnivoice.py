@@ -10,13 +10,13 @@ from typing import Dict, List, Tuple
 # > Third-party Libraries
 import numpy as np
 import torch
-
-from src.config.ConfigManager import ConfigManager
+from omnivoice import OmniVoice
 
 # > Local Dependencies
-from src.utils import setup_logger
-
+from ..config.ConfigManager import ConfigManager
+from ..utils import setup_logger
 from .base import TTSBackend
+from .voice_library import load_voice_library
 
 log = setup_logger(__name__)
 
@@ -30,18 +30,17 @@ class OmniVoiceBackend(TTSBackend):
         """
         Initializes the OmniVoice model on the GPU and loads the voice library.
         """
-        log.info("Loading OmniVoice Model on cuda:0...")
-
-        from omnivoice import OmniVoice
+        _cfg = ConfigManager()
+        device = _cfg.device
+        log.info(f"Loading OmniVoice Model on {device}...")
 
         self.backend_id = "omnivoice"
         self.tts = OmniVoice.from_pretrained(
             "k2-fsa/OmniVoice",
-            device_map="cuda:0",
+            device_map=device,
             dtype=torch.float16,
         )
         self.samplerate = 24000
-        _cfg = ConfigManager()
         self._ref_audio_dir = Path(_cfg.get_str("Paths", "ref_audio_dir"))
         self._tts_speed = _cfg.get_float("TTSSettings", "tts_speed", fallback=1.1)
         self._tts_wave_steps = _cfg.get_int(
@@ -76,63 +75,8 @@ class OmniVoiceBackend(TTSBackend):
         except Exception as e:
             log.warning(f"Warmup failed (non-critical): {e}")
 
-    def _read_clean_lines(self, txt_path: Path) -> List[str]:
-        if not txt_path.exists():
-            return []
-        with open(txt_path, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        return [re.sub(r"\"", "", line).strip() for line in lines if line.strip()]
-
     def _load_voice_library(self) -> Dict:
-        library = {}
-        if not self._ref_audio_dir.exists():
-            log.warning(f"Reference Audio dir not found: {self._ref_audio_dir}")
-            return library
-
-        for folder in self._ref_audio_dir.iterdir():
-            if not folder.is_dir():
-                continue
-
-            category = folder.name.lower()
-            library[category] = []
-
-            flac_lines = self._read_clean_lines(folder / f"{category}.txt")
-            wav_lines = self._read_clean_lines(folder / f"{category}_wav.txt")
-
-            def add_voices(pattern, fallback_lines):
-                files = sorted(list(folder.glob(pattern)), key=lambda x: x.name)
-                for i, fpath in enumerate(files):
-                    transcript = None
-                    sidecar_path = fpath.with_suffix(".txt")
-                    if sidecar_path.exists():
-                        try:
-                            raw_text = sidecar_path.read_text(encoding="utf-8").strip()
-                            clean_text = re.sub(r"[\"\n]", " ", raw_text).strip()
-                            if len(clean_text) > 1:
-                                transcript = clean_text
-                        except Exception:
-                            pass
-
-                    if not transcript and fallback_lines:
-                        if i < len(fallback_lines):
-                            transcript = fallback_lines[i]
-                        else:
-                            transcript = fallback_lines[0]
-
-                    if transcript:
-                        library[category].append(
-                            {
-                                "id": len(library[category]),
-                                "text": transcript,
-                                "audio": str(fpath),
-                                "type": fpath.suffix.lower().replace(".", ""),
-                            }
-                        )
-
-            add_voices("*.flac", flac_lines)
-            add_voices("*.wav", wav_lines)
-
-        return library
+        return load_voice_library(self._ref_audio_dir)
 
     def pick_voice(self, gender: str, race: str) -> Tuple[str, str]:
         g_clean = (gender or "").lower().strip()
@@ -155,7 +99,7 @@ class OmniVoiceBackend(TTSBackend):
 
     def pick_narrator_voice(self) -> Tuple[str, str]:
         """
-        Returns the dedicated narrator voice (narrator_3.flac).
+        Returns the dedicated narrator voice (quest_narrator.flac).
 
         Used for unquoted narration lines in voice-mix mode.
         Falls back to any available narrator voice, or "default" if none exist.
@@ -165,7 +109,7 @@ class OmniVoiceBackend(TTSBackend):
         tuple[str, str]
             (voice_id, category) for the narrator voice.
         """
-        return self._pick_named_narrator("narrator_3.flac")
+        return self._pick_named_narrator("quest_narrator.flac")
 
     def pick_default_voice(self) -> Tuple[str, str]:
         """

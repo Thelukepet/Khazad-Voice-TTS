@@ -1,6 +1,6 @@
 # Imports
 
-# > Standard library
+# > Standard Library
 import csv
 import difflib
 import os
@@ -9,9 +9,8 @@ import sqlite3
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Tuple
 
+# > Local Dependencies
 from .config.ConfigManager import ConfigManager
-
-# > Local dependencies
 from .utils import setup_logger
 
 log = setup_logger(__name__)

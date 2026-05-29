@@ -14,9 +14,18 @@ from PIL import Image, ImageOps
 # > Local Dependencies
 from .config.ConfigManager import ConfigManager
 
-_cfg = ConfigManager()
-pytesseract.pytesseract.tesseract_cmd = _cfg.tesseract_cmd
-nltk.download("punkt", quiet=True)
+_ocr_initialized = False
+
+
+def _ensure_initialized():
+    """Lazy one-time setup for OCR: configure Tesseract path and download NLTK data."""
+    global _ocr_initialized
+    if _ocr_initialized:
+        return
+    _cfg = ConfigManager()
+    pytesseract.pytesseract.tesseract_cmd = _cfg.tesseract_cmd
+    nltk.download("punkt", quiet=True)
+    _ocr_initialized = True
 
 
 def preprocess_image(img_pil: Image.Image) -> np.ndarray:
@@ -82,11 +91,14 @@ def clean_ocr_errors(sentences: List[str]) -> List[str]:
     """
     Fixes common OCR misinterpretations specific to the LOTRO font.
     e.g., '|' -> 'I', 'Iam' -> 'I am'.
+
+    Also strips RGB markup tags from the game client (e.g.
+    ``<rgb=#FF00FF00>...</rgb>``) so they aren't read aloud.
     """
     replacements = {
         "|": "I",
-        "‘": "'",
-        "’": "'",
+        "\u2018": "'",
+        "\u2019": "'",
         "'T": "'I",
         "1": "I",
         "'Ihe": "The",
@@ -97,6 +109,9 @@ def clean_ocr_errors(sentences: List[str]) -> List[str]:
     }
     cleaned = []
     for s in sentences:
+        # Strip RGB markup tags from the game client
+        s = re.sub(r"<rgb=[^>]*>", "", s)
+        s = re.sub(r"</rgb>", "", s)
         for old, new in replacements.items():
             s = s.replace(old, new)
         s = re.sub(r"'lam\b", "I am", s, flags=re.IGNORECASE)
@@ -111,6 +126,7 @@ def run_ocr(img_pil: Image.Image) -> List[str]:
     """
     Runs OCR on the Quest Body.
     """
+    _ensure_initialized()
     thresh = preprocess_image(img_pil)
 
     # PSM 6 = Assume a single uniform block of text
@@ -140,6 +156,7 @@ def run_title_ocr(img_pil: Image.Image) -> str:
     """
     Runs OCR on the Quest Title.
     """
+    _ensure_initialized()
     thresh = preprocess_title_image(img_pil)
     raw = pytesseract.image_to_string(thresh, config="--psm 7")
     return raw.strip().replace("\n", " ")
@@ -150,6 +167,7 @@ def run_name_ocr(img_pil: Image.Image) -> str:
     Runs OCR on an NPC Name tag.
     Uses PSM 7 (Treat the image as a single text line).
     """
+    _ensure_initialized()
     thresh = preprocess_title_image(img_pil)
     raw = pytesseract.image_to_string(thresh, config="--psm 7")
     clean = raw.strip().replace("\n", " ").replace("|", "I").replace("1", "I")

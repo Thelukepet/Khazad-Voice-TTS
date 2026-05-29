@@ -6,7 +6,7 @@ import threading
 import time
 from threading import Event
 
-# > Third Party Imports
+# > Third-party Libraries
 from pynput import keyboard, mouse
 
 # > Local Dependencies
