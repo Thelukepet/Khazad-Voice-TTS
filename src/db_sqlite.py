@@ -2,12 +2,13 @@
 
 # > Standard Library
 import csv
-import difflib
 import os
 import re
 import sqlite3
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Tuple
+
+from rapidfuzz import fuzz, process
 
 # > Local Dependencies
 from .config.ConfigManager import ConfigManager
@@ -178,17 +179,12 @@ class NPCDatabaseSQLite:
         cursor = self.conn.execute("SELECT quest_id, title, title_lower FROM quests")
         self._quest_by_title: Dict[str, tuple] = {}
         self._quest_by_norm: Dict[str, tuple] = {}  # normalized title → result
-        self._word_index: Dict[str, List[str]] = {}  # word → [title_lower, ...]
         for quest_id, title, title_lower in cursor.fetchall():
             entry = (quest_id, title)
             self._quest_by_title[title_lower] = entry
             norm = _normalize(title_lower)
             if norm != title_lower:
                 self._quest_by_norm[norm] = entry
-            # Build word index (skip short common words)
-            for word in norm.split():
-                if len(word) >= 3:
-                    self._word_index.setdefault(word, []).append(title_lower)
 
         # quest_id → list of (text_type, npc_name, text_content, order_index)
         cursor = self.conn.execute(
@@ -367,13 +363,12 @@ class NPCDatabaseSQLite:
         if row:
             return row[0], row[1], row[2]
 
-        # 2. Fuzzy match using difflib (similarity > 60%)
-        close_matches = difflib.get_close_matches(
-            name.lower().strip(), self.all_names, n=1, cutoff=0.6
+        match = process.extractOne(
+            name.lower().strip(), self.all_names, scorer=fuzz.ratio, score_cutoff=60.0
         )
 
-        if close_matches:
-            best_match = close_matches[0]
+        if match:
+            best_match = match[0]
             cursor = self.conn.execute(
                 "SELECT gender, race, name FROM npcs WHERE name_lower = ?",
                 (best_match,),
@@ -526,15 +521,7 @@ class NPCDatabaseSQLite:
         return cls._MULTI_SPACE.sub(" ", cls._NON_ALPHA.sub("", title)).strip()
 
     def _resolve_quest_id(self, ocr_title: str):
-        """Find a quest by OCR title. Returns (quest_id, canonical_title) or (None, None).
-
-        Three-layer lookup, fastest first:
-        1. Exact dict hit (O(1))
-        2. Normalised dict hit — strips OCR punctuation noise (O(1))
-        3. Word-overlap fuzzy — only runs SequenceMatcher against titles
-           that share ≥2 significant words with the input (typically 5-20
-           candidates instead of 14 000+).
-        """
+        """Find a quest by OCR title. Returns (quest_id, canonical_title) or (None, None)."""
         if not ocr_title:
             return None, None
 
@@ -548,43 +535,26 @@ class NPCDatabaseSQLite:
         norm = self._normalize(raw)
         if norm in self._quest_by_norm:
             return self._quest_by_norm[norm]
+
         # Also try normalised as a plain key (handles case where DB title
         # has no punctuation but OCR added some)
         if norm in self._quest_by_title:
             return self._quest_by_title[norm]
 
-        # Layer 3: word-overlap pre-filter → fuzzy match on small candidate set
-        words = [w for w in norm.split() if len(w) >= 3]
-        if not words:
-            return None, None
+        # Layer 3: RapidFuzz across all normalized titles
+        # We drop the old word-overlap pre-filter because RapidFuzz is fast enough
+        # to check all quests instantly, and it handles split/mutated words perfectly.
+        match = process.extractOne(
+            norm, self._quest_by_norm.keys(), scorer=fuzz.ratio, score_cutoff=60.0
+        )
 
-        # Count how many index words each DB title shares with the input
-        title_hits: Dict[str, int] = {}
-        for word in words:
-            for tl in self._word_index.get(word, []):
-                title_hits[tl] = title_hits.get(tl, 0) + 1
-
-        # Only consider titles sharing ≥2 words (or ≥1 if input is very short)
-        min_overlap = 2 if len(words) >= 3 else 1
-        candidates = [tl for tl, cnt in title_hits.items() if cnt >= min_overlap]
-
-        if not candidates:
-            return None, None
-
-        best_score = 0.0
-        best_tl = None
-        for tl in candidates:
-            score = difflib.SequenceMatcher(None, norm, self._normalize(tl)).ratio()
-            if score > best_score:
-                best_score = score
-                best_tl = tl
-
-        if best_score >= 0.6 and best_tl:
-            result = self._quest_by_title.get(best_tl)
+        if match:
+            best_norm_tl, score, _ = match
+            result = self._quest_by_norm.get(best_norm_tl)
             if result:
                 log.info(
                     f"Quest title match: '{ocr_title}' -> '{result[1]}' "
-                    f"(score={best_score:.1%}, {len(candidates)} candidates)"
+                    f"(score={score:.1f}%)"
                 )
                 return result
 
@@ -629,7 +599,7 @@ class NPCDatabaseSQLite:
         best_idx = -1
 
         for i, cmp in enumerate(cmp_texts):
-            score = difflib.SequenceMatcher(None, ocr_clean, cmp).ratio()
+            score = fuzz.ratio(ocr_clean, cmp) / 100.0
             if score > best_score:
                 best_score = score
                 best_idx = i

@@ -695,40 +695,33 @@ def _extract_retail_auto(
 ) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
     Core auto-detection logic for retail quest window extraction.
-
-    Uses template matching to find the quest window at any screen position,
-    then applies layout offsets to extract the title and body text areas.
-
-    Called by both auto mode and static mode (when templates are available)
-    to avoid code duplication and ensure consistent behavior.
-
-    Parameters
-    ----------
-    img_gray : np.ndarray
-        Full screenshot in grayscale.
-    full_img_np : np.ndarray
-        Full screenshot in BGR format.
-    tmpls : dict
-        Template images dict from load_user_templates().
-    offsets : dict
-        Layout offsets dict from load_user_config().
-    h_img, w_img : int
-        Screen dimensions.
-
-    Returns
-    -------
-    Tuple[Image, Image] or Tuple[None, None]
-        (Title Image, Body Image) or (None, None) if detection fails.
     """
-    # Match Start/End Leaves (Title Bar)
+    template_threshold = _cfg.get_float("Detection", "template_threshold", fallback=0.7)
+    debug_scores = _cfg.get_bool("LogSettings", "debug_template_scores", fallback=False)
+
+    # Match Start Leaf (Title Bar)
     res_s = cv2.matchTemplate(img_gray, tmpls["start"], cv2.TM_CCOEFF_NORMED)
     _, val_s, _, loc_s = cv2.minMaxLoc(res_s)
 
+    # --- NEW: Safety Net Fallback ---
+    if val_s < template_threshold:
+        val_s, bx, by = match_template_fallback(
+            img_gray, tmpls["start"], template_threshold
+        )
+        if val_s >= template_threshold:
+            loc_s = (bx, by)
+
+    # Match End Leaf (Title Bar)
     res_e = cv2.matchTemplate(img_gray, tmpls["end"], cv2.TM_CCOEFF_NORMED)
     _, val_e, _, loc_e = cv2.minMaxLoc(res_e)
 
-    template_threshold = _cfg.get_float("Detection", "template_threshold", fallback=0.7)
-    debug_scores = _cfg.get_bool("LogSettings", "debug_template_scores", fallback=False)
+    # --- NEW: Safety Net Fallback ---
+    if val_e < template_threshold:
+        val_e, bx, by = match_template_fallback(
+            img_gray, tmpls["end"], template_threshold
+        )
+        if val_e >= template_threshold:
+            loc_e = (bx, by)
 
     if debug_scores:
         log.debug(
