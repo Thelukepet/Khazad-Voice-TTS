@@ -320,7 +320,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 ## Future Roadmap
 
-* **Narrator & NPC Voice Splitting**: Intelligent detection to distinguish between spoken dialogue (quoted text) and descriptive text (unquoted).
+* ☑️ **Narrator & NPC Voice Splitting**: Intelligent detection to distinguish between spoken dialogue (quoted text) and descriptive text (unquoted).
 * ☑️ **Configuration UI & TTS Tester (added in V1.3)**: A user-friendly interface to adjust reading speed, audio quality and testing new Voices
 * ☑️ **Windows One-Click Installer (added in V1.4)**: A standalone `.exe` that handles Python, dependencies, and setup automatically
 * **Media Hotkeys**: Global shortcuts to stop the current audio or re-play the previous line. --> **`Currently supports F12 key to stop current TTS`**
@@ -329,7 +329,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 ---
 
 ## Credits
-
+* **Quest Database:** Built using raw game data provided by the [LOTRO Companion / lotro-data](https://github.com/LotroCompanion/lotro-data) repository.
 * **LOTROToSpeech by ils94:** Inspired by the original [LOTROToSpeech](https://github.com/ils94/LOTROToSpeech) project.
 * **Kokoro:** Powered by the [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) model.
 * **OmniVoice:** GPU backend powered by [OmniVoice](https://github.com/k2-fsa/OmniVoice) by k2-fsa: 600+ language zero-shot TTS with voice cloning.
