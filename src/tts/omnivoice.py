@@ -99,7 +99,7 @@ class OmniVoiceBackend(TTSBackend):
 
     def pick_narrator_voice(self) -> Tuple[str, str]:
         """
-        Returns the dedicated narrator voice (quest_narrator.flac).
+        Returns the dedicated narrator voice (quest_narrator.wav).
 
         Used for unquoted narration lines in voice-mix mode.
         Falls back to any available narrator voice, or "default" if none exist.
@@ -109,7 +109,7 @@ class OmniVoiceBackend(TTSBackend):
         tuple[str, str]
             (voice_id, category) for the narrator voice.
         """
-        return self._pick_named_narrator("quest_narrator.flac")
+        return self._pick_named_narrator("quest_narrator.wav")
 
     def pick_default_voice(self) -> Tuple[str, str]:
         """
