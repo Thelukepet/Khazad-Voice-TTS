@@ -703,7 +703,7 @@ def _extract_retail_auto(
     res_s = cv2.matchTemplate(img_gray, tmpls["start"], cv2.TM_CCOEFF_NORMED)
     _, val_s, _, loc_s = cv2.minMaxLoc(res_s)
 
-    # --- NEW: Safety Net Fallback ---
+    # Safety Net Fallback
     if val_s < template_threshold:
         val_s, bx, by = match_template_fallback(
             img_gray, tmpls["start"], template_threshold
@@ -715,7 +715,7 @@ def _extract_retail_auto(
     res_e = cv2.matchTemplate(img_gray, tmpls["end"], cv2.TM_CCOEFF_NORMED)
     _, val_e, _, loc_e = cv2.minMaxLoc(res_e)
 
-    # --- NEW: Safety Net Fallback ---
+    # Safety Net Fallback
     if val_e < template_threshold:
         val_e, bx, by = match_template_fallback(
             img_gray, tmpls["end"], template_threshold

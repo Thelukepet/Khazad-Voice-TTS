@@ -335,6 +335,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 * **OmniVoice:** GPU backend powered by [OmniVoice](https://github.com/k2-fsa/OmniVoice) by k2-fsa: 600+ language zero-shot TTS with voice cloning.
 * **Qwen3-TTS:** [Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) model used for creating the .flac reference audio files.
 * **XTTS-v2:** [coqui/XTTS-v2](https://huggingface.co/coqui/XTTS-v2) model used to generate the .wav reference audio files using the standard TTS speakers.
+* **Voice Reference (Dr John Hall):** "[Voice of Dr John Hall](https://commons.wikimedia.org/wiki/File:Dr_John_Hall_voice.ogg)" by VocalEyes, via Wikimedia Commons. Used under Creative Commons Attribution (CC BY) license. Modified for use as a voice cloning reference.
 
 ## Contributions
 * **Linux Port:** Thanks to [Marco Di Fresco](https://github.com/marcodifresco) for porting the application to Linux (Bash scripts and cross-platform compatibility).
