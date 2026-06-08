@@ -40,7 +40,7 @@ class TestMemoryFunctions:
 
     def test_get_memory_file_path(self):
         """Test memory file path generation."""
-        with patch("src.utils._data_dir", Path(self.test_dir)):
+        with patch("src.utils._user_data_dir", Path(self.test_dir)):
             path = get_memory_file_path(self.test_mode, self.test_backend)
 
             assert path.exists() is False  # File doesn't exist yet
@@ -48,7 +48,7 @@ class TestMemoryFunctions:
 
     def test_get_file_paths(self):
         """Test legacy file path generation."""
-        with patch("src.utils._data_dir", Path(self.test_dir)):
+        with patch("src.utils._user_data_dir", Path(self.test_dir)):
             coords_path, legacy_path = get_file_paths(self.test_mode)
 
             assert coords_path.name == "coords_retail.json"
@@ -66,7 +66,7 @@ class TestMemoryFunctions:
             }
         }
 
-        with patch("src.utils._data_dir", Path(self.test_dir)):
+        with patch("src.utils._user_data_dir", Path(self.test_dir)):
             save_npc_memory(test_memory, self.test_mode, self.test_backend)
 
             loaded_memory = load_npc_memory(self.test_mode, self.test_backend)
@@ -77,7 +77,7 @@ class TestMemoryFunctions:
 
     def test_load_empty_memory(self):
         """Test loading memory when file doesn't exist."""
-        with patch("src.utils._data_dir", Path(self.test_dir)):
+        with patch("src.utils._user_data_dir", Path(self.test_dir)):
             memory = load_npc_memory(self.test_mode, self.test_backend)
 
             assert memory == {}
@@ -86,7 +86,7 @@ class TestMemoryFunctions:
         """Test that save creates the memory file."""
         test_memory = {"test": "value"}
 
-        with patch("src.utils._data_dir", Path(self.test_dir)):
+        with patch("src.utils._user_data_dir", Path(self.test_dir)):
             save_npc_memory(test_memory, self.test_mode, self.test_backend)
 
             memory_file = get_memory_file_path(self.test_mode, self.test_backend)

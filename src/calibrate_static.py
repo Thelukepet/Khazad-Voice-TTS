@@ -11,8 +11,10 @@ import numpy as np
 from PIL import ImageGrab
 
 # Configuration
+from src.config.ConfigManager import ConfigManager
+
 BASE_DIR = Path(__file__).parent.parent  # Points to project root (not src/)
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = ConfigManager.USER_DATA_DIR
 
 # Ensure folders exist
 DATA_DIR.mkdir(parents=True, exist_ok=True)

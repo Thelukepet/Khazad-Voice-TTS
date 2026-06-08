@@ -56,6 +56,6 @@ pip install gradio openai-whisper soundfile -q
 
 echo.
 echo [INFO] Starting Configuration Suite...
-python voice_lab.py
+python main.py --voice-lab
 
 if %errorlevel% neq 0 pause

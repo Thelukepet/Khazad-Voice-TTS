@@ -1,20 +1,15 @@
 # Imports
 
 # > Standard Library
-import re
-from pathlib import Path
 from typing import Dict, Tuple, Union
 
-# > Internal
+# > Local Dependencies
 from src.config.ConfigManager import ConfigManager
-
-# --- FILE PATHS ---
-ENGINE_PATH = Path("src/engine.py")
 
 
 def get_current_settings() -> Dict[str, Union[float, int, str]]:
     """
-    Reads current settings from ConfigManager (INI) and engine.py (chunk_size).
+    Reads current settings from ConfigManager (INI).
 
     Returns
     -------
@@ -22,7 +17,7 @@ def get_current_settings() -> Dict[str, Union[float, int, str]]:
         A dictionary containing the current configuration values.
         Keys include:
         - 'volume': float
-        - 'lux_volume': float
+        - 'omnivoice_volume': float
         - 'speed': float
         - 'steps': int
         - 'threshold': float
@@ -33,30 +28,26 @@ def get_current_settings() -> Dict[str, Union[float, int, str]]:
 
     settings = {
         "volume": cfg.config.getfloat("TTSSettings", "default_volume", fallback=0.4),
-        "lux_volume": cfg.config.getfloat("TTSSettings", "lux_volume", fallback=0.4),
+        "omnivoice_volume": cfg.config.getfloat(
+            "TTSSettings", "omnivoice_volume", fallback=0.4
+        ),
         "speed": cfg.config.getfloat("TTSSettings", "tts_speed", fallback=1.1),
         "steps": cfg.config.getint("TTSSettings", "tts_wave_steps", fallback=6),
         "threshold": cfg.config.getfloat(
             "Detection", "template_threshold", fallback=0.5
         ),
         "tesseract": cfg.tesseract_cmd,
+        "chunk_size": cfg.config.getint(
+            "TTSSettings", "omnivoice_chunk_size", fallback=2
+        ),
     }
-
-    # Read src/engine.py (For Chunk Size)
-    if ENGINE_PATH.exists():
-        with open(ENGINE_PATH, "r", encoding="utf-8") as f:
-            content = f.read()
-            chunk_match = re.search(
-                r'if self\.backend_id == "lux":\s+chunk_size\s*=\s*(\d+)', content
-            )
-            settings["chunk_size"] = int(chunk_match.group(1)) if chunk_match else 2
 
     return settings
 
 
 def save_settings(
     vol: float,
-    lux_vol: float,
+    omnivoice_vol: float,
     speed: float,
     steps: int,
     thresh: float,
@@ -64,13 +55,13 @@ def save_settings(
     chunk_size: int,
 ) -> Tuple[str, float, int]:
     """
-    Writes new settings to ConfigManager (INI) and engine.py (chunk_size).
+    Writes new settings to ConfigManager (INI).
 
     Parameters
     ----------
     vol : float
         The master volume for CPU (Kokoro) TTS.
-    lux_vol : float
+    omnivoice_vol : float
         The volume for GPU (OmniVoice).
     speed : float
         The TTS speaking speed multiplier.
@@ -95,32 +86,22 @@ def save_settings(
 
     cfg = ConfigManager()
 
-    # 1. Update INI config via ConfigManager
+    # Update all settings via ConfigManager
     cfg.config.set("TTSSettings", "default_volume", str(vol))
-    cfg.config.set("TTSSettings", "lux_volume", str(lux_vol))
+    cfg.config.set("TTSSettings", "omnivoice_volume", str(omnivoice_vol))
     cfg.config.set("TTSSettings", "tts_speed", str(speed))
     cfg.config.set("TTSSettings", "tts_wave_steps", str(steps))
+    cfg.config.set("TTSSettings", "omnivoice_chunk_size", str(chunk_size))
     cfg.config.set("Detection", "template_threshold", str(thresh))
 
     # Update tesseract via the property (also saves the file)
     cfg.tesseract_cmd = tesseract
 
+    # Save config to disk
+    with open(cfg.config_path, "w") as configfile:
+        cfg.config.write(configfile)
+
     log_msgs.append("✅ Config updated (khazad_config.ini).")
-
-    # 2. Update Engine.py (Chunk Size)
-    if ENGINE_PATH.exists():
-        with open(ENGINE_PATH, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        pattern = r'(if self\.backend_id == "lux":\s+chunk_size\s*=\s*)(\d+)'
-        if re.search(pattern, content):
-            content = re.sub(pattern, f"\\g<1>{int(chunk_size)}", content)
-            with open(ENGINE_PATH, "w", encoding="utf-8") as f:
-                f.write(content)
-            log_msgs.append(f"✅ Engine.py updated (Chunk Size: {chunk_size}).")
-        else:
-            log_msgs.append(
-                "⚠️ Could not update Chunk Size in engine.py (Pattern mismatch)."
-            )
+    log_msgs.append(f"✅ Chunk Size set to {chunk_size}.")
 
     return "\n".join(log_msgs), speed, steps

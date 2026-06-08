@@ -10,9 +10,11 @@ import cv2
 import numpy as np
 from PIL import ImageGrab
 
-# --- CONFIGURATION ---
+# > Local Dependencies
+from src.config.ConfigManager import ConfigManager
+
 BASE_DIR = Path(__file__).parent.parent  # Points to project root (not src/)
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = ConfigManager.USER_DATA_DIR
 TEMPLATES_DIR = BASE_DIR / "templates"
 LAYOUT_FILE = DATA_DIR / "layout_echoes.json"
 

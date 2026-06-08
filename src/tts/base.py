@@ -34,6 +34,33 @@ class TTSBackend(ABC):
         """
         pass
 
+    def pick_narrator_voice(self) -> tuple[str, str]:
+        """
+        Returns the dedicated narrator voice for non-dialogue text
+        (narration lines in voice-mix mode).
+
+        Returns
+        -------
+        tuple[str, str]
+            (voice_id, category) for the narrator voice.
+        """
+        raise NotImplementedError
+
+    def pick_default_voice(self) -> tuple[str, str]:
+        """
+        Returns the fallback voice used when no NPC is found.
+
+        This is the voice assigned to unknown NPCs (the "Narrator"
+        default), distinct from the narrator voice used for unquoted
+        narration lines in voice-mix mode.
+
+        Returns
+        -------
+        tuple[str, str]
+            (voice_id, category) for the default voice.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def generate(self, text: str, voice_id: str) -> np.ndarray:
         """

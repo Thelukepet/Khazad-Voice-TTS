@@ -3,285 +3,191 @@
 # > Standard Library
 import argparse
 import os
-import sys
-import threading
-import time
 from pathlib import Path
-from threading import Event
 
-# Force AI models to download into the local installation folder
-_install_dir = Path(__file__).resolve().parent
-os.environ["HF_HOME"] = str(_install_dir / "models" / "huggingface")
-os.environ["TORCH_HOME"] = str(_install_dir / "models" / "torch")
-
-# > Third Party Imports
-from pynput import keyboard, mouse
+# Force AI models to download into the user data directory
+from src.config.ConfigManager import ConfigManager
 
 # > Local Dependencies
-from src.config.ConfigManager import ConfigManager
-from src.db import NPCDatabase
-from src.engine import NarratorEngine
-from src.tts import get_tts_backend
-from src.utils import capture_screen_areas, setup_logger, watch_npc_file
+from src.engine_startup import EngineStartup
 
-log = setup_logger("MAIN")
-
-# Shared events for cross-thread signalling
-capture_trigger = Event()  # Echoes mode: middle-click
-retail_capture_trigger = Event()  # Retail static mode: middle-click
+os.environ["HF_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "huggingface")
+os.environ["TORCH_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "torch")
 
 
-def on_click(x, y, button, pressed):
-    """Callback for pynput mouse listener.
+def _run_calibration(mode: str):
+    """Launch the calibration script for the given mode."""
+    if mode == "retail":
+        from src.calibrate_retail import main as calibrate_main
+    elif mode == "echoes":
+        from src.calibrate_echoes import main as calibrate_main
+    else:
+        from src.calibrate_static import main as calibrate_main
+    calibrate_main()
 
-    Fires both events so whichever mode is active can respond.
-    """
-    if pressed and button == mouse.Button.middle:
-        capture_trigger.set()
-        retail_capture_trigger.set()
+
+def _run_voice_lab():
+    """Launch the Voice Lab configuration suite."""
+    from src.voice_lab.ui import create_ui
+
+    demo = create_ui()
+    demo.launch(inbrowser=True)
 
 
-def main():
-    """
-    Main entry point for Khazad-Voice TTS.
-    """
-    cfg = ConfigManager()
-    quest_window_mode = cfg.get_str("TTSSettings", "quest_window_mode", fallback="auto")
-    npc_name_max_age = cfg.get_int("TTSSettings", "npc_name_max_age", fallback=60)
-    script_log = cfg.get_str("DefaultRetailMode", "plugin_script_log_path")
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--mode", choices=["retail", "echoes"], help="Game mode to start in"
+def _run_install_plugin():
+    """Install the getNPCNames LOTRO plugin to the user's Documents folder."""
+    import shutil
+
+    base_dir = ConfigManager._find_project_root()
+    src_plugin = base_dir / "plugins" / "Dt192"
+    if not src_plugin.exists():
+        print(f"ERROR: Plugin source not found at {src_plugin}")
+        return
+
+    # Standard LOTRO plugin directory
+    lotro_plugins = (
+        Path.home() / "Documents" / "The Lord of the Rings Online" / "plugins"
     )
-    parser.add_argument(
-        "--device", choices=["gpu", "cpu"], help="Audio engine to start in"
-    )
-    args = parser.parse_args()
+    dst_plugin = lotro_plugins / "Dt192"
 
+    if dst_plugin.exists():
+        print(f"Plugin already installed at {dst_plugin}")
+        print("Updating...")
+        shutil.rmtree(dst_plugin)
+
+    shutil.copytree(src_plugin, dst_plugin)
+    print(f"Plugin installed to {dst_plugin}")
+    print("You may need to reload plugins in-game with /plugins refresh")
+
+
+def print_header():
+    """Print the startup banner."""
     print(r"""
     ========================================
        LOTRO NARRATOR - AI VOICE OVER
     ========================================
     """)
 
+
+def get_args():
+    """Parse and return CLI arguments."""
+    parser = argparse.ArgumentParser(
+        description="Khazad Voice TTS – AI Narrator for LOTRO"
+    )
+    parser.add_argument(
+        "--mode", choices=["retail", "static", "echoes"], help="Game mode to start in"
+    )
+    parser.add_argument(
+        "--device", choices=["gpu", "cpu"], help="Audio engine to start in"
+    )
+    parser.add_argument(
+        "--calibrate",
+        choices=["retail", "echoes", "static"],
+        help="Run calibration for the given game mode",
+    )
+    parser.add_argument(
+        "--voice-lab",
+        action="store_true",
+        help="Launch the Voice Lab configuration suite",
+    )
+    parser.add_argument(
+        "--voice-mix",
+        action="store_true",
+        help="[Experimental] Use separate voices for NPC dialogue (quoted) and narrator text",
+    )
+    parser.add_argument(
+        "--install-retail-plugin",
+        action="store_true",
+        help="Install the getNPCNames LOTRO plugin",
+    )
+    return parser.parse_args()
+
+
+def _select_device() -> str:
+    """Prompt the user to choose a TTS backend."""
+    print("\n[SELECT AUDIO ENGINE]")
+    print("1. CPU (Kokoro) [Default]")
+    print("   -> Fast, Reliable. Works on all PCs.")
+    print("2. GPU (OmniVoice)")
+    print("   -> Higher Quality. REQUIRES NVIDIA GPU.")
+    device_input = input("\nEnter choice (1 or 2): ").strip()
+    return "gpu" if device_input == "2" else "cpu"
+
+
+def get_device_arg(args: argparse.Namespace) -> str:
+    """Return the TTS backend choice from *args* or prompt the user."""
     if args.device:
-        device_choice = args.device
-    else:
-        # 1. Select TTS Backend
-        print("\n[SELECT AUDIO ENGINE]")
-        print("1. CPU (Kokoro) [Default]")
-        print("   -> Fast, Reliable. Works on all PCs.")
-        print("2. GPU (OmniVoice)")
-        print("   -> Higher Quality. REQUIRES NVIDIA GPU.")
+        return args.device
+    return _select_device()
 
-        device_input = input("\nEnter choice (1 or 2): ").strip()
-        device_choice = "gpu" if device_input == "2" else "cpu"
 
-    # 2. Initialize Heavy Components
-    try:
-        db = NPCDatabase()
-        tts = get_tts_backend(device_choice=device_choice)
-    except Exception as e:
-        log.error(f"Initialization Failed: {e}")
-        input("Press Enter to exit...")
-        sys.exit(1)
+def _interactive_menu():
+    """Show an interactive menu when launched with no arguments."""
+    print("What would you like to do?\n")
+    print("  1. Start Retail Mode (Auto-detect quest window)")
+    print("  2. Start Echoes of Angmar Mode")
+    print("  3. Start Static Mode (Fixed quest window)")
+    print("  4. Calibrate Retail")
+    print("  5. Calibrate Echoes of Angmar")
+    print("  6. Calibrate Static Mode")
+    print("  7. Voice Lab & Configuration")
+    print("  8. Install LOTRO Plugin")
+    print("  9. Start Retail Mode + Voice Mix (Experimental)")
+    print(" 10. Start Echoes Mode + Voice Mix (Experimental)")
+    print(" 11. Start Static Mode + Voice Mix (Experimental)")
+    print()
 
-    # 3. Determine Mode
+    choice = input("Enter choice (1-11): ").strip()
+
+    match choice:
+        case "1":
+            EngineStartup("retail", _select_device())
+        case "2":
+            EngineStartup("echoes", _select_device())
+        case "3":
+            EngineStartup("static", _select_device())
+        case "4":
+            _run_calibration("retail")
+        case "5":
+            _run_calibration("echoes")
+        case "6":
+            _run_calibration("static")
+        case "7":
+            _run_voice_lab()
+        case "8":
+            _run_install_plugin()
+        case "9":
+            EngineStartup("retail", _select_device(), voice_mix=True)
+        case "10":
+            EngineStartup("echoes", _select_device(), voice_mix=True)
+        case "11":
+            EngineStartup("static", _select_device(), voice_mix=True)
+        case _:
+            print(f"Invalid choice: {choice}")
+
+
+def main():
+    """Main entry point for Khazad-Voice TTS."""
+    print_header()
+
+    args = get_args()
+
+    if args.calibrate:
+        _run_calibration(args.calibrate)
+        return
+
+    if args.voice_lab:
+        _run_voice_lab()
+        return
+
+    if args.install_retail_plugin:
+        _run_install_plugin()
+        return
+
     if args.mode:
-        current_mode = args.mode
+        EngineStartup(args.mode, get_device_arg(args), voice_mix=args.voice_mix)
     else:
-        print("\n[SELECT GAME MODE]")
-        print("1. Retail / Live")
-        print("2. Echoes of Angmar")
-        choice = input("\nEnter choice (1 or 2): ").strip()
-        current_mode = "retail" if choice == "1" else "echoes"
-
-    engine = NarratorEngine(db, tts, mode=current_mode)
-
-    # --- KEYBOARD LISTENER (F12 STOP) ---
-    def on_key_release(key):
-        if key == keyboard.Key.f12:
-            engine.stop()
-
-    kb_listener = keyboard.Listener(on_release=on_key_release)
-    kb_listener.start()
-    # -----------------------------------
-
-    # 4. Start Logic
-    if current_mode == "retail":
-        print("\n[RETAIL MODE STARTED]")
-        print(f"Window Mode: {quest_window_mode.upper()}")
-
-        if quest_window_mode == "auto":
-            # ----- AUTO MODE: Template matching + Log watcher trigger -----
-            # Quest window is found via template matching at any screen position.
-            # TTS triggers automatically when the log watcher detects a new NPC
-            # in Script.log (requires getNPCNames plugin installed in LOTRO).
-            print("Detection : Template matching (finds window anywhere)")
-            print("Trigger   : Automatic (NPC appears in Script.log)")
-            print(f"Watching  : {script_log}")
-            print()
-            print("1. Ensure 'getNPCNames' plugin is installed.")
-            print("2. Open a quest dialog with any NPC.")
-            print("3. Press F12 to STOP current playback.")
-
-            # Track last played NPC to skip stale log entries that
-            # accumulated in Script.log during a previous playback.
-            _last_played = {"name": "", "time": 0.0}
-
-            def npc_found_callback(npc_name):
-                # Skip stale duplicate: same NPC played within the last 5 seconds.
-                # The LOTRO plugin can write the same name multiple times per
-                # interaction; these pile up while we're blocked in playback.
-                now = time.time()
-                if (
-                    npc_name == _last_played["name"]
-                    and _last_played["time"] > 0
-                    and now - _last_played["time"] < 5.0
-                ):
-                    log.info(
-                        f"Skipping stale trigger for '{npc_name}' "
-                        f"(same NPC played {now - _last_played['time']:.1f}s ago)"
-                    )
-                    return
-
-                log.info(f"Auto-trigger: NPC '{npc_name}' detected")
-
-                # Retry screen capture up to 3 times to give the game
-                # time to render the quest window after the NPC click.
-                q_img = None
-                full_img = None
-                for attempt in range(3):
-                    time.sleep(0.5 + attempt * 0.5)
-                    q_img, full_img = capture_screen_areas(mode_prefix="retail")
-                    if q_img is not None:
-                        break
-                    if attempt < 2:
-                        log.info(
-                            f"Quest window not found, retrying ({attempt + 2}/3)..."
-                        )
-
-                if q_img is not None:
-                    engine.process_retail(q_img, full_img, npc_name)
-                    # process_retail blocks until playback finishes —
-                    # record timestamp so stale log entries are skipped
-                    _last_played["name"] = npc_name
-                    _last_played["time"] = time.time()
-                else:
-                    log.info(
-                        "Auto mode: Quest window not found on screen "
-                        "after retries — skipping"
-                    )
-
-            watcher_thread = threading.Thread(
-                target=watch_npc_file,
-                args=(npc_found_callback, script_log),
-                daemon=True,
-            )
-            watcher_thread.start()
-
-            try:
-                while True:
-                    time.sleep(1)
-            except KeyboardInterrupt:
-                print("Exiting...")
-
-        else:
-            # ----- STATIC MODE: Fixed coordinates + Hotkey trigger -----
-            # Quest window is assumed to be at QUEST_WINDOW_BOX coordinates.
-            # User must NOT move the quest window after calibration.
-            # Capture is triggered by the hotkey (middle mouse button).
-            # A background NPC log watcher tracks the most recent NPC name
-            # for correct voice resolution - but it does NOT trigger capture.
-            print("Detection : Static coordinates (window must not move)")
-            print("Trigger   : Manual (middle mouse button)")
-            print()
-            print("1. Press MIDDLE MOUSE to read quest text.")
-            print("2. Press F12 to STOP current playback.")
-
-            # Mouse listener for the hotkey trigger
-            listener = mouse.Listener(on_click=on_click)
-            listener.start()
-
-            # --- NPC name tracking (voice resolution only, not a trigger) ---
-            npc_tracking = {"name": "[MANUAL]", "time": 0.0}
-
-            def npc_log_callback(npc_name):
-                npc_tracking["name"] = npc_name
-                npc_tracking["time"] = time.time()
-                log.info(f"NPC tracked from log: {npc_name}")
-
-            watcher_thread = threading.Thread(
-                target=watch_npc_file,
-                args=(npc_log_callback, script_log),
-                daemon=True,
-            )
-            watcher_thread.start()
-            # ----------------------------------------
-
-            try:
-                while True:
-                    if retail_capture_trigger.is_set():
-                        retail_capture_trigger.clear()
-                        print("Manual capture triggered...")
-                        time.sleep(0.25)
-
-                        q_img, full_img = capture_screen_areas(mode_prefix="retail")
-
-                        if full_img is not None:
-                            # Resolve NPC name from the log (with staleness check)
-                            if (
-                                npc_tracking["name"] != "[MANUAL]"
-                                and time.time() - npc_tracking["time"]
-                                <= npc_name_max_age
-                            ):
-                                npc_name = npc_tracking["name"]
-                                log.info(f"Using tracked NPC: {npc_name}")
-                            else:
-                                npc_name = "[MANUAL]"
-                                if npc_tracking["time"] > 0:
-                                    log.info(
-                                        "NPC name stale (%.1fs old), "
-                                        "falling back to narrator",
-                                        time.time() - npc_tracking["time"],
-                                    )
-                            engine.process_retail(q_img, full_img, npc_name)
-
-                        print("Ready.")
-                    time.sleep(0.1)
-            except KeyboardInterrupt:
-                listener.stop()
-                print("Exiting...")
-
-    else:
-        # ----- ECHOES MODE -----
-        print("\n[ECHOES MODE STARTED]")
-        print("1. Open Quest Window.")
-        print("2. MIDDLE CLICK to narrate.")
-        print("3. Press F12 to STOP current playback.")
-
-        listener = mouse.Listener(on_click=on_click)
-        listener.start()
-
-        try:
-            while True:
-                if capture_trigger.is_set():
-                    capture_trigger.clear()
-                    print("Capturing...")
-                    time.sleep(0.25)
-
-                    q_img, n_img = capture_screen_areas(mode_prefix="echoes")
-
-                    if q_img and n_img:
-                        engine.process_capture(q_img, n_img)
-                    else:
-                        print("Capture failed. Check calibration.")
-
-                    print("Ready.")
-                time.sleep(0.1)
-        except KeyboardInterrupt:
-            listener.stop()
-            kb_listener.stop()
+        _interactive_menu()
 
 
 if __name__ == "__main__":

@@ -3,5 +3,5 @@ cd /d "%~dp0.."
 
 title CALIBRATE - RETAIL
 call venv\Scripts\activate.bat
-python src\calibrate_retail.py
+python main.py --calibrate retail
 pause

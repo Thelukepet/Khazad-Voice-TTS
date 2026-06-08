@@ -1,0 +1,15 @@
+{
+    "resolution": "2560x1440",
+    "offsets": {
+        "body_left_margin": 8,
+        "body_top_margin": 22,
+        "body_right_padding": -22,
+        "body_bottom_padding": 7
+    },
+    "npc_box": [
+        693,
+        856,
+        271,
+        24
+    ]
+}

@@ -106,7 +106,7 @@ Steps run:
 The user sees launch buttons for:
 - **Retail Mode** — `python main.py --mode retail`
 - **Echoes of Angmar** — `python main.py --mode echoes`
-- **Voice Lab** — `python voice_lab.py`
+- **Voice Lab** — `python main.py --voice-lab`
 
 Desktop `.bat` shortcuts are also created.
 

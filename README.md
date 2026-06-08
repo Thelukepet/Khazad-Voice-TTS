@@ -218,10 +218,11 @@ Use this if template matching doesn't work on your screen resolution or UI skin.
 1. Open LOTRO with a quest window visible.
 2. Run the static calibration script.
 3. Draw a single box around the quest text body area (inside the main text area).
+4. Launch using `Windows/start_static.bat` (or `./Linux/start_static.sh`).
 
-The tool will automatically update `khazad_config.ini` to use static mode with your coordinates.
+The tool will save your calibration coordinates automatically.
 
-> **To switch back to auto mode:** Edit `khazad_config.ini` and change `quest_window_mode = static` to `auto`.
+> **To switch back to auto mode:** Simply launch with `start_lotro.bat` instead of `start_static.bat`.
 
 ---
 
@@ -253,6 +254,19 @@ To launch the application, run the file corresponding to your game version.
 3. The tool captures and reads the text based on your calibration and narrates it.
 
 * **Note:** You can freely move the quest window in-game, but the NPC name box (tooltip box) should remain at the same location.
+* Press **F12** at any time to stop current playback.
+
+### 3. Static Mode (Retail Fallback)
+
+* **Windows:** `Windows/start_static.bat` (or desktop shortcut)
+* **Linux:** `./Linux/start_static.sh`
+
+**How it works:**
+1. After running the static calibration, launch using the static mode shortcut.
+2. Click the **Middle Mouse Button** to capture and narrate the quest text.
+3. The tool reads from the fixed screen coordinates you defined during calibration.
+
+* **Note:** The quest window must NOT be moved after calibration.
 * Press **F12** at any time to stop current playback.
 
 ---
@@ -292,7 +306,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 **Q: How do I reset the NPC Voice Memory?**
 
-* To wipe the saved voice associations for NPCs (resetting who sounds like what), delete the `npc_memory_retail.json` file from the `data/` folder.
+* To wipe the saved voice associations for NPCs (resetting who sounds like what), delete the `npc_memory_retail.json` file from your user data folder (`~/.khazad-voice-tts/` on Linux, or `%USERPROFILE%\.khazad-voice-tts\` on Windows).
 
 **Q: Can I add my own custom voice references?**
 
@@ -306,7 +320,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 ## Future Roadmap
 
-* **Narrator & NPC Voice Splitting**: Intelligent detection to distinguish between spoken dialogue (quoted text) and descriptive text (unquoted).
+* ☑️ **Narrator & NPC Voice Splitting**: Intelligent detection to distinguish between spoken dialogue (quoted text) and descriptive text (unquoted).
 * ☑️ **Configuration UI & TTS Tester (added in V1.3)**: A user-friendly interface to adjust reading speed, audio quality and testing new Voices
 * ☑️ **Windows One-Click Installer (added in V1.4)**: A standalone `.exe` that handles Python, dependencies, and setup automatically
 * **Media Hotkeys**: Global shortcuts to stop the current audio or re-play the previous line. --> **`Currently supports F12 key to stop current TTS`**
@@ -315,12 +329,13 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 ---
 
 ## Credits
-
+* **Quest Database:** Built using raw game data provided by the [LOTRO Companion / lotro-data](https://github.com/LotroCompanion/lotro-data) repository.
 * **LOTROToSpeech by ils94:** Inspired by the original [LOTROToSpeech](https://github.com/ils94/LOTROToSpeech) project.
 * **Kokoro:** Powered by the [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) model.
 * **OmniVoice:** GPU backend powered by [OmniVoice](https://github.com/k2-fsa/OmniVoice) by k2-fsa: 600+ language zero-shot TTS with voice cloning.
 * **Qwen3-TTS:** [Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign) model used for creating the .flac reference audio files.
 * **XTTS-v2:** [coqui/XTTS-v2](https://huggingface.co/coqui/XTTS-v2) model used to generate the .wav reference audio files using the standard TTS speakers.
+* **Voice Reference (Dr John Hall):** "[Voice of Dr John Hall](https://commons.wikimedia.org/wiki/File:Dr_John_Hall_voice.ogg)" by VocalEyes, via Wikimedia Commons. Used under Creative Commons Attribution (CC BY) license. Modified for use as a voice cloning reference.
 
 ## Contributions
 * **Linux Port:** Thanks to [Marco Di Fresco](https://github.com/marcodifresco) for porting the application to Linux (Bash scripts and cross-platform compatibility).

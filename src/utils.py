@@ -17,9 +17,9 @@ from PIL import Image, ImageGrab
 # > Local Dependencies
 from .config.ConfigManager import ConfigManager
 
+# --- Module-level config (cheap local operations, fine at import time) ---
 _cfg = ConfigManager()
 
-# --- Cached config values ---
 BASE_RESOLUTION = (
     _cfg.get_int("Detection", "base_resolution_x", fallback=2560),
     _cfg.get_int("Detection", "base_resolution_y", fallback=1440),
@@ -30,9 +30,12 @@ LOG_LEVEL = _cfg.get_str("LogSettings", "log_level", fallback="INFO")
 _data_dir = Path(_cfg.get_str("Paths", "data_dir"))
 _data_dir.mkdir(parents=True, exist_ok=True)
 
-# --- CONFIGURATION FILES ---
-LAYOUT_RETAIL = _data_dir / "layout_retail.json"
-LAYOUT_ECHOES = _data_dir / "layout_echoes.json"
+_user_data_dir = ConfigManager.USER_DATA_DIR
+_user_data_dir.mkdir(parents=True, exist_ok=True)
+
+LAYOUT_RETAIL = _user_data_dir / "layout_retail.json"
+LAYOUT_ECHOES = _user_data_dir / "layout_echoes.json"
+
 
 # --- RESOLUTION DETECTION & TEMPLATE SCALING ---
 
@@ -272,8 +275,8 @@ def get_file_paths(mode: str) -> Tuple[Path, Path]:
     """
     safe_mode = mode.lower().strip()
     return (
-        _data_dir / f"coords_{safe_mode}.json",
-        _data_dir / f"npc_memory_{safe_mode}.json",
+        _user_data_dir / f"coords_{safe_mode}.json",
+        _user_data_dir / f"npc_memory_{safe_mode}.json",
     )
 
 
@@ -287,14 +290,31 @@ def get_memory_file_path(mode: str, backend: str) -> Path:
     mode : str
         Game mode ('retail' or 'echoes').
     backend : str
-        TTS backend ('lux' or 'kokoro').
+        TTS backend ('omnivoice' or 'kokoro').
 
     Returns
     -------
     Path
         The full path to the json file.
     """
-    return _data_dir / f"npc_memory_{mode.lower()}_{backend.lower()}.json"
+    return _user_data_dir / f"npc_memory_{mode.lower()}_{backend.lower()}.json"
+
+
+def _migrate_legacy_memory_files():
+    """One-time migration: rename *_lux.json memory files to *_omnivoice.json.
+
+    The project renamed the GPU backend from "Lux" to "OmniVoice". This ensures
+    existing users keep their NPC voice associations after upgrading.
+    """
+    for mode in ("retail", "echoes"):
+        legacy = _user_data_dir / f"npc_memory_{mode}_lux.json"
+        target = _user_data_dir / f"npc_memory_{mode}_omnivoice.json"
+        if legacy.exists() and not target.exists():
+            try:
+                legacy.rename(target)
+                log.info(f"Migrated memory file: {legacy.name} → {target.name}")
+            except OSError as exc:
+                log.warning(f"Could not migrate {legacy.name}: {exc}")
 
 
 def load_coords(mode: str) -> Dict:
@@ -337,7 +357,7 @@ def save_coords(coords: dict, mode: str):
         json.dump(coords, f, indent=4)
 
 
-def load_npc_memory(mode: str, backend: str = "lux") -> Dict:
+def load_npc_memory(mode: str, backend: str = "omnivoice") -> Dict:
     """
     Loads the database of previously seen NPCs for the specific engine backend.
 
@@ -346,18 +366,21 @@ def load_npc_memory(mode: str, backend: str = "lux") -> Dict:
     mode : str
         Game mode ('retail' or 'echoes').
     backend : str
-        TTS backend name ('lux' or 'kokoro').
+        TTS backend name ('omnivoice' or 'kokoro').
 
     Returns
     -------
     dict
         Memory database.
     """
+    # One-time migration: rename *_lux.json → *_omnivoice.json for existing users
+    _migrate_legacy_memory_files()
+
     memory_file = get_memory_file_path(mode, backend)
 
     # Fallback to legacy file if new backend-specific file doesn't exist yet
     # This prevents data loss for existing users updating to the new version.
-    if not memory_file.exists() and backend == "lux":
+    if not memory_file.exists() and backend == "omnivoice":
         _, legacy_path = get_file_paths(mode)
         if legacy_path.exists():
             log.info(f"Migrating legacy memory file to {memory_file}")
@@ -378,7 +401,7 @@ def load_npc_memory(mode: str, backend: str = "lux") -> Dict:
     return {}
 
 
-def save_npc_memory(memory: Dict, mode: str, backend: str = "lux"):
+def save_npc_memory(memory: Dict, mode: str, backend: str = "omnivoice"):
     """
     Saves the NPC memory database to disk, specific to the backend.
 
@@ -389,7 +412,7 @@ def save_npc_memory(memory: Dict, mode: str, backend: str = "lux"):
     mode : str
         Game mode.
     backend : str
-        TTS backend ('lux' or 'kokoro').
+        TTS backend ('omnivoice' or 'kokoro').
     """
     memory_file = get_memory_file_path(mode, backend)
     with open(memory_file, "w") as f:
@@ -672,40 +695,33 @@ def _extract_retail_auto(
 ) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
     """
     Core auto-detection logic for retail quest window extraction.
-
-    Uses template matching to find the quest window at any screen position,
-    then applies layout offsets to extract the title and body text areas.
-
-    Called by both auto mode and static mode (when templates are available)
-    to avoid code duplication and ensure consistent behavior.
-
-    Parameters
-    ----------
-    img_gray : np.ndarray
-        Full screenshot in grayscale.
-    full_img_np : np.ndarray
-        Full screenshot in BGR format.
-    tmpls : dict
-        Template images dict from load_user_templates().
-    offsets : dict
-        Layout offsets dict from load_user_config().
-    h_img, w_img : int
-        Screen dimensions.
-
-    Returns
-    -------
-    Tuple[Image, Image] or Tuple[None, None]
-        (Title Image, Body Image) or (None, None) if detection fails.
     """
-    # Match Start/End Leaves (Title Bar)
+    template_threshold = _cfg.get_float("Detection", "template_threshold", fallback=0.7)
+    debug_scores = _cfg.get_bool("LogSettings", "debug_template_scores", fallback=False)
+
+    # Match Start Leaf (Title Bar)
     res_s = cv2.matchTemplate(img_gray, tmpls["start"], cv2.TM_CCOEFF_NORMED)
     _, val_s, _, loc_s = cv2.minMaxLoc(res_s)
 
+    # Safety Net Fallback
+    if val_s < template_threshold:
+        val_s, bx, by = match_template_fallback(
+            img_gray, tmpls["start"], template_threshold
+        )
+        if val_s >= template_threshold:
+            loc_s = (bx, by)
+
+    # Match End Leaf (Title Bar)
     res_e = cv2.matchTemplate(img_gray, tmpls["end"], cv2.TM_CCOEFF_NORMED)
     _, val_e, _, loc_e = cv2.minMaxLoc(res_e)
 
-    template_threshold = _cfg.get_float("Detection", "template_threshold", fallback=0.7)
-    debug_scores = _cfg.get_bool("LogSettings", "debug_template_scores", fallback=False)
+    # Safety Net Fallback
+    if val_e < template_threshold:
+        val_e, bx, by = match_template_fallback(
+            img_gray, tmpls["end"], template_threshold
+        )
+        if val_e >= template_threshold:
+            loc_e = (bx, by)
 
     if debug_scores:
         log.debug(

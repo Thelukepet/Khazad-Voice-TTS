@@ -1,3 +1,5 @@
+*.xml
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -219,7 +221,7 @@ TODO.md
 # Generated files
 models/
 templates/
-data/npc_memory_retail_lux.json
+data/npc_memory_retail_omnivoice.json
 data/layout_retail.json
 
 # IDE
