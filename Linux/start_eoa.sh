@@ -8,6 +8,7 @@ set -e # Exit immediately if a command fails.
 
 RED='\033[0;31m'
 CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Set the terminal window title
@@ -20,15 +21,23 @@ if [ ! -d "venv" ]; then
     exit 1
 fi
 
-# --- 3. Launch Application in Echoes of Angmar Mode ---
+# --- 3. Mode Selection ---
 echo -e "${CYAN}[INFO]${NC} Starting Echoes of Angmar Mode..."
+echo ""
+echo "  1. Echoes Mode"
+echo -e "  2. Echoes Mode + Voice Mix ${YELLOW}[Experimental]${NC}"
+echo ""
+read -p "Enter choice (1 or 2): " choice
 
-# Activate the virtual environment (Removed ../ prefix)
 source venv/bin/activate
 
-# Run the main Python script with the '--mode echoes' argument
-python main.py --mode echoes
+if [ "$choice" = "2" ]; then
+    echo -e "${CYAN}[INFO]${NC} Starting Echoes Mode with Voice Mix..."
+    python main.py --mode echoes --voice-mix
+else
+    echo -e "${CYAN}[INFO]${NC} Starting Echoes Mode..."
+    python main.py --mode echoes
+fi
 
 # --- 4. Pause on Exit ---
-# This ensures the user can read any final output before the window closes.
 read -p "Press Enter to close this window..."

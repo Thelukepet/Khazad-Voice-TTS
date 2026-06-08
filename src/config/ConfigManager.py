@@ -18,27 +18,44 @@ class SingletonMeta(type):
 
 
 class ConfigManager(metaclass=SingletonMeta):
+    """Central configuration manager for Khazad Voice TTS.
+
+    Paths are split into two categories:
+
+    * ``base_dir`` – the project root (where pyproject.toml lives).
+      Holds **embedded resources** that ship with the app (templates,
+      reference audio, npc_data.csv).
+    * ``user_data_dir`` – ``~/.khazad-voice-tts/``.
+      Holds **generated data** produced at runtime (config, calibration
+      layouts, NPC memory, downloaded models, screenshots).
+    """
+
+    # --- Cross-platform user data directory ---
+    USER_DATA_DIR = Path.home() / ".khazad-voice-tts"
+
     def __init__(self):
         self.config = configparser.ConfigParser()
         self.base_dir = self._find_project_root()
-        self.config_path = self.base_dir / "khazad_config.ini"
-        self.config.read(self.config_path)
+
+        # Ensure user data directory exists
+        self.USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+        self.config_path = self.USER_DATA_DIR / "config.ini"
+        self.config = configparser.ConfigParser()
 
         self._cached_device = None
         self._cached_tesseract_cmd = None
 
-        # Load defaults into memory first
+        # Read existing user config first (if any)
+        if self.config_path.exists():
+            self.config.read(self.config_path)
+
+        # Fill in any missing keys with defaults (never overwrites)
         self._load_memory_defaults()
 
-        # Check if the file exists
-        if not self.config_path.exists():
-            # If completely new user, write the defaults to disk
-            with open(self.config_path, "w") as configfile:
-                self.config.write(configfile)
-        else:
-            # If it does exist, read it.
-            # This overwrites memory defaults with user's custom settings,
-            self.config.read(self.config_path)
+        # Persist to disk so new defaults are visible to the user
+        with open(self.config_path, "w") as configfile:
+            self.config.write(configfile)
 
     @staticmethod
     def _find_project_root() -> Path:
@@ -92,86 +109,91 @@ class ConfigManager(metaclass=SingletonMeta):
 
     def _load_memory_defaults(self):
         """
-        Generates the default configuration file if it doesn't exist.
+        Populates missing config keys with sensible defaults.
+
+        Uses ``setdefault`` so existing user values are never overwritten —
+        only keys that are absent from the INI file receive a default.
         """
 
-        # Paths
-        self.config["Paths"] = {
-            "data_dir": str(self.base_dir / "data"),
-            "samples_dir": str(self.base_dir / "data" / "screenshots"),
-            "ref_audio_dir": str(self.base_dir / "data" / "reference_audio"),
-            "templates_dir": str(self.base_dir / "templates"),
-            "npc_data_path": str(self.base_dir / "data" / "npc_data.csv"),
+        defaults: dict[str, dict[str, str]] = {
+            # Paths – embedded resources (ship with the app)
+            "Paths": {
+                "data_dir": str(self.base_dir / "data"),
+                "ref_audio_dir": str(self.base_dir / "data" / "reference_audio"),
+                "templates_dir": str(self.base_dir / "templates"),
+                "npc_data_path": str(self.base_dir / "data" / "npc_data.csv"),
+                "quests_xml_path": str(self.base_dir / "data" / "quests.xml"),
+                "quest_labels_xml_path": str(
+                    self.base_dir / "data" / "quest_dialogue.xml"
+                ),
+                # Generated data (user-specific, in home directory)
+                "user_data_dir": str(self.USER_DATA_DIR),
+                "screenshots_dir": str(self.USER_DATA_DIR / "screenshots"),
+            },
+            # Detection settings
+            "Detection": {
+                "base_resolution_x": "2560",
+                "base_resolution_y": "1440",
+                "template_threshold": "0.7",
+                "static_template_threshold": "0.7",
+            },
+            # Text box offsets
+            "TextBoxOffsets": {
+                "corner_offset_x": "5",
+                "corner_offset_y": "5",
+                "padding_icon_y": "5",
+                "padding_intersect_x": "5",
+                "min_box_dim": "50",
+            },
+            # Layout offsets for retail mode
+            "DefaultRetailMode": {
+                "plugin_script_log_path": self._detect_script_log_path(),
+                "layout_corner_offset_x": "11",
+                "layout_corner_offset_y": "10",
+                "layout_padding_intersect_x": "-10",
+                "layout_padding_icon_y": "17",
+            },
+            # Layout offsets for echoes mode
+            "DefaultRetailOffsets": {
+                "body_left_margin": "11",
+                "body_top_margin": "10",
+                "body_right_padding": "0",
+                "body_bottom_padding": "0",
+            },
+            # TTS settings
+            "TTSSettings": {
+                "sample_rate": "24000",
+                "default_volume": "0.4",
+                "omnivoice_volume": "0.5",
+                "tts_speed": "1.1",
+                "tts_wave_steps": "16",
+                "quest_window_mode": "auto",
+                "quest_window_box_x": "555",
+                "quest_window_box_y": "380",
+                "quest_window_width": "425",
+                "quest_window_height": "539",
+                "quest_trigger_mode": "manual",
+                "quest_trigger_key": "middle_mouse",
+                "npc_name_max_age": "60",
+                "omnivoice_chunk_size": "2",
+            },
+            # OCR settings
+            "OCRSettings": {
+                "tesseract_cmd": "auto",  # Default to auto-discovery
+            },
+            # LOG settings
+            "LogSettings": {
+                "log_level": "INFO",
+                "debug_template_scores": "False",
+            },
         }
 
-        # Detection settings
-        self.config["Detection"] = {
-            "base_resolution_x": "2560",
-            "base_resolution_y": "1440",
-            "template_threshold": "0.7",
-            "static_template_threshold": "0.7",
-        }
-
-        # Text box offsets ?
-        self.config["TextBoxOffsets"] = {
-            "corner_offset_x": "5",
-            "corner_offset_y": "5",
-            "padding_icon_y": "5",
-            "padding_intersect_x": "5",
-            "min_box_dim": "50",
-        }
-
-        # Layout offsets for retail mode
-        self.config["DefaultRetailMode"] = {
-            "plugin_script_log_path": self._detect_script_log_path(),
-            "layout_corner_offset_x": "11",
-            "layout_corner_offset_y": "10",
-            "layout_padding_intersect_x": "-10",
-            "layout_padding_icon_y": "17",
-        }
-
-        # Layout offsets for echoes mode
-        self.config["DefaultRetailOffsets"] = {
-            "body_left_margin": "11",
-            "body_top_margin": "10",
-            "body_right_padding": "0",
-            "body_bottom_padding": "0",
-        }
-
-        # TTS settings
-        self.config["TTSSettings"] = {
-            "sample_rate": "24000",
-            "default_volume": "0.4",
-            "lux_volume": "0.5",
-            "tts_speed": "1.1",
-            "tts_wave_steps": "16",
-            "quest_window_mode": "auto",
-            "quest_window_box_x": "555",
-            "quest_window_box_y": "380",
-            "quest_window_width": "425",
-            "quest_window_height": "539",
-            "quest_trigger_mode": "manual",
-            "quest_trigger_key": "middle_mouse",
-            "npc_name_max_age": "60",
-        }
-
-        # OCR settings
-        self.config["OCRSettings"] = {
-            "tesseract_cmd": "auto"  # Default to auto-discovery
-        }
-
-        # LOG settings
-        self.config["LogSettings"] = {
-            "log_level": "INFO",
-            "debug_template_scores": "False",
-        }
-
-        # Wiki settings
-        self.config["WikiSettings"] = {
-            "enable_wiki": "False",
-            "wiki_base_url": "https://lotro-wiki.com",
-            "missing_text_indicator": "There is currently no text in this page",
-        }
+        for section, values in defaults.items():
+            if not self.config.has_section(section):
+                self.config.add_section(section)
+            for key, value in values.items():
+                if not self.config.has_option(section, key):
+                    self.config.set(section, key, value)
 
     def get_int(self, section: str, key: str, fallback: int = 0) -> int:
         """Helper to safely grab integers from the config."""

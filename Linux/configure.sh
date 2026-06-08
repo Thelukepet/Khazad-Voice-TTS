@@ -88,7 +88,7 @@ echo ""
 echo -e "${GREEN}[INFO] Starting Configuration Suite...${NC}"
 
 # Run the python script
-python voice_lab.py
+python main.py --voice-lab
 
 # Capture exit code and pause if there was an error
 if [ $? -ne 0 ]; then

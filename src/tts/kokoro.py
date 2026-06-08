@@ -8,11 +8,9 @@ from typing import Tuple
 import numpy as np
 from kokoro import KPipeline
 
-from src.config.ConfigManager import ConfigManager
-
 # > Local Dependencies
-from src.utils import setup_logger
-
+from ..config.ConfigManager import ConfigManager
+from ..utils import setup_logger
 from .base import TTSBackend
 
 log = setup_logger(__name__)
@@ -78,7 +76,7 @@ class KokoroBackend(TTSBackend):
             _cfg = ConfigManager()
             self.samplerate = _cfg.get_int("TTSSettings", "sample_rate", fallback=24000)
             self._tts_speed = _cfg.get_float("TTSSettings", "tts_speed", fallback=1.1)
-            log.info("✅ Voice Model Ready (CPU Mode).")
+            log.info("Voice model ready (CPU mode).")
         except Exception as e:
             log.error(f"Failed to initialize Kokoro: {e}")
             raise
@@ -102,6 +100,28 @@ class KokoroBackend(TTSBackend):
             return voice, key
 
         return "am_echo", "fallback"
+
+    def pick_narrator_voice(self) -> Tuple[str, str]:
+        """
+        Returns the dedicated narrator voice for narration lines.
+
+        Returns
+        -------
+        tuple[str, str]
+            (voice_id, category) for the narrator voice.
+        """
+        return "am_echo", "narrator"
+
+    def pick_default_voice(self) -> Tuple[str, str]:
+        """
+        Returns the fallback voice for unknown NPCs.
+
+        Returns
+        -------
+        tuple[str, str]
+            (voice_id, category) for the default voice.
+        """
+        return "am_echo", "narrator"
 
     def generate(self, text: str, voice_id: str) -> np.ndarray:
         """
