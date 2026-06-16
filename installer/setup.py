@@ -343,8 +343,8 @@ class InstallerApp:
                 cursor="hand2",
                 relief=tk.FLAT,
                 bd=0,
-                ipady=6,
-                ipadx=12,
+                pady=6,
+                padx=12,
             )
 
             tk.Button(
@@ -787,8 +787,8 @@ class InstallerApp:
                     cursor="hand2",
                     relief=tk.FLAT,
                     bd=0,
-                    ipady=3,
-                    ipadx=8,
+                    pady=3,
+                    padx=8,
                 )
 
                 tk.Button(
@@ -839,8 +839,8 @@ class InstallerApp:
                 cursor="hand2",
                 relief=tk.FLAT,
                 bd=0,
-                ipady=4,
-                ipadx=6,
+                pady=4,
+                padx=6,
             )
 
             tk.Button(
