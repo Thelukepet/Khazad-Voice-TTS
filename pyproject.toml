@@ -47,6 +47,7 @@ dependencies = [
     "kokoro>=0.3.4",
     "omnivoice==0.1.4",
     "torchcodec",
+    "spacy<3.8.12"
 
     # --- Vision & OCR ---
     "opencv-python",
