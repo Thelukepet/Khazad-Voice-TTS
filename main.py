@@ -100,6 +100,11 @@ def get_args():
         action="store_true",
         help="Install the getNPCNames LOTRO plugin",
     )
+    parser.add_argument(
+        "--setup",
+        action="store_true",
+        help="Run the first-time setup wizard again",
+    )
     return parser.parse_args()
 
 
@@ -171,6 +176,13 @@ def main():
     print_header()
 
     args = get_args()
+
+    # First-run wizard (also via --setup): detects hardware, asks game
+    # version, stores preferences, then launches the narrator directly.
+    from src.wizard import maybe_run_wizard
+
+    if maybe_run_wizard():
+        return
 
     if args.calibrate:
         _run_calibration(args.calibrate)
