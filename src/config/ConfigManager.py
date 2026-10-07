@@ -176,6 +176,7 @@ class ConfigManager(metaclass=SingletonMeta):
                 "quest_trigger_key": "middle_mouse",
                 "npc_name_max_age": "60",
                 "omnivoice_chunk_size": "2",
+                "narrator_voice_file": "quest_narrator.wav",
             },
             # OCR settings
             "OCRSettings": {

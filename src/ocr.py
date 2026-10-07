@@ -124,18 +124,24 @@ def clean_ocr_errors(sentences: List[str]) -> List[str]:
 
     Also strips RGB markup tags from the game client (e.g.
     ``<rgb=#FF00FF00>...</rgb>``) so they aren't read aloud.
+
+    Word-ambiguous fixes (``1`` → ``I``, ``Ore`` → ``Orc``) are only
+    applied to whole words so real words like ``1st`` or the ore of a
+    mountain are preserved.
     """
     replacements = {
         "|": "I",
         "\u2018": "'",
         "\u2019": "'",
         "'T": "'I",
-        "1": "I",
         "'Ihe": "The",
         "'l": "I",
         "Iam": "I am",
-        "Ore": "Orc",
         "Ihank": "Thank",
+    }
+    word_replacements = {
+        "1": "I",
+        "Ore": "Orc",
     }
     cleaned = []
     for s in sentences:
@@ -144,6 +150,13 @@ def clean_ocr_errors(sentences: List[str]) -> List[str]:
         s = re.sub(r"</rgb>", "", s)
         for old, new in replacements.items():
             s = s.replace(old, new)
+        # Whole-word replacements only (preserve "1st", "Ore" the material)
+        for old, new in word_replacements.items():
+            s = re.sub(
+                rf"(?<![A-Za-z0-9]){re.escape(old)}(?![A-Za-z0-9])",
+                new,
+                s,
+            )
         s = re.sub(r"'lam\b", "I am", s, flags=re.IGNORECASE)
         s = re.sub(r"\bgoad\b", "good", s, flags=re.IGNORECASE)
         s = s.strip()

@@ -115,6 +115,22 @@ def create_ui() -> gr.Blocks:
                         )
 
                 with gr.Group():
+                    gr.Markdown("### 🎭 Narrator Voice (stable voice for non-spoken text)")
+                    gr.Markdown(
+                        "*Pick the voice that reads quest descriptions and narration. "
+                        "It stays the same for every quest, so choose one you like listening to.*"
+                    )
+                    narrator_files = lib.get_samples_for_category("narrator")
+                    current_narrator = defaults.get("narrator_voice_file", "quest_narrator.wav")
+                    narrator_dropdown = gr.Dropdown(
+                        choices=narrator_files if narrator_files else [current_narrator],
+                        value=current_narrator if current_narrator in (narrator_files or [current_narrator]) else (narrator_files[0] if narrator_files else current_narrator),
+                        label="Narrator Voice File",
+                        info="Voice used for narration (voice-mix mode) and unknown NPCs fall back to the narrator pool.",
+                        allow_custom_value=True,
+                    )
+
+                with gr.Group():
                     gr.Markdown("### Detection & OCR")
                     with gr.Row():
                         tess_input = gr.Textbox(
@@ -256,10 +272,11 @@ def create_ui() -> gr.Blocks:
                 # --- EVENTS & LOGIC ---
 
                 # 1. Save Configuration
-                def save_wrapper(vol, omnivoice_vol, spd, stp, tess, chk_idx, thresh):
+                def save_wrapper(vol, omnivoice_vol, spd, stp, tess, chk_idx, thresh, narrator_file):
                     real_chunk = 2 if chk_idx == 0 else 1
                     msg, new_speed, new_steps = cfg.save_settings(
-                        vol, omnivoice_vol, spd, stp, thresh, tess, real_chunk
+                        vol, omnivoice_vol, spd, stp, thresh, tess, real_chunk,
+                        narrator_voice_file=(narrator_file or "").strip(),
                     )
                     return (
                         msg + "\n\n🚀 Configuration Saved! Switch tabs to test.",
@@ -277,6 +294,7 @@ def create_ui() -> gr.Blocks:
                         tess_input,
                         chunk_radio,
                         thresh_slider,
+                        narrator_dropdown,
                     ],
                     outputs=[save_output, lab_speed, lab_steps],
                 )

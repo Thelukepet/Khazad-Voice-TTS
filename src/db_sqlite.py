@@ -604,11 +604,18 @@ class NPCDatabaseSQLite:
                 best_score = score
                 best_idx = i
 
-        if best_score < 0.4 or best_idx < 0:
-            log.info(
-                f"Quest DB: no segment matched '{canonical_title}' "
-                f"(best={best_score:.1%})"
-            )
+        if best_score < 0.5 or best_idx < 0:
+            if best_score >= 0.4:
+                # Near-miss: worth seeing in logs to tune the threshold
+                log.info(
+                    f"Quest DB: near-miss for '{canonical_title}' "
+                    f"(best={best_score:.1%}, below 0.5 floor)"
+                )
+            else:
+                log.info(
+                    f"Quest DB: no segment matched '{canonical_title}' "
+                    f"(best={best_score:.1%})"
+                )
             return None
 
         text_type, npc_name, db_text = segments[best_idx]
