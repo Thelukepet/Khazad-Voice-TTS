@@ -186,11 +186,14 @@ class NarratorEngine:
         """
         log.info(f"Detecting Quest Window for: {npc_name}...")
 
+        # Returns True when playback was produced, False when the quest
+        # window could not be extracted (caller must NOT treat that as
+        # a played NPC - see engine_startup trigger logic).
         # 1. Extraction
         title_pil, body_pil = extract_quest_areas(full_screen_np)
         if not body_pil:
             log.info("NPC in log, but valid Quest Window not found.")
-            return
+            return False
 
         # 2. OCR Title + Body (always)
         quest_title = None
@@ -243,6 +246,7 @@ class NarratorEngine:
         # 5. Playback
         voice_selection = self._resolve_voice(db_npc or npc_name)
         self._start_streaming(quest_text, voice_selection)
+        return True
 
     def _resolve_voice(self, npc_name: str) -> VoiceSelection:
         """

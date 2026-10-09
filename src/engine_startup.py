@@ -122,20 +122,30 @@ class EngineStartup:
 
             # Retry screen capture up to 3 times to give the game
             # time to render the quest window after the NPC click.
-            q_img = None
-            full_img = None
+            # NOTE: capture_screen_areas(mode_prefix="retail") always
+            # returns the full screenshot; window detection happens
+            # inside process_retail via extract_quest_areas. So the
+            # retry loop must re-run the whole extraction each attempt,
+            # and only a SUCCESSFUL playback may stamp _last_played —
+            # stamping on failure made the stale-skip eat the real
+            # follow-up triggers for that NPC (phantom "played 0.0s ago").
+            played = False
             for attempt in range(3):
                 time.sleep(0.5 + attempt * 0.5)
-                q_img, full_img = capture_screen_areas(mode_prefix="retail")
-                if q_img is not None:
+                _, full_img = capture_screen_areas(mode_prefix="retail")
+                if full_img is None:
+                    if attempt < 2:
+                        log.info(f"Screen grab failed, retrying ({attempt + 2}/3)...")
+                    continue
+                if self.engine.process_retail(None, full_img, npc_name):
+                    played = True
                     break
                 if attempt < 2:
                     log.info(f"Quest window not found, retrying ({attempt + 2}/3)...")
 
-            if q_img is not None:
-                self.engine.process_retail(q_img, full_img, npc_name)
-                # process_retail blocks until playback finishes —
-                # record timestamp so stale log entries are skipped
+            if played:
+                # process_retail blocked until playback finished —
+                # only now is the timestamp valid for stale-skip
                 _last_played["name"] = npc_name
                 _last_played["time"] = time.time()
             else:
@@ -143,6 +153,12 @@ class EngineStartup:
                     "Auto mode: Quest window not found on screen "
                     "after retries — skipping"
                 )
+                # Do NOT stamp _last_played on failure: the next log
+                # entry for this NPC is a legitimate new trigger.
+                # Instead, clear the name so a quick re-trigger is not
+                # compared against the previous NPC's timestamp.
+                _last_played["name"] = ""
+                _last_played["time"] = 0.0
 
         watcher_thread = threading.Thread(
             target=watch_npc_file,
