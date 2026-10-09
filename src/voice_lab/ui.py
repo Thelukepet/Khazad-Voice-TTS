@@ -18,6 +18,8 @@ SAMPLE_SCRIPTS = [
     "I cannot believe this, Strider. Can it be true that Saruman commanded these Uruks to attack the folk of Swanfleet? Why would the Wizard wish to do harm to the folk of Mossward? He has ever been a watchful protector of Middle-earth!",
     "'I was walking on the Greenfields, looking for flowers, when I saw a squat, little man off in the distance. He was carrying a spear, and believe me when I tell you that he was a goblin!",
     "I did not dare to speak openly of the reason for Master Elrond's request in my letter, for fear that the message might be intercepted. I apologize for drawing you here with so little information.",
+    "As the symbol glows, power courses through you. Authority.",
+    "As you look down, you see a glimmering blade hidden behind the barman's hairy hand. It is shining menacingly.",
 ]
 SAMPLE_NAMES = [f"Sample {i + 1}" for i in range(len(SAMPLE_SCRIPTS))]
 SCRIPT_MAP = dict(zip(SAMPLE_NAMES, SAMPLE_SCRIPTS))
