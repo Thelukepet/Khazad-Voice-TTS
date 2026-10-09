@@ -1,0 +1,3 @@
+# Manual NPC corrections/additions — overrides all other lookups.
+# Format: Name,Gender,Race   (race: Dwarf|Elf|Hobbit|Man)
+Foreman Otur,Male,Dwarf

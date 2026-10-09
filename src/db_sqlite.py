@@ -152,6 +152,11 @@ class NPCDatabaseSQLite:
         cursor = self.conn.execute("SELECT name_lower FROM npcs")
         self.all_names = sorted(set(row[0] for row in cursor.fetchall()))
 
+        # Manual NPC additions / corrections (highest-priority lookups)
+        self._csv_path = db_path
+        self._manual_npcs = {}
+        self._load_manual_additions()
+
         # Fill quest tables if empty
         cursor = self.conn.execute("SELECT COUNT(*) FROM quests")
         quest_count = cursor.fetchone()[0]
@@ -334,6 +339,38 @@ class NPCDatabaseSQLite:
             )
         log.info(f"Imported {len(rows)} NPCs from CSV")
 
+    def _load_manual_additions(self) -> None:
+        """Load manually-corrected NPCs from data/npc_manual.csv.
+
+        These override any fuzzy/failing lookups: NPCs missing from the
+        LOTRO Companion dataset (e.g. starter-instance characters) or
+        with wrong race data can be corrected here. Format:
+
+            Name,Gender,Race
+
+        Race must be one of: dwarf, elf, hobbit, man.
+        """
+        import csv
+        from pathlib import Path
+
+        manual_path = Path(getattr(self, "_csv_path", "")).parent / "npc_manual.csv"
+        if not manual_path.exists():
+            return
+        count = 0
+        with open(manual_path, newline="", encoding="utf-8") as f:
+            for row in csv.reader(f):
+                if not row or row[0].strip().startswith("#"):
+                    continue
+                if len(row) < 3:
+                    continue
+                nm, gender, race = row[0].strip(), row[1].strip(), row[2].strip()
+                nm_lower = nm.lower()
+                self._manual_npcs[nm_lower] = (gender.capitalize(), race.capitalize())
+                count += 1
+        # Also register in the in-memory name list so fuzzy finds them
+        if count:
+            log.info(f"Loaded {count} manual NPC additions from npc_manual.csv")
+
     def lookup(self, name: str) -> Tuple[Optional[str], Optional[str], str]:
         """
         Find an NPC by name using exact then fuzzy matching.
@@ -353,6 +390,12 @@ class NPCDatabaseSQLite:
         if not name:
             return None, None, name
 
+        # 0. Manual additions (highest priority)
+        manual = getattr(self, "_manual_npcs", {}).get(name.lower().strip())
+        if manual:
+            gender, race = manual
+            return gender, race, name.strip()
+
         # 1. Exact match
         cursor = self.conn.execute(
             "SELECT gender, race, name FROM npcs WHERE name_lower = ?",
@@ -363,19 +406,45 @@ class NPCDatabaseSQLite:
         if row:
             return row[0], row[1], row[2]
 
-        match = process.extractOne(
-            name.lower().strip(), self.all_names, scorer=fuzz.ratio, score_cutoff=60.0
-        )
+        query = name.lower().strip()
 
-        if match:
-            best_match = match[0]
+        # Token-aware fuzzy matching. Plain fuzz.ratio lets a shared title
+        # word ("Foreman Otur" -> "Foreman Rosethorn", 75.9) override the
+        # actually-identifying tokens. Score = 0.5*ratio + 0.5*token_set_ratio,
+        # and the candidate's surname token must fuzzily match the query's
+        # surname token when both have one.
+        query_tokens = query.split()
+        query_surname = query_tokens[-1] if len(query_tokens) > 1 else None
+
+        candidates = process.extract(
+            query,
+            self.all_names,
+            scorer=fuzz.ratio,
+            score_cutoff=60.0,
+            limit=20,
+        )
+        best = None
+        for cand_name, cand_score, _ in candidates:
+            cand_tokens = cand_name.split()
+            cand_surname = cand_tokens[-1] if len(cand_tokens) > 1 else None
+            if query_surname and cand_surname:
+                surname_score = fuzz.ratio(query_surname, cand_surname)
+                if surname_score < 70.0:
+                    # Surnames don't correspond - different NPC
+                    continue
+            combined = 0.5 * cand_score + 0.5 * fuzz.token_set_ratio(query, cand_name)
+            if best is None or combined > best[1]:
+                best = (cand_name, combined)
+
+        if best:
+            best_match = best[0]
             cursor = self.conn.execute(
                 "SELECT gender, race, name FROM npcs WHERE name_lower = ?",
                 (best_match,),
             )
             row = cursor.fetchone()
             if row:
-                log.info(f"Fuzzy match: '{name}' -> '{row[2]}'")
+                log.info(f"Fuzzy match: '{name}' -> '{row[2]}' ({best[1]:.0f})")
                 return row[0], row[1], row[2]
 
         return None, None, name
