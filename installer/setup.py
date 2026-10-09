@@ -26,9 +26,13 @@ from typing import Optional
 
 APP_NAME = "Khazad Voice TTS"
 GITHUB_ZIP_URL = (
-    "http://6ea8055e7786a883687d352faa1b1cb090d4dcde@192.168.2.41:3000/luthryth/Khazad-Voice-TTS-dev/archive/refs/heads/develop.zip"
+    "http://192.168.2.41:3000/luthryth/Khazad-Voice-TTS-dev/archive/refs/heads/develop.zip"
 )
-# NOTE: URL embeds a private Gitea token - this build is personal-only, do not distribute.
+# Private Gitea repo: auth via token header, NOT URL userinfo
+# (urllib only honours username:password@ userinfo; a bare token@ is dropped
+# and triggers a bogus getaddrinfo failure). Token embeds a private key -
+# this build is personal-only, do not distribute.
+GITEA_TOKEN = "6ea8055e7786a883687d352faa1b1cb090d4dcde"
 
 OMNIVOICE_PIP = "omnivoice==0.1.4"
 UV_BINARY_URL = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
@@ -1000,7 +1004,11 @@ class InstallerApp:
         """Download a file with logging."""
         self._log(f"Downloading {label or url}...")
         try:
-            urllib.request.urlretrieve(url, dest)
+            req = urllib.request.Request(url)
+            if "192.168.2.41" in url:
+                req.add_header("Authorization", f"token {GITEA_TOKEN}")
+            with urllib.request.urlopen(req, timeout=300) as resp, open(dest, "wb") as f:
+                shutil.copyfileobj(resp, f)
         except Exception as e:
             raise RuntimeError(f"Download failed ({url}): {e}")
 
