@@ -26,8 +26,10 @@ from typing import Optional
 
 APP_NAME = "Khazad Voice TTS"
 GITHUB_ZIP_URL = (
-    "https://github.com/Thelukepet/Khazad-Voice-TTS/archive/refs/heads/main.zip"
+    "http://6ea8055e7786a883687d352faa1b1cb090d4dcde@192.168.2.41:3000/luthryth/Khazad-Voice-TTS-dev/archive/refs/heads/develop.zip"
 )
+# NOTE: URL embeds a private Gitea token - this build is personal-only, do not distribute.
+
 OMNIVOICE_PIP = "omnivoice==0.1.4"
 UV_BINARY_URL = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
 DEFAULT_INSTALL_DIR = r"C:\Khazad-Voice-TTS"
