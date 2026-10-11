@@ -52,26 +52,35 @@ def preprocess_image(img_pil: Image.Image) -> np.ndarray:
 _TITLE_THRESH = 100
 
 
-def preprocess_title_image(img_pil: Image.Image) -> np.ndarray:
+def preprocess_title_image(
+    img_pil: Image.Image, thresh: int = _TITLE_THRESH, channel: int = 1
+) -> np.ndarray:
     """
     Preprocessing that completely ignores the blue title background.
-    Extracts the Green color channel, which captures Cyan, Green, White,
-    and Gold text perfectly while rendering the blue background pitch black.
+
+    Extracts a single colour channel, which captures the title text while
+    rendering the dark blue window background pitch black. The default
+    Green channel captures cyan, green, white and gold text; quest titles
+    render in level-dependent colours (red = above level, blue = below),
+    so callers can request the Red or Blue channel for those.
+
+    Parameters
+    ----------
+    img_pil : Image.Image
+        Title bar crop.
+    thresh : int
+        Green-channel cutoff for text (see ``_TITLE_THRESH``).
+    channel : int
+        0 = Red, 1 = Green (default), 2 = Blue.
     """
     img_np = np.array(img_pil)
 
     # 1. Isolate the text from the blue background
     if len(img_np.shape) == 3 and img_np.shape[2] == 3:
-        img_bgr = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
-
-        # Split into Blue, Green, and Red channels
-        b, g, r = cv2.split(img_bgr)
-
-        # The Green channel is the magic bullet here.
-        # Cyan text = High Green + High Blue
-        # Blue background = Low Green + High Blue
-        # By using ONLY the Green channel, the background vanishes!
-        gray = g
+        # The window background is dark blue: low green and low red.
+        # Picking a single channel makes the background vanish while
+        # keeping text of the matching hue bright.
+        gray = img_np[:, :, channel]
     else:
         gray = np.array(img_pil.convert("L"))
 
@@ -89,8 +98,8 @@ def preprocess_title_image(img_pil: Image.Image) -> np.ndarray:
     # then produced giant black blobs that made Tesseract return nothing.
     # THRESH_BINARY gives white text on black; inverting yields the
     # black-on-white image Tesseract needs.
-    _, thresh = cv2.threshold(blurred, _TITLE_THRESH, 255, cv2.THRESH_BINARY)
-    return cv2.bitwise_not(thresh)
+    _, binary = cv2.threshold(blurred, thresh, 255, cv2.THRESH_BINARY)
+    return cv2.bitwise_not(binary)
 
 
 def remove_leading_artifacts(text: str) -> str:
@@ -200,6 +209,44 @@ def run_title_ocr(img_pil: Image.Image) -> str:
     thresh = preprocess_title_image(img_pil)
     raw = pytesseract.image_to_string(thresh, config="--psm 7")
     return raw.strip().replace("\n", " ")
+
+
+# > Channel/threshold passes for title OCR. Quest titles render in
+# level-dependent colours: white/gold on-level, grey/green/blue below,
+# red above. Each colour is bright in exactly one channel against the
+# dark blue window background, so one pass per colour family is tried
+# and the database match picks the plausible reading - wrong-channel
+# passes produce garbage that does not resolve.
+_TITLE_PASSES = ((1, 80), (1, 100), (0, 80), (2, 160))
+
+
+def run_title_ocr_candidates(img_pil: Image.Image) -> list:
+    """
+    Runs title OCR across channel/threshold passes for every title colour.
+
+    The quest title bar is translucent and the text colour depends on the
+    quest level relative to the player. The caller resolves each
+    candidate against the quest database and keeps the best match - no
+    single pass wins on all colours and scenes (measured across the eval
+    screenshots and synthetic red/blue titles).
+
+    Returns
+    -------
+    list[str]
+        Unique, non-empty OCR results.
+    """
+    _ensure_initialized()
+    seen = []
+    for channel, tv in _TITLE_PASSES:
+        thresh = preprocess_title_image(img_pil, thresh=tv, channel=channel)
+        raw = (
+            pytesseract.image_to_string(thresh, config="--psm 7")
+            .strip()
+            .replace("\n", " ")
+        )
+        if raw and raw not in seen:
+            seen.append(raw)
+    return seen
 
 
 def run_name_ocr(img_pil: Image.Image) -> str:

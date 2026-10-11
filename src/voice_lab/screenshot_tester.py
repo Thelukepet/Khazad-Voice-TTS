@@ -78,7 +78,7 @@ def run_test(img_rgb: np.ndarray, mode: str = "retail") -> Dict[str, Any]:
 
 def _run_retail(img_bgr: np.ndarray, result: Dict[str, Any]) -> None:
     """Retail pipeline: extract -> title OCR -> body OCR -> DB match."""
-    from src.ocr import run_ocr, run_title_ocr
+    from src.ocr import run_ocr, run_title_ocr_candidates
     from src.utils import extract_quest_areas
 
     title_pil, body_pil = extract_quest_areas(img_bgr)
@@ -93,11 +93,11 @@ def _run_retail(img_bgr: np.ndarray, result: Dict[str, Any]) -> None:
     result["title_crop"] = title_pil
     result["body_crop"] = body_pil
 
-    title = run_title_ocr(title_pil) if title_pil is not None else ""
-    result["title_ocr"] = title
+    candidates = run_title_ocr_candidates(title_pil) if title_pil is not None else []
+    result["title_ocr"] = candidates[0] if candidates else ""
     body = " ".join(run_ocr(body_pil)) if body_pil is not None else ""
 
-    _match_against_db(title, body, result)
+    _match_against_db(candidates, body, result)
 
 
 def _run_echoes(img_bgr: np.ndarray, result: Dict[str, Any]) -> None:
@@ -135,11 +135,11 @@ def _run_echoes(img_bgr: np.ndarray, result: Dict[str, Any]) -> None:
     _match_against_db(title, body, result)
 
 
-def _match_against_db(title: str, body: str, result: Dict[str, Any]) -> None:
-    """Resolve the OCR title against the database and match the body."""
+def _match_against_db(candidates: list, body: str, result: Dict[str, Any]) -> None:
+    """Resolve the OCR title candidates against the database and match the body."""
     db = _get_db()
 
-    quest_id, canonical = db._resolve_quest_id(title)
+    quest_id, canonical = db.resolve_quest_id_best(candidates)
     result["resolved_title"] = canonical or ""
 
     if quest_id is None:

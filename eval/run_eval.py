@@ -47,7 +47,7 @@ def load_screenshot(path: Path):
 
 def run_retail(db, img_np, save_crops, debug_dir, stem):
     """Mirror the retail pipeline: extract -> title OCR -> body OCR -> match."""
-    from src.ocr import run_ocr, run_title_ocr
+    from src.ocr import run_ocr, run_title_ocr_candidates
     from src.utils import extract_quest_areas
 
     title_pil, body_pil = extract_quest_areas(img_np)
@@ -59,10 +59,15 @@ def run_retail(db, img_np, save_crops, debug_dir, stem):
         if body_pil is not None:
             body_pil.save(debug_dir / f"{stem}_body.png")
 
-    title = run_title_ocr(title_pil) if title_pil is not None else ""
+    candidates = run_title_ocr_candidates(title_pil) if title_pil is not None else []
     body_sentences = run_ocr(body_pil) if body_pil is not None else []
     body = " ".join(body_sentences)
-    return {"status": "OK", "title_ocr": title, "body_ocr": body}
+    return {
+        "status": "OK",
+        "title_ocr": candidates[0] if candidates else "",
+        "title_candidates": candidates,
+        "body_ocr": body,
+    }
 
 
 def run_echoes(db, img_np, save_crops, debug_dir, stem):
@@ -218,7 +223,9 @@ def main():
             continue
 
         # Resolve the OCR title against the database (same call the engine makes)
-        quest_id, canonical = db._resolve_quest_id(r["title_ocr"])
+        quest_id, canonical = db.resolve_quest_id_best(
+            r.get("title_candidates") or [r["title_ocr"]]
+        )
         r["quest_id"] = quest_id
         r["resolved"] = canonical or ""
 

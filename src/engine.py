@@ -14,7 +14,7 @@ import nltk
 from .audio import play_audio, stop_audio
 from .config.ConfigManager import ConfigManager
 from .models import QuestText, QuestTextLine, TextSourceType, VoiceSelection
-from .ocr import run_name_ocr, run_ocr, run_title_ocr
+from .ocr import run_name_ocr, run_ocr, run_title_ocr_candidates
 from .utils import extract_quest_areas, load_npc_memory, save_npc_memory, setup_logger
 
 log = setup_logger("ENGINE")
@@ -197,11 +197,14 @@ class NarratorEngine:
             log.info("NPC in log, but valid Quest Window not found.")
             return False
 
-        # 2. OCR Title + Body (always)
+        # 2. OCR Title + Body (always). The title is read across several
+        # channel/threshold passes (quest titles are level-coloured) and
+        # the database picks the most plausible reading.
         quest_title = None
         if title_pil is not None:
-            quest_title = run_title_ocr(title_pil)
-            log.info(f"Quest Title: '{quest_title}'")
+            candidates = run_title_ocr_candidates(title_pil)
+            _, quest_title = self.db.resolve_quest_id_best(candidates)
+            log.info(f"Quest Title candidates: {candidates}")
 
         ocr_sentences = run_ocr(body_pil)
         if not ocr_sentences:

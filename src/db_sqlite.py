@@ -854,6 +854,38 @@ class NPCDatabaseSQLite:
 
         return None, None
 
+    def resolve_quest_id_best(self, candidates: List[str]):
+        """Resolve the best-matching quest from several OCR title candidates.
+
+        Different threshold passes read dim/bright title bars differently;
+        each candidate is resolved against the database and ranked by the
+        fuzzy score it achieved, so the most plausible reading wins.
+
+        Parameters
+        ----------
+        candidates : list[str]
+            OCR readings of the quest title (e.g. from
+            ``run_title_ocr_candidates``).
+
+        Returns
+        -------
+        tuple
+            (quest_id, canonical_title) or (None, None).
+        """
+        best = (None, None, -1.0)
+        for cand in candidates:
+            if not cand:
+                continue
+            quest_id, title = self._resolve_quest_id(cand)
+            if not quest_id:
+                continue
+            score = fuzz.ratio(
+                self._normalize(cand.lower()), self._normalize(title.lower())
+            )
+            if score > best[2]:
+                best = (quest_id, title, score)
+        return best[0], best[1]
+
     def match_quest_text(self, ocr_title: str, ocr_body: str) -> Optional[Dict]:
         """Fuzzy-match OCR body text against in-memory DB to find pristine text.
 
