@@ -684,6 +684,18 @@ def match_template_in_roi(
 
 # --- RETAIL EXTRACTION LOGIC ---
 
+# > Fixed geometry of the quest-window skin, measured relative to the
+# body's upper-left corner (stable across window positions and widths):
+# the title bar sits 54px above the corner, its text starts 125px right
+# of it, and the end leaf ornament sits 57px above the corner. The
+# reference corner-template height (20px) scales the offsets to other
+# resolutions.
+_CORNER_REF_HEIGHT = 20
+_CORNER_TO_TITLE_DY = 54
+_CORNER_TO_TITLE_TEXT_DX = 125
+_CORNER_TO_END_LEAF_DY = 57
+_DEFAULT_TITLE_W = 670
+
 
 def _extract_retail_auto(
     img_gray: np.ndarray,
@@ -729,21 +741,61 @@ def _extract_retail_auto(
             f"(threshold: {template_threshold})"
         )
 
+    # Fallback when the leaf ornaments are occluded (e.g. by another UI
+    # panel overlapping the title bar): the window body is usually still
+    # intact, so anchor on the body corner - the most stable template -
+    # and derive the title bar geometry from the fixed skin offsets.
+    corner_anchor = None
     if val_s <= template_threshold or val_e <= template_threshold:
-        return None, None
+        val_c, cx, cy = match_template_in_roi(
+            img_gray, tmpls["corner"], 0, 0, w_img, h_img
+        )
+        if val_c <= template_threshold:
+            return None, None
 
-    # Title Geometry
-    w_start = tmpls["start"].shape[1]
-    title_x = loc_s[0] + w_start
-    title_y = loc_s[1]
-    title_w = loc_e[0] - title_x
-    title_h = tmpls["start"].shape[0]
+        scale = tmpls["corner"].shape[0] / _CORNER_REF_HEIGHT
+        title_h = tmpls["start"].shape[0]
+        title_y = int(cy - _CORNER_TO_TITLE_DY * scale)
+        title_x = int(cx + _CORNER_TO_TITLE_TEXT_DX * scale)
+
+        # Right edge: re-search the end leaf in a horizontal band at its
+        # expected height; a relaxed threshold tolerates partial occlusion
+        band_y = int(cy - _CORNER_TO_END_LEAF_DY * scale)
+        val_e2, ex, _ = match_template_in_roi(
+            img_gray,
+            tmpls["end"],
+            cx + int(150 * scale),
+            band_y - 12,
+            int(750 * scale),
+            24 + tmpls["end"].shape[0],
+        )
+        title_w = (
+            ex - title_x if val_e2 >= 0.5 else int(_DEFAULT_TITLE_W * scale)
+        )
+        if title_w <= 50:
+            return None, None
+        log.info(
+            "Quest window: title leaves occluded - geometry derived from corner anchor"
+        )
+        corner_anchor = (val_c, cx, cy)
+
+    else:
+        # Title Geometry
+        w_start = tmpls["start"].shape[1]
+        title_x = loc_s[0] + w_start
+        title_y = loc_s[1]
+        title_w = loc_e[0] - title_x
+        title_h = tmpls["start"].shape[0]
+
     title_bot = title_y + title_h
 
     # Match Corner (Body Top-Left) — search strictly below title
-    val_c, cx, cy = match_template_in_roi(
-        img_gray, tmpls["corner"], 0, title_bot, w_img, h_img - title_bot
-    )
+    if corner_anchor is None:
+        val_c, cx, cy = match_template_in_roi(
+            img_gray, tmpls["corner"], 0, title_bot, w_img, h_img - title_bot
+        )
+    else:
+        val_c, cx, cy = corner_anchor
 
     if debug_scores:
         log.debug(
