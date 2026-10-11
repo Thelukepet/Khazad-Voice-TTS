@@ -414,4 +414,78 @@ def create_ui() -> gr.Blocks:
                     outputs=[save_status, lib_category, lib_sample],
                 )
 
+            # ==================================
+            # TAB 3: SCREENSHOT TESTER
+            # ==================================
+            with gr.Tab("🧪 Screenshot Tester"):
+                gr.Markdown(
+                    "### Check if the narrator works on your system\n"
+                    "Upload a screenshot of your game with a **quest window open**. "
+                    "The test runs the same pipeline the narrator uses and shows "
+                    "exactly what it would read."
+                )
+                with gr.Row():
+                    with gr.Column():
+                        shot_input = gr.Image(
+                            label="Screenshot (quest window open)", type="numpy"
+                        )
+                        shot_mode = gr.Dropdown(
+                            choices=["retail", "echoes"],
+                            value="retail",
+                            label="Game mode",
+                        )
+                        shot_btn = gr.Button("Run Test", variant="primary")
+                    with gr.Column():
+                        shot_verdict = gr.Markdown("")
+                        shot_title_img = gr.Image(label="Extracted title")
+                        shot_body_img = gr.Image(label="Extracted text")
+
+                def run_shot_wrapper(img, mode):
+                    if img is None:
+                        return "Please upload a screenshot first.", None, None
+                    from . import screenshot_tester
+
+                    res = screenshot_tester.run_test(img, mode or "retail")
+                    return (
+                        _format_shot_verdict(res),
+                        res["title_crop"],
+                        res["body_crop"],
+                    )
+
+                def _format_shot_verdict(res):
+                    icons = {
+                        "OK": "✅",
+                        "NO WINDOW": "❌",
+                        "TITLE NOT RECOGNIZED": "⚠️",
+                        "BODY NOT MATCHED": "⚠️",
+                        "ERROR": "❌",
+                    }
+                    icon = icons.get(res["verdict"], "❓")
+                    lines = [f"## {icon} {res['verdict']}"]
+                    if res.get("title_ocr"):
+                        lines.append(f"**Title OCR:** `{res['title_ocr']}`")
+                    if res.get("resolved_title"):
+                        lines.append(f"**Recognized quest:** {res['resolved_title']}")
+                    if res.get("body_score") is not None:
+                        lines.append(
+                            f"**Text match:** {res['body_score']:.0%} "
+                            f"({res['text_type']})"
+                        )
+                    if res.get("player_name"):
+                        lines.append(f"**Player name read:** {res['player_name']}")
+                    if res.get("narrated_text"):
+                        preview = res["narrated_text"]
+                        if len(preview) > 400:
+                            preview = preview[:400] + "..."
+                        lines.append(f"**The narrator would say:**\n\n> {preview}")
+                    if res.get("error"):
+                        lines.append(f"\n*{res['error']}*")
+                    return "\n".join(lines)
+
+                shot_btn.click(
+                    run_shot_wrapper,
+                    inputs=[shot_input, shot_mode],
+                    outputs=[shot_verdict, shot_title_img, shot_body_img],
+                )
+
     return demo
