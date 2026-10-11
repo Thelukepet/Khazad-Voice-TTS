@@ -6,7 +6,9 @@ Usage
 2. Run ``uv run python eval/run_eval.py`` once - it creates/updates
    ``ground_truth.csv`` next to the images with one row per screenshot.
 3. Fill in the ``expected_title`` column (the in-game quest title) and
-   set ``mode`` to ``retail`` or ``echoes`` where needed.
+   set ``mode`` to ``retail`` or ``echoes`` where needed. Use the
+   special value ``(none)`` for screenshots where no quest window
+   should be detected (e.g. mid-animation captures).
 4. Re-run the harness - it scores every labeled screenshot and prints
    a summary of title-resolution accuracy and body-match rate.
 
@@ -203,6 +205,13 @@ def main():
         r["mode"] = mode
         r["expected"] = expected
 
+        # "(none)" marks screenshots where no quest window should be
+        # detected (e.g. window mid fade-animation, or no window at all)
+        if expected == "(none)":
+            r["verdict"] = "CORRECT" if r["status"] == "NO WINDOW" else "UNEXPECTED WINDOW"
+            results.append(r)
+            continue
+
         if r["status"] != "OK" and not r["status"].startswith("ERROR"):
             # NO WINDOW: nothing more to compute
             results.append(r)
@@ -257,10 +266,12 @@ def main():
     if labeled:
         correct = sum(1 for r in labeled if r["verdict"] == "CORRECT")
         matched = sum(1 for r in labeled if r["verdict"] in ("CORRECT", "WRONG QUEST"))
-        body_ok = sum(1 for r in labeled if r.get("body_match") and r["body_match"] != "none")
+        windows = [r for r in labeled if r["status"] == "OK"]
+        body_ok = sum(1 for r in windows if r.get("body_match") and r["body_match"] != "none")
         print(f"Labeled: {len(labeled)}   Title correct: {correct} ({correct/len(labeled):.0%})")
         print(f"Title resolved to *a* quest: {matched}/{len(labeled)}")
-        print(f"Body segment matched: {body_ok}/{len(labeled)}")
+        if windows:
+            print(f"Body segment matched: {body_ok}/{len(windows)} (windows found)")
         unlabeled = len(results) - len(labeled)
         if unlabeled:
             print(f"Unlabeled (fill ground_truth.csv): {unlabeled}")
