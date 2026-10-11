@@ -229,3 +229,6 @@ data/layout_retail.json
 
 # Windows artifacts
 nul
+
+# Eval harness: generated debug crops
+experiments/test_screenshots/debug/
