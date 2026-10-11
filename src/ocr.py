@@ -46,6 +46,12 @@ def preprocess_image(img_pil: Image.Image) -> np.ndarray:
     return thresh
 
 
+# > Green-channel cutoff for title/name text. Gold/cyan/white text sits
+# well above this value, the blue window background well below (measured
+# across the eval screenshots: text ~150-230, background ~30-60).
+_TITLE_THRESH = 100
+
+
 def preprocess_title_image(img_pil: Image.Image) -> np.ndarray:
     """
     Preprocessing that completely ignores the blue title background.
@@ -75,25 +81,16 @@ def preprocess_title_image(img_pil: Image.Image) -> np.ndarray:
     # 3. Apply a light blur to soften jagged pixel edges from the upscaling
     blurred = cv2.GaussianBlur(upscaled, (3, 3), 0)
 
-    # 4. OTSU Thresholding (Calculates the perfect cutoff)
-    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-
-    # 5. DYNAMIC INVERSION (Tesseract needs Black text on White background)
-    top = thresh[0, :]
-    bottom = thresh[-1, :]
-    left = thresh[:, 0]
-    right = thresh[:, -1]
-
-    border_pixels = np.concatenate((top, bottom, left, right))
-    white_count = np.count_nonzero(border_pixels == 255)
-    black_count = np.count_nonzero(border_pixels == 0)
-
-    # Because we dropped the blue channel, the border will be mostly black.
-    # This inverts the image so the background becomes pure white and text becomes black.
-    if black_count > white_count:
-        thresh = cv2.bitwise_not(thresh)
-
-    return thresh
+    # 4. Fixed threshold + inversion. The green channel guarantees the
+    # setup "bright text on dark background" (blue window background has
+    # low green, gold/cyan/white text has high green), so a fixed cutoff
+    # is more robust than OTSU: on some crops OTSU splits the background
+    # itself into two classes, and the old border-based inversion guess
+    # then produced giant black blobs that made Tesseract return nothing.
+    # THRESH_BINARY gives white text on black; inverting yields the
+    # black-on-white image Tesseract needs.
+    _, thresh = cv2.threshold(blurred, _TITLE_THRESH, 255, cv2.THRESH_BINARY)
+    return cv2.bitwise_not(thresh)
 
 
 def remove_leading_artifacts(text: str) -> str:

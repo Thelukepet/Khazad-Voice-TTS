@@ -106,11 +106,26 @@ def read_ground_truth(gt_path: Path, shots: list) -> dict:
     entries = {}
     if gt_path.exists():
         with open(gt_path, newline="", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                entries[row["file"]] = {
-                    "expected_title": (row.get("expected_title") or "").strip(),
-                    "mode": (row.get("mode") or "retail").strip() or "retail",
-                }
+            reader = csv.reader(f)
+            header = next(reader, None)
+            for row in reader:
+                if not row:
+                    continue
+                # Tolerate hand-edited rows where a title containing
+                # commas was not quoted: treat everything between the
+                # first and last column as the title.
+                if len(row) > 3:
+                    row = [row[0], ",".join(row[1:-1]), row[-1]]
+                if len(row) < 3:
+                    row = row + [""] * (3 - len(row))
+                file, title, mode = row[0].strip(), row[1].strip(), row[2].strip()
+                if mode not in ("retail", "echoes"):
+                    if mode:
+                        print(
+                            f"[GT] Unknown mode '{mode}' for {file} - using retail"
+                        )
+                    mode = "retail"
+                entries[file] = {"expected_title": title, "mode": mode}
 
     missing = [s.name for s in shots if s.name not in entries]
     if missing or not gt_path.exists():

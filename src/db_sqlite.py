@@ -410,9 +410,11 @@ class NPCDatabaseSQLite:
         for quest_id, title, title_lower in cursor.fetchall():
             entry = (quest_id, title)
             self._quest_by_title[title_lower] = entry
-            norm = _normalize(title_lower)
-            if norm != title_lower:
-                self._quest_by_norm[norm] = entry
+            # Index every quest under its normalized title, not just the
+            # ones where normalization changed something: the fuzzy layer
+            # searches only this index, so punctuation-free titles must be
+            # present here too or OCR noise on them can never be corrected.
+            self._quest_by_norm[_normalize(title_lower)] = entry
 
         # quest_id → list of (text_type, npc_name, text_content, order_index)
         cursor = self.conn.execute(
