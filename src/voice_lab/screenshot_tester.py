@@ -52,6 +52,7 @@ def run_test(img_rgb: np.ndarray, mode: str = "retail") -> Dict[str, Any]:
         "text_type": "",
         "narrated_text": "",
         "player_name": "",
+        "npc_name": "",
         "title_crop": None,
         "body_crop": None,
         "error": "",
@@ -158,6 +159,7 @@ def _match_against_db(title: str, body: str, result: Dict[str, Any]) -> None:
             result["text_type"] = match["text_type"]
             result["narrated_text"] = match["text"]
             result["player_name"] = match.get("player_name", "")
+            result["npc_name"] = match.get("npc_name") or ""
         else:
             result["verdict"] = "BODY NOT MATCHED"
             result["error"] = (
