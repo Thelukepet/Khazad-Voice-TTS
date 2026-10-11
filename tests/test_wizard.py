@@ -16,7 +16,13 @@ if "torch" not in sys.modules:
     sys.modules["torch"] = torch_stub
 
 from src.config.ConfigManager import ConfigManager  # noqa: E402
-from src.wizard import _ask, _device_choice, _game_mode_choice  # noqa: E402
+from src.wizard import (  # noqa: E402
+    _ask,
+    _device_choice,
+    _game_mode_choice,
+    _identity_choice,
+    ensure_player_identity,
+)
 
 
 class TestAskHelper:
@@ -108,3 +114,90 @@ class TestWizardFlow:
         ) as rw, patch("sys.argv", ["khazad", "--setup"]):
             assert wz.maybe_run_wizard() is True
             rw.assert_called_once()
+
+
+class _FakeConfig:
+    """Minimal ConfigManager stand-in backed by a real INI file."""
+
+    def __init__(self, path):
+        import configparser
+
+        self.config = configparser.ConfigParser()
+        self.config_path = str(path)
+
+    def get_str(self, section, key, fallback=""):
+        try:
+            return self.config.get(section, key, fallback=fallback)
+        except Exception:
+            return fallback
+
+
+class TestIdentityChoice:
+    def test_prompts_and_stores(self, tmp_path):
+        cfg = _FakeConfig(tmp_path / "config.ini")
+        answers = iter(["Luke", "2", "3"])  # name, Elf, Hunter
+
+        with patch("src.wizard.ConfigManager", return_value=cfg), patch(
+            "builtins.input", side_effect=lambda _: next(answers)
+        ):
+            _identity_choice()
+
+        assert cfg.get_str("PlayerIdentity", "character_name") == "Luke"
+        assert cfg.get_str("PlayerIdentity", "character_race") == "Elf"
+        assert cfg.get_str("PlayerIdentity", "character_class") == "Hunter"
+
+    def test_existing_values_are_defaults(self, tmp_path):
+        """Re-running the wizard keeps stored values on Enter."""
+        cfg = _FakeConfig(tmp_path / "config.ini")
+        cfg.config.add_section("PlayerIdentity")
+        cfg.config.set("PlayerIdentity", "character_name", "Luke")
+        cfg.config.set("PlayerIdentity", "character_race", "Elf")
+        cfg.config.set("PlayerIdentity", "character_class", "Hunter")
+
+        with patch("src.wizard.ConfigManager", return_value=cfg), patch(
+            "builtins.input", side_effect=lambda _: ""
+        ):
+            _identity_choice()
+
+        assert cfg.get_str("PlayerIdentity", "character_name") == "Luke"
+        assert cfg.get_str("PlayerIdentity", "character_race") == "Elf"
+        assert cfg.get_str("PlayerIdentity", "character_class") == "Hunter"
+
+    def test_empty_name_reasks(self, tmp_path):
+        cfg = _FakeConfig(tmp_path / "config.ini")
+        answers = iter(["", "Luke", "1", "1"])
+
+        with patch("src.wizard.ConfigManager", return_value=cfg), patch(
+            "builtins.input", side_effect=lambda _: next(answers)
+        ):
+            _identity_choice()
+
+        assert cfg.get_str("PlayerIdentity", "character_name") == "Luke"
+
+
+class TestEnsurePlayerIdentity:
+    def test_skips_when_name_configured(self, tmp_path):
+        cfg = _FakeConfig(tmp_path / "config.ini")
+        cfg.config.add_section("PlayerIdentity")
+        cfg.config.set("PlayerIdentity", "character_name", "Luke")
+
+        with patch("src.wizard.ConfigManager", return_value=cfg), patch(
+            "src.wizard._identity_choice"
+        ) as ic:
+            ensure_player_identity()
+            ic.assert_not_called()
+
+    def test_prompts_when_name_missing(self, tmp_path):
+        cfg = _FakeConfig(tmp_path / "config.ini")
+
+        with patch("src.wizard.ConfigManager", return_value=cfg), patch(
+            "src.wizard._identity_choice"
+        ) as ic:
+            ensure_player_identity()
+            ic.assert_called_once()
+
+    def test_never_raises_on_config_error(self):
+        with patch(
+            "src.wizard.ConfigManager", side_effect=RuntimeError("boom")
+        ):
+            ensure_player_identity()  # must not raise

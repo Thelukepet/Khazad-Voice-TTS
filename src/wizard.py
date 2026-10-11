@@ -110,9 +110,107 @@ def _wizard_mode_chosen() -> str | None:
     return None
 
 
+# Character races and classes as rendered by the game for ${RACE}/${CLASS}
+_RACES = ["Man", "Elf", "Dwarf", "Hobbit"]
+_CLASSES = [
+    "Guardian",
+    "Champion",
+    "Hunter",
+    "Burglar",
+    "Captain",
+    "Minstrel",
+    "Lore-master",
+    "Rune-keeper",
+    "Warden",
+    "Beorning",
+    "Brawler",
+]
+
+
+def _identity_choice() -> None:
+    """Ask for the character's name, race and class.
+
+    These values replace the ``${PLAYER}``, ``${RACE}`` and ``${CLASS}``
+    placeholders in database quest text whenever OCR cannot read the
+    rendered values off the screen. Existing values (if any) are offered
+    as defaults, so re-running the wizard keeps them on Enter.
+    """
+    cfg = ConfigManager()
+    cur_name = cfg.get_str("PlayerIdentity", "character_name", fallback="").strip()
+    cur_race = cfg.get_str("PlayerIdentity", "character_race", fallback="").strip()
+    cur_class = cfg.get_str("PlayerIdentity", "character_class", fallback="").strip()
+
+    print()
+    print("A few questions about your character.")
+    print("These personalise the spoken quest dialogue, so NPCs can")
+    print("address you by name instead of a generic placeholder.")
+
+    # Name (required - it replaces the generic 'Traveler' fallback)
+    while True:
+        prompt = f"Character name [{cur_name}]: " if cur_name else "Character name: "
+        name = _ask(prompt, default=cur_name or None)
+        if name:
+            break
+        print("  Please enter a name - it is used to personalise dialogue.")
+
+    # Race
+    print()
+    print("What is your character's race?")
+    for i, race in enumerate(_RACES, 1):
+        print(f"  {i}. {race}")
+    race = _ask(
+        "Your choice: ",
+        choices=_RACES,
+        default=cur_race if cur_race in _RACES else "Man",
+    )
+
+    # Class
+    print()
+    print("What is your character's class?")
+    for i, cls in enumerate(_CLASSES, 1):
+        print(f"  {i}. {cls}")
+    char_class = _ask(
+        "Your choice: ",
+        choices=_CLASSES,
+        default=cur_class if cur_class in _CLASSES else "Hunter",
+    )
+
+    _store_identity(name, race, char_class)
+    print(f"  -> Got it: {name} the {race} {char_class}.")
+
+
+def _store_identity(name: str, race: str, char_class: str) -> None:
+    """Persist the character identity to the PlayerIdentity config."""
+    cfg = ConfigManager()
+    if not cfg.config.has_section("PlayerIdentity"):
+        cfg.config.add_section("PlayerIdentity")
+    cfg.config.set("PlayerIdentity", "character_name", name)
+    cfg.config.set("PlayerIdentity", "character_race", race)
+    cfg.config.set("PlayerIdentity", "character_class", char_class)
+    with open(cfg.config_path, "w") as f:
+        cfg.config.write(f)
+
+
+def ensure_player_identity() -> None:
+    """Make sure a character name is configured before the narrator runs.
+
+    Called on every entry point that starts the TTS (launcher scripts,
+    menu choices, --mode runs). Prompts only when a name has never been
+    entered; once configured, starts happen without interruption.
+    """
+    try:
+        cfg = ConfigManager()
+        name = cfg.get_str("PlayerIdentity", "character_name", fallback="").strip()
+    except Exception:
+        return  # never block the narrator over a config problem
+    if name:
+        return
+    _identity_choice()
+
+
 def run_wizard() -> None:
     """Interactive first-run setup. Detects hardware, asks game version,
-    saves preferences, then launches the narrator directly."""
+    asks character identity, saves preferences, then launches the narrator."""
     _print_header()
 
     # 1. Audio engine
@@ -121,10 +219,13 @@ def run_wizard() -> None:
     # 2. Game mode
     mode = _game_mode_choice()
 
-    # 3. Remember the mode so future launches are one-click
+    # 3. Character identity (personalises quest dialogue)
+    _identity_choice()
+
+    # 4. Remember the mode so future launches are one-click
     _store_mode_choice(mode)
 
-    # 4. Launch
+    # 5. Launch
     print()
     print("Setup complete! Starting the narrator...")
     print("(Press F12 at any time to stop the voice. To change these")

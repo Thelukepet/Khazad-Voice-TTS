@@ -60,6 +60,21 @@ def _run_install_plugin():
     print("You may need to reload plugins in-game with /plugins refresh")
 
 
+def _start_engine(mode: str, device: str, voice_mix: bool = False) -> None:
+    """Start the narrator, ensuring the character identity is known.
+
+    Every entry point that runs the TTS (launcher scripts, menu choices,
+    --mode runs) goes through here. The identity replaces the
+    ${PLAYER}/${RACE}/${CLASS} placeholders in database quest text; if
+    it has never been configured, the user is asked now - this is what
+    replaces the generic 'Traveler' fallback with the real name.
+    """
+    from src.wizard import ensure_player_identity
+
+    ensure_player_identity()
+    EngineStartup(mode, device, voice_mix=voice_mix)
+
+
 def print_header():
     """Print the startup banner."""
     print(r"""
@@ -146,11 +161,11 @@ def _interactive_menu():
 
     match choice:
         case "1":
-            EngineStartup("retail", _select_device())
+            _start_engine("retail", _select_device())
         case "2":
-            EngineStartup("echoes", _select_device())
+            _start_engine("echoes", _select_device())
         case "3":
-            EngineStartup("static", _select_device())
+            _start_engine("static", _select_device())
         case "4":
             _run_calibration("retail")
         case "5":
@@ -162,11 +177,11 @@ def _interactive_menu():
         case "8":
             _run_install_plugin()
         case "9":
-            EngineStartup("retail", _select_device(), voice_mix=True)
+            _start_engine("retail", _select_device(), voice_mix=True)
         case "10":
-            EngineStartup("echoes", _select_device(), voice_mix=True)
+            _start_engine("echoes", _select_device(), voice_mix=True)
         case "11":
-            EngineStartup("static", _select_device(), voice_mix=True)
+            _start_engine("static", _select_device(), voice_mix=True)
         case _:
             print(f"Invalid choice: {choice}")
 
@@ -197,7 +212,7 @@ def main():
         return
 
     if args.mode:
-        EngineStartup(args.mode, get_device_arg(args), voice_mix=args.voice_mix)
+        _start_engine(args.mode, get_device_arg(args), voice_mix=args.voice_mix)
     else:
         _interactive_menu()
 
