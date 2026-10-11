@@ -12,16 +12,22 @@ from pathlib import Path
 
 import pytest
 
-# Stub heavy optional deps before import
-for mod_name in ("rapidfuzz",):
-    if mod_name not in sys.modules:
-        sys.modules[mod_name] = types.ModuleType(mod_name)
+# Stub heavy optional deps before import - but never shadow the real
+# package when it is installed, otherwise later imports of src.db_sqlite
+# would receive the empty stub and fail.
+try:
+    import rapidfuzz  # noqa: F401
+except ImportError:
+    for mod_name in ("rapidfuzz",):
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = types.ModuleType(mod_name)
 
 
 class _StubDB:
     """Minimal stand-in for NPCDatabaseSQLite exposing the patched logic."""
 
     def __init__(self, names, manual=None):
+        self.names = list(names)  # original casing, for the name column
         self.all_names = sorted(n.lower() for n in names)
         self._manual_npcs = manual or {}
 
@@ -46,7 +52,23 @@ def _run_lookup_patch(db, name):
     instance = module.NPCDatabaseSQLite.__new__(module.NPCDatabaseSQLite)
     instance.all_names = db.all_names
     instance._manual_npcs = db._manual_npcs
-    instance.conn = None
+
+    # Real in-memory DB so the exact-match query (and the final row fetch
+    # after a fuzzy hit) work; lookup() queries SQL before any fuzzy logic.
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE npcs ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "name TEXT NOT NULL, name_lower TEXT NOT NULL, "
+        "gender TEXT, race TEXT, url TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO npcs (name, name_lower) VALUES (?, ?)",
+        [(n, n.lower()) for n in db.names],
+    )
+    instance.conn = conn
 
     # Bind lookup as if it were an unbound method on our stub
     lookup_fn = module.NPCDatabaseSQLite.lookup.__get__(instance)

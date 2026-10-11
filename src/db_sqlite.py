@@ -2,6 +2,7 @@
 
 # > Standard Library
 import csv
+import difflib
 import os
 import re
 import sqlite3
@@ -29,67 +30,277 @@ _COUNTER_VARS = {
     "${NAME}",
 }
 
-# > Variables that carry player identity – kept in stored text as markers
-# so they can be replaced at match time with the actual name read by OCR.
+# > Variables that carry player identity - kept in stored text as markers
+# so they can be replaced at match time with the actual values read by OCR.
 _PLAYER_VARS = {"${PLAYER}", "${PLAYER_NAME}"}
 _IDENTITY_VARS = {"${RACE}", "${CLASS}"}
+_ALL_IDENTITY_VARS = ("${PLAYER}", "${PLAYER_NAME}", "${RACE}", "${CLASS}")
+
+# > Last-resort replacements when neither OCR extraction nor the
+# configured character identity provides a value.
+_VAR_FALLBACKS = {
+    "${PLAYER}": "Traveler",
+    "${PLAYER_NAME}": "Traveler",
+    "${RACE}": "adventurer",
+    "${CLASS}": "adventurer",
+}
+
+# > Marker inside a DB token, e.g. ``${PLAYER},`` or ``friend ${CLASS}!``
+_VAR_TOKEN_RE = re.compile(r"\$\{(?:PLAYER_NAME|PLAYER|RACE|CLASS)\}")
+
+# > Alignment tuning: context words used to locate a variable in the OCR
+# text, the maximum plausible length of an extracted value, and the
+# fuzzy-score floor below which an anchor is considered not found.
+_ANCHOR_TOKENS = 3
+_MAX_VALUE_TOKENS = 4
+_ANCHOR_SCORE_CUTOFF = 60.0
+
+# > Punctuation trimmed from extracted values (straight and curly quotes)
+_VALUE_STRIP = ".,!?;:'\"\u201c\u201d\u2018\u2019"
 
 
-def _replace_player_vars(text: str, player_name: str = "Traveler") -> str:
-    """Replace player-identity placeholders in matched DB text.
+def _norm_token(token: str) -> str:
+    """Lowercase a word and strip punctuation for fuzzy comparison."""
+    return re.sub(r"[^a-z0-9]", "", token.lower())
+
+
+def _find_anchor(
+    ocr_norm: List[str], anchor: List[str], start: int, limit: Optional[int] = None
+) -> Optional[int]:
+    """Find the best fuzzy position of an anchor word sequence in OCR text.
+
+    Searches OCR token windows beginning at index ``start`` (and, when
+    ``limit`` is given, starting no later than ``limit``) and returns
+    the index of the best match, or ``None`` when no window reaches the
+    score cutoff. Early-exits on a perfect match.
+    """
+    n = len(anchor)
+    hi = len(ocr_norm) - n + 1
+    if limit is not None:
+        hi = min(hi, limit + 1)
+    if n == 0 or start >= hi:
+        return None
+    anchor_str = " ".join(anchor)
+    best_pos: Optional[int] = None
+    best_score = 0.0
+    for pos in range(start, hi):
+        score = fuzz.ratio(anchor_str, " ".join(ocr_norm[pos : pos + n]))
+        if score > best_score:
+            best_pos, best_score = pos, score
+        if score >= 100.0:
+            break
+    return best_pos if best_score >= _ANCHOR_SCORE_CUTOFF else None
+
+
+def _find_anchor_positions(
+    ocr_norm: List[str], anchor: List[str], start: int
+) -> List[Tuple[int, float]]:
+    """All positions (with score) where the anchor matches above cutoff."""
+    positions: List[Tuple[int, float]] = []
+    n = len(anchor)
+    if n == 0 or start + n > len(ocr_norm):
+        return positions
+    anchor_str = " ".join(anchor)
+    for pos in range(start, len(ocr_norm) - n + 1):
+        score = fuzz.ratio(anchor_str, " ".join(ocr_norm[pos : pos + n]))
+        if score >= _ANCHOR_SCORE_CUTOFF:
+            positions.append((pos, score))
+    return positions
+
+
+def _best_window_score(
+    ocr_norm: List[str], anchor: List[str], start: int, limit: int
+) -> float:
+    """Best fuzzy score for the anchor against windows starting in [start, limit]."""
+    n = len(anchor)
+    hi = min(len(ocr_norm) - n + 1, limit + 1)
+    if n == 0 or start >= hi:
+        return 0.0
+    anchor_str = " ".join(anchor)
+    return max(
+        fuzz.ratio(anchor_str, " ".join(ocr_norm[pos : pos + n]))
+        for pos in range(start, hi)
+    )
+
+
+def _extract_var_values(ocr_text: str, db_text: str) -> Dict[str, str]:
+    """Extract identity-variable values by aligning OCR text with DB text.
+
+    The game renders ``${PLAYER}``, ``${RACE}`` and ``${CLASS}`` on
+    screen, so the OCR text contains the actual values. For every
+    variable occurrence in the DB text, the surrounding words serve as
+    anchors to locate the corresponding span in the OCR text; fuzzy
+    anchor matching keeps this working through OCR noise.
+
+    Returns
+    -------
+    dict[str, str]
+        Maps variable names to extracted values; only variables whose
+        value could be located are included.
+    """
+    values: Dict[str, str] = {}
+    db_tokens = db_text.split()
+    ocr_raw = ocr_text.split()
+    if not db_tokens or not ocr_raw:
+        return values
+    ocr_norm = [_norm_token(t) for t in ocr_raw]
+
+    for k, db_tok in enumerate(db_tokens):
+        m = _VAR_TOKEN_RE.search(db_tok)
+        if not m:
+            continue
+        var = m.group(0)
+        if var in values:
+            continue  # first successful extraction wins
+
+        # Two variables back to back ("as a ${CLASS}, ${PLAYER}.") have no
+        # local anchor between their rendered values - skip here and let
+        # the global-alignment fallback below pair them positionally.
+        prev_is_var = k > 0 and bool(_VAR_TOKEN_RE.search(db_tokens[k - 1]))
+        next_is_var = (
+            k + 1 < len(db_tokens) and bool(_VAR_TOKEN_RE.search(db_tokens[k + 1]))
+        )
+        if prev_is_var or next_is_var:
+            continue
+
+        # Context anchors: nearest non-variable words around the marker
+        prefix: List[str] = []
+        i = k - 1
+        while i >= 0 and len(prefix) < _ANCHOR_TOKENS:
+            if _VAR_TOKEN_RE.search(db_tokens[i]):
+                break
+            prefix.insert(0, _norm_token(db_tokens[i]))
+            i -= 1
+        suffix: List[str] = []
+        i = k + 1
+        while i < len(db_tokens) and len(suffix) < _ANCHOR_TOKENS:
+            if _VAR_TOKEN_RE.search(db_tokens[i]):
+                break
+            suffix.append(_norm_token(db_tokens[i]))
+            i += 1
+
+        # Left anchor locates where the value starts. The anchor phrase
+        # may occur several times in the text (e.g. "near the lake... near
+        # the lake, ${PLAYER}!"), so every candidate is scored by how well
+        # its prefix matches AND its suffix follows within the bounded
+        # value span; the best combined score wins (ties: rightmost).
+        start = 0
+        if prefix:
+            candidates = _find_anchor_positions(ocr_norm, prefix, 0)
+            if not candidates:
+                continue  # without the left anchor the span is a guess
+            best: Optional[Tuple[float, int]] = None
+            for cand_pos, cand_score in candidates:
+                s = cand_pos + len(prefix)
+                if suffix:
+                    suffix_score = _best_window_score(
+                        ocr_norm, suffix, s, s + _MAX_VALUE_TOKENS
+                    )
+                    if suffix_score < _ANCHOR_SCORE_CUTOFF:
+                        continue
+                    combined = cand_score + suffix_score
+                else:
+                    combined = cand_score
+                if best is None or combined >= best[0]:
+                    best = (combined, cand_pos)
+            if best is None:
+                continue
+            start = best[1] + len(prefix)
+
+        # Right anchor locates where the value ends
+        if suffix:
+            pos = _find_anchor(ocr_norm, suffix, start)
+            end = (
+                pos
+                if pos is not None
+                else min(start + _MAX_VALUE_TOKENS, len(ocr_raw))
+            )
+        else:
+            end = min(start + _MAX_VALUE_TOKENS, len(ocr_raw))
+
+        # No left anchor: keep only the words directly before the right one
+        if not prefix and end - start > _MAX_VALUE_TOKENS:
+            start = end - _MAX_VALUE_TOKENS
+
+        if end <= start:
+            # The value may have merged with the following word through
+            # an ellipsis (e.g. "Luke...I" read as one token); recover it
+            # from the head of the boundary token.
+            if end == start and start < len(ocr_raw):
+                tok = ocr_raw[start]
+                if "..." in tok or "…" in tok:
+                    head = re.split(r"\.\.\.+|…", tok)[0]
+                    head = head.strip(_VALUE_STRIP)
+                    if head:
+                        values[var] = head
+            continue
+        value = " ".join(ocr_raw[start:end])
+        value = re.split(r"\.\.\.+|…", value)[0].strip(_VALUE_STRIP)
+        if not value:
+            continue
+        values[var] = value
+
+    # Fallback for variables the anchor pass could not locate, e.g. two
+    # variables back to back ("as a ${CLASS}, ${PLAYER}."): align the full
+    # token sequences and pair values positionally inside replacement
+    # blocks whose token counts match on both sides.
+    if any(v in db_text and v not in values for v in _ALL_IDENTITY_VARS):
+        db_norm = [_norm_token(t) for t in db_tokens]
+        # Only trust the global alignment when the OCR text is plausibly
+        # the same text; the caller fuzzy-matches the segment first, but
+        # keep a floor here so unrelated text cannot yield values.
+        if fuzz.ratio(" ".join(db_norm), " ".join(ocr_norm)) < 50.0:
+            return values
+        sm = difflib.SequenceMatcher(None, db_norm, ocr_norm, autojunk=False)
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag != "replace":
+                continue
+            block = db_tokens[i1:i2]
+            if not any(_VAR_TOKEN_RE.search(t) for t in block):
+                continue
+            ocr_block = ocr_raw[j1:j2]
+            if len(block) != len(ocr_block):
+                continue
+            for db_tok, ocr_tok in zip(block, ocr_block):
+                m = _VAR_TOKEN_RE.search(db_tok)
+                if not m or m.group(0) in values:
+                    continue
+                value = ocr_tok.strip(_VALUE_STRIP)
+                if value:
+                    values[m.group(0)] = value
+
+    # ${PLAYER_NAME} always carries the same value as ${PLAYER}
+    if "${PLAYER}" in values:
+        values.setdefault("${PLAYER_NAME}", values["${PLAYER}"])
+    return values
+
+
+def _replace_player_vars(
+    text: str,
+    values: Dict[str, str],
+    fallbacks: Optional[Dict[str, str]] = None,
+) -> str:
+    """Replace identity placeholders in matched DB text.
 
     Parameters
     ----------
     text : str
         DB text that may contain ``${PLAYER}``, ``${RACE}``, etc.
-    player_name : str
-        The actual player name to substitute.
+    values : dict[str, str]
+        Values extracted from the OCR text, keyed by variable name.
+    fallbacks : dict[str, str], optional
+        Configured character identity, used when OCR extraction failed.
 
     Returns
     -------
     str
-        Text with all player variables resolved.
+        Text with all identity variables resolved.
     """
-    for var in _PLAYER_VARS:
-        text = text.replace(var, player_name)
-    for var in _IDENTITY_VARS:
-        text = text.replace(var, "adventurer")
+    fallbacks = fallbacks or {}
+    for var in _ALL_IDENTITY_VARS:
+        replacement = values.get(var) or fallbacks.get(var) or _VAR_FALLBACKS[var]
+        text = text.replace(var, replacement)
     return text
-
-
-def _extract_player_name(ocr_text: str, db_text: str) -> str:
-    """Extract the player name by aligning OCR text with DB text.
-
-    Finds ``${PLAYER}`` in the DB text, locates the same position in
-    the OCR text using the surrounding context, and extracts the word(s)
-    that appear there.
-
-    Falls back to ``"Traveler"`` when extraction fails.
-    """
-    marker = "${PLAYER}"
-    if marker not in db_text:
-        return "Traveler"
-
-    idx = db_text.index(marker)
-    prefix = db_text[:idx]
-    suffix = db_text[idx + len(marker) :]
-
-    # Find prefix in OCR text (case-insensitive)
-    pi = ocr_text.lower().find(prefix.lower())
-    if pi == -1:
-        return "Traveler"
-    start = pi + len(prefix)
-
-    # Find suffix after the prefix position
-    si = ocr_text.lower().find(suffix.lower(), start)
-    if si == -1:
-        # Try just the first few chars of suffix for robustness
-        si = ocr_text.lower().find(suffix.lower()[:8], start)
-    if si == -1:
-        return "Traveler"
-
-    name = ocr_text[start:si].strip().strip(",.!?;:")
-    return name if name else "Traveler"
 
 
 def _clean_xml_text(text: str) -> str:
@@ -141,6 +352,18 @@ class NPCDatabaseSQLite:
 
         # Connect to database / init database if not exists
         self.conn = self.init_database(db_path)
+
+        # Player identity fallbacks from config, used when OCR extraction
+        # fails. Empty strings mean "not configured" and are ignored, so
+        # replacement falls through to the generic defaults.
+        _cfg = ConfigManager()
+        _name = _cfg.get_str("PlayerIdentity", "character_name").strip()
+        self._identity_fallbacks = {
+            "${PLAYER}": _name,
+            "${PLAYER_NAME}": _name,
+            "${RACE}": _cfg.get_str("PlayerIdentity", "character_race").strip(),
+            "${CLASS}": _cfg.get_str("PlayerIdentity", "character_class").strip(),
+        }
 
         # Fill NPC table if empty
         cursor = self.conn.execute("SELECT COUNT(*) FROM npcs")
@@ -689,16 +912,22 @@ class NPCDatabaseSQLite:
 
         text_type, npc_name, db_text = segments[best_idx]
 
-        # Extract player name from OCR and resolve variables
-        player_name = _extract_player_name(ocr_body, db_text)
-        clean_text = _replace_player_vars(db_text, player_name)
+        # Extract identity values (name/race/class) from OCR and
+        # resolve variables, falling back to configured character identity
+        var_values = _extract_var_values(ocr_body, db_text)
+        clean_text = _replace_player_vars(db_text, var_values, self._identity_fallbacks)
+        player_name = (
+            var_values.get("${PLAYER}")
+            or self._identity_fallbacks.get("${PLAYER}")
+            or "Traveler"
+        )
 
         is_dialogue = text_type in ("bestower", "dialog")
 
         log.info(
             f"Quest DB match: '{canonical_title}' "
             f"[{text_type}] score={best_score:.1%} "
-            f"player={player_name}"
+            f"player={player_name} vars={var_values or '-'}"
         )
 
         return {
