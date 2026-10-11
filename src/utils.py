@@ -649,6 +649,37 @@ def watch_npc_file(callback, log_path: str, ready_event=None):
 # --- TEMPLATE MATCHING UTILS ---
 
 
+def match_template_in_roi_multiscale(
+    img_gray: np.ndarray, template: np.ndarray, x: int, y: int, w: int, h: int
+) -> Tuple[float, int, int]:
+    """
+    Multi-scale variant of :func:`match_template_in_roi`.
+
+    Tries the template at several scale factors (0.85 - 1.15) and returns
+    the best match. Used as a safety net for UI-scale differences: the
+    intricate intersect/icon ornaments lose correlation quickly when
+    their rendering scale drifts from the calibrated template scale,
+    while the leaf and corner ornaments stay matchable.
+
+    Parameters are the same as :func:`match_template_in_roi`; returns
+    (max_val, match_x, match_y) of the best scale.
+    """
+    best_val, best_x, best_y = 0.0, 0, 0
+    th, tw = template.shape[:2]
+
+    for scale in [0.85, 0.90, 0.95, 1.00, 1.05, 1.10, 1.15]:
+        new_w = max(5, int(tw * scale))
+        new_h = max(5, int(th * scale))
+        interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC
+        scaled = cv2.resize(template, (new_w, new_h), interpolation=interpolation)
+        val, mx, my = match_template_in_roi(img_gray, scaled, x, y, w, h)
+        if val > best_val:
+            best_val, best_x, best_y = val, mx, my
+        if val >= 0.99:
+            break
+    return best_val, best_x, best_y
+
+
 def match_template_in_roi(
     img_gray: np.ndarray, template: np.ndarray, x: int, y: int, w: int, h: int
 ) -> Tuple[float, int, int]:
@@ -806,7 +837,10 @@ def _extract_retail_auto(
     if val_c <= template_threshold:
         return None, None
 
-    # Match Intersection (Width) & Icon (Height)
+    # Match Intersection (Width) & Icon (Height). Both get a multi-scale
+    # safety net: their ornament detail loses correlation under UI-scale
+    # drift, so a single-scale miss must not reject an otherwise valid
+    # window.
     val_int, ix, iy = match_template_in_roi(
         img_gray,
         tmpls["intersect"],
@@ -815,6 +849,15 @@ def _extract_retail_auto(
         w_img - (cx + 50),
         h_img - cy,
     )
+    if val_int <= template_threshold:
+        val_int, ix, iy = match_template_in_roi_multiscale(
+            img_gray,
+            tmpls["intersect"],
+            cx + 50,
+            cy - 20,
+            w_img - (cx + 50),
+            h_img - cy,
+        )
 
     val_i, icx, icy = match_template_in_roi(
         img_gray,
@@ -824,6 +867,15 @@ def _extract_retail_auto(
         w_img,
         h_img - (cy + 50),
     )
+    if val_i <= template_threshold:
+        val_i, icx, icy = match_template_in_roi_multiscale(
+            img_gray,
+            tmpls["icon"],
+            0,
+            cy + 50,
+            w_img,
+            h_img - (cy + 50),
+        )
 
     if debug_scores:
         log.debug(
