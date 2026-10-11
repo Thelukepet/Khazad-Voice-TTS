@@ -773,11 +773,33 @@ def _extract_retail_auto(
         )
 
     # Fallback when the leaf ornaments are occluded (e.g. by another UI
-    # panel overlapping the title bar): the window body is usually still
-    # intact, so anchor on the body corner - the most stable template -
-    # and derive the title bar geometry from the fixed skin offsets.
+    # panel overlapping the title bar) or matched only weakly at a wrong
+    # position: the window body is usually still intact, so anchor on the
+    # body corner - the most stable template - and derive the title bar
+    # geometry from the fixed skin offsets.
     corner_anchor = None
-    if val_s <= template_threshold or val_e <= template_threshold:
+
+    # Title geometry from the leaf ornaments, when both matched well
+    leaf_ok = val_s > template_threshold and val_e > template_threshold
+    if leaf_ok:
+        w_start = tmpls["start"].shape[1]
+        title_x = loc_s[0] + w_start
+        title_y = loc_s[1]
+        title_w = loc_e[0] - title_x
+        title_h = tmpls["start"].shape[0]
+        # Both leaves must flank the same title bar at a plausible width.
+        # A weak end-leaf match can land elsewhere on screen, producing
+        # a negative width (empty crop -> cvtColor crash) or a garbage
+        # crop - fall back to the corner anchor instead.
+        leaf_dy = abs(loc_s[1] - loc_e[1])
+        if title_w <= 50 or leaf_dy > 10:
+            log.info(
+                "Quest window: leaf geometry implausible "
+                f"(title_w={title_w}, leaf_dy={leaf_dy}) - trying corner anchor"
+            )
+            leaf_ok = False
+
+    if not leaf_ok:
         val_c, cx, cy = match_template_in_roi(
             img_gray, tmpls["corner"], 0, 0, w_img, h_img
         )
@@ -809,14 +831,6 @@ def _extract_retail_auto(
             "Quest window: title leaves occluded - geometry derived from corner anchor"
         )
         corner_anchor = (val_c, cx, cy)
-
-    else:
-        # Title Geometry
-        w_start = tmpls["start"].shape[1]
-        title_x = loc_s[0] + w_start
-        title_y = loc_s[1]
-        title_w = loc_e[0] - title_x
-        title_h = tmpls["start"].shape[0]
 
     title_bot = title_y + title_h
 
