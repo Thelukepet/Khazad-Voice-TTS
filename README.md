@@ -164,7 +164,21 @@ If you are using the GPU model, switch to the **TTS Tester** tab to verify your 
 
 Before running the bot for the first time, you must calibrate it to your screen resolution and UI layout. **This only needs to be done once** (unless you change your UI skin or game resolution).
 
-### Steps
+### Automatic Calibration (Recommended)
+
+The easiest way: take a screenshot of your game with a quest window open and let Khazad find the anchors itself - no box-drawing.
+
+1. Open the game and a quest window (fully visible, not covered by other panels).
+2. Take a screenshot (e.g. `Win + Print Screen` on Windows).
+3. Either:
+   - open the **Voice Lab** (`khazad --voice-lab`), go to the **Screenshot Tester** tab, upload the screenshot and press **✨ Calibrate from this screenshot**, or
+   - run the setup wizard (`khazad --setup`) and answer **y** when it offers screenshot calibration, then enter the screenshot's file path.
+
+Khazad locates the quest-window anchors on your screenshot, writes the calibration files, and reports the match quality. If it cannot find the window reliably, it tells you what was weak - retake the screenshot with the window fully visible, or fall back to the manual scripts below.
+
+> **Note:** even without any calibration, Khazad runs on a built-in default layout that suits most setups - calibrate when detection misses your quest window (e.g. a custom UI skin).
+
+### Manual Calibration (Fallback)
 
 1. Open LOTRO / Echoes of Angmar and **log in**.
 2. **Open any Quest Window** by talking to an NPC. Ensure the window is fully visible on screen.

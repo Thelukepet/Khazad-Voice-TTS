@@ -432,7 +432,8 @@ def create_ui() -> gr.Blocks:
                     "### Check if the narrator works on your system\n"
                     "Upload a screenshot of your game with a **quest window open**. "
                     "The test runs the same pipeline the narrator uses and shows "
-                    "exactly what it would read."
+                    "exactly what it would read. **Calibrate** writes the layout "
+                    "settings from the same screenshot - no manual box-drawing."
                 )
                 with gr.Row():
                     with gr.Column():
@@ -445,6 +446,9 @@ def create_ui() -> gr.Blocks:
                             label="Game mode",
                         )
                         shot_btn = gr.Button("Run Test", variant="primary")
+                        cal_btn = gr.Button(
+                            "✨ Calibrate from this screenshot", variant="secondary"
+                        )
                     with gr.Column():
                         shot_verdict = gr.Markdown("")
                         shot_title_img = gr.Image(label="Extracted title")
@@ -492,8 +496,36 @@ def create_ui() -> gr.Blocks:
                         lines.append(f"\n*{res['error']}*")
                     return "\n".join(lines)
 
+                def run_calibration(img, mode):
+                    """Auto-calibrate the layout from the uploaded screenshot."""
+                    if img is None:
+                        return "Please upload a screenshot first.", None, None
+                    import cv2
+
+                    from src.auto_calibrate import auto_calibrate
+
+                    img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                    ok, rep = auto_calibrate(img_bgr, mode or "retail")
+                    if not ok:
+                        return f"## ❌ Calibration failed\n\n{rep['message']}", None, None
+
+                    score_rows = "\n".join(
+                        f"- {key}: {a['score']:.0%}"
+                        for key, a in rep["anchors"].items()
+                    )
+                    msg = (
+                        f"## ✅ Calibration saved\n\n{rep['message']}\n\n"
+                        f"**Anchor match scores:**\n\n{score_rows}"
+                    )
+                    return msg, None, None
+
                 shot_btn.click(
                     run_shot_wrapper,
+                    inputs=[shot_input, shot_mode],
+                    outputs=[shot_verdict, shot_title_img, shot_body_img],
+                )
+                cal_btn.click(
+                    run_calibration,
                     inputs=[shot_input, shot_mode],
                     outputs=[shot_verdict, shot_title_img, shot_body_img],
                 )
