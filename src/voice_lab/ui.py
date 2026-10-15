@@ -157,7 +157,10 @@ def create_ui() -> gr.Blocks:
                         + "\n\nSettings saved. To start using the TTS, "
                         "run `start_lotro.bat` (retail) or `start_eoa.bat` "
                         "(Echoes of Angmar) from the Windows folder - or use "
-                        "the desktop shortcuts."
+                        "the desktop shortcuts. **Close this Voice Lab "
+                        "(terminal and browser tab) first** - while it is "
+                        "open, two TTS models would load and the narrator "
+                        "falls back to CPU."
                     )
 
                 gs_test_btn.click(
