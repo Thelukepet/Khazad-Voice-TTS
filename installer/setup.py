@@ -25,8 +25,12 @@ from typing import Optional
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 APP_NAME = "Khazad Voice TTS"
+# Public distribution: source comes from the public GitHub repo - no
+# token needed. To build a personal installer against the private
+# Gitea repo instead, point this at the Gitea archive URL and set
+# GITEA_TOKEN (the download helper only sends the token to Gitea).
 GITHUB_ZIP_URL = (
-    "http://192.168.2.41:3000/luthryth/Khazad-Voice-TTS-dev/archive/refs/heads/develop.zip"
+    "https://github.com/Thelukepet/Khazad-Voice-TTS/archive/refs/heads/main.zip"
 )
 # Private Gitea repo: auth via token header, NOT URL userinfo
 # (urllib only honours username:password@ userinfo; a bare token@ is dropped
@@ -773,8 +777,8 @@ class InstallerApp:
                         "①  Launch LOTRO (or Echoes of Angmar) and log in to the game.\n\n"
                         "②  Walk up to any NPC and talk to them so a quest window appears.\n\n"
                         "   Make sure the quest window is fully visible on your primary monitor.\n\n"
-                        "③  Take a screenshot, open the Voice Lab ('5' in the launcher menu),\n\n"
-                        "   go to the Screenshot Tester tab, upload the screenshot and press\n\n"
+                        "③  Take a screenshot, press the 'Voice Lab' button below, go to\n\n"
+                        "   the Screenshot Tester tab, upload the screenshot and press\n\n"
                         "   'Calibrate from this screenshot'.\n\n"
                         "   If calibration keeps failing on your UI skin, use Static Mode instead."
                     ),
