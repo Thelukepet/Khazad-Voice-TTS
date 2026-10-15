@@ -55,7 +55,129 @@ def create_ui() -> gr.Blocks:
 
         with tabs:
             # ==================================
-            # TAB 1: SYSTEM CONFIGURATION
+            # TAB 1: GUIDED SETUP
+            # ==================================
+            with gr.Tab("🧭 Guided Setup"):
+                gr.Markdown(
+                    "### Set up Khazad in three steps\n\n"
+                    "1. Test a screenshot from your game. 2. Hear the voice "
+                    "the narrator would use. 3. Save volume and speed."
+                )
+
+                gr.Markdown("## Step 1: Test a screenshot")
+                with gr.Row():
+                    with gr.Column():
+                        gs_device = gr.Dropdown(
+                            choices=["cpu", "gpu"],
+                            value="gpu" if guided_detect_gpu() else "cpu",
+                            label="Audio engine (GPU = higher quality)",
+                        )
+                        gs_shot = gr.Image(
+                            label="Screenshot (quest window open)", type="numpy"
+                        )
+                        gs_test_btn = gr.Button("Run Test", variant="primary")
+                    with gr.Column():
+                        gs_verdict = gr.Markdown("")
+                        gs_title_img = gr.Image(label="Extracted title")
+                        gs_body_img = gr.Image(label="Extracted text")
+                gs_state = gr.State(None)
+
+                gr.Markdown("## Step 2: Hear the voice")
+                gs_voice_info = gr.Markdown("*Run the test first.*")
+                gs_preview_btn = gr.Button(
+                    "Generate voice preview (loads the TTS model on first use)"
+                )
+                gs_audio = gr.Audio(label="Preview")
+
+                gr.Markdown("## Step 3: Volume & speed")
+                with gr.Row():
+                    gs_vol = gr.Slider(
+                        0.0, 1.0,
+                        value=defaults.get("volume", 0.4),
+                        label="Volume",
+                    )
+                    gs_speed = gr.Slider(
+                        0.5, 2.0,
+                        value=defaults.get("speed", 1.1),
+                        label="Speaking speed",
+                    )
+                gs_save_btn = gr.Button("Save settings", variant="primary")
+                gs_save_status = gr.Markdown("")
+
+                def gs_run_test(img, device):
+                    if img is None:
+                        return "Please upload a screenshot first.", None, None, None
+                    from . import screenshot_tester
+
+                    res = screenshot_tester.run_test(img, "retail")
+                    return (
+                        _format_shot_verdict(res),
+                        res["title_crop"],
+                        res["body_crop"],
+                        res,
+                    )
+
+                def gs_preview(state, device):
+                    if not state or not state.get("narrated_text"):
+                        return (
+                            "*Run the test first - the preview speaks the "
+                            "matched quest text.*",
+                            None,
+                        )
+                    from . import guided_setup
+
+                    try:
+                        voice = guided_setup.resolve_voice(
+                            state.get("npc_name", ""), device
+                        )
+                        rate, wav = guided_setup.generate_snippet(
+                            state["narrated_text"], device, voice["voice_id"]
+                        )
+                        who = voice["matched_name"] or "unknown"
+                        info = (
+                            f"**Quest giver:** {who} "
+                            f"({voice['gender']} {voice['race']})"
+                        )
+                        return info, (rate, wav)
+                    except Exception as e:
+                        return (f"*Preview failed: {e}*", None)
+
+                def gs_save(vol, speed):
+                    msg, _, _ = cfg.save_settings(
+                        vol,
+                        defaults.get("omnivoice_volume", 0.4),
+                        speed,
+                        defaults.get("steps", 16),
+                        defaults.get("threshold", 0.5),
+                        defaults.get("tesseract", ""),
+                        defaults.get("chunk_size", 2),
+                    )
+                    return (
+                        msg
+                        + "\n\nSettings saved. To start using the TTS, "
+                        "run `start_lotro.bat` (retail) or `start_eoa.bat` "
+                        "(Echoes of Angmar) from the Windows folder - or use "
+                        "the desktop shortcuts."
+                    )
+
+                gs_test_btn.click(
+                    gs_run_test,
+                    inputs=[gs_shot, gs_device],
+                    outputs=[gs_verdict, gs_title_img, gs_body_img, gs_state],
+                )
+                gs_preview_btn.click(
+                    gs_preview,
+                    inputs=[gs_state, gs_device],
+                    outputs=[gs_voice_info, gs_audio],
+                )
+                gs_save_btn.click(
+                    gs_save,
+                    inputs=[gs_vol, gs_speed],
+                    outputs=[gs_save_status],
+                )
+
+            # ==================================
+            # TAB 2: SYSTEM CONFIGURATION
             # ==================================
             with gr.Tab("⚙️ Configuration"):
                 gr.Markdown("### 🎛️ Engine Calibration")
@@ -165,7 +287,7 @@ def create_ui() -> gr.Blocks:
                 save_output = gr.Textbox(label="Status", interactive=False)
 
             # ==================================
-            # TAB 2: TTS TESTER
+            # TAB 3: TTS TESTER
             # ==================================
             with gr.Tab("🎙️ OmniVoice Tester & Custom Voice Adder", id="test_tab"):
                 gr.Markdown("### Test Configuration & Add New Voices (OmniVoice Only)")
@@ -425,7 +547,7 @@ def create_ui() -> gr.Blocks:
                 )
 
             # ==================================
-            # TAB 3: SCREENSHOT TESTER
+            # TAB 4: SCREENSHOT TESTER
             # ==================================
             with gr.Tab("🧪 Screenshot Tester"):
                 gr.Markdown(
@@ -537,122 +659,6 @@ def create_ui() -> gr.Blocks:
                     run_calibration,
                     inputs=[shot_input, shot_mode],
                     outputs=[shot_verdict, shot_title_img, shot_body_img],
-                )
-
-            # ==================================
-            # TAB 4: GUIDED SETUP
-            # ==================================
-            with gr.Tab("🧭 Guided Setup"):
-                gr.Markdown(
-                    "### Set up Khazad in three steps\n\n"
-                    "1. Test a screenshot from your game. 2. Hear the voice "
-                    "the narrator would use. 3. Save volume and speed."
-                )
-
-                gr.Markdown("## Step 1: Test a screenshot")
-                with gr.Row():
-                    with gr.Column():
-                        gs_device = gr.Dropdown(
-                            choices=["cpu", "gpu"],
-                            value="gpu" if guided_detect_gpu() else "cpu",
-                            label="Audio engine (GPU = higher quality)",
-                        )
-                        gs_shot = gr.Image(
-                            label="Screenshot (quest window open)", type="numpy"
-                        )
-                        gs_test_btn = gr.Button("Run Test", variant="primary")
-                    with gr.Column():
-                        gs_verdict = gr.Markdown("")
-                        gs_title_img = gr.Image(label="Extracted title")
-                        gs_body_img = gr.Image(label="Extracted text")
-                gs_state = gr.State(None)
-
-                gr.Markdown("## Step 2: Hear the voice")
-                gs_voice_info = gr.Markdown("*Run the test first.*")
-                gs_preview_btn = gr.Button(
-                    "Generate voice preview (loads the TTS model on first use)"
-                )
-                gs_audio = gr.Audio(label="Preview")
-
-                gr.Markdown("## Step 3: Volume & speed")
-                with gr.Row():
-                    gs_vol = gr.Slider(
-                        0.0, 1.0,
-                        value=defaults.get("volume", 0.4),
-                        label="Volume",
-                    )
-                    gs_speed = gr.Slider(
-                        0.5, 2.0,
-                        value=defaults.get("speed", 1.1),
-                        label="Speaking speed",
-                    )
-                gs_save_btn = gr.Button("Save settings", variant="primary")
-                gs_save_status = gr.Markdown("")
-
-                def gs_run_test(img, device):
-                    if img is None:
-                        return "Please upload a screenshot first.", None, None, None
-                    from . import screenshot_tester
-
-                    res = screenshot_tester.run_test(img, "retail")
-                    return (
-                        _format_shot_verdict(res),
-                        res["title_crop"],
-                        res["body_crop"],
-                        res,
-                    )
-
-                def gs_preview(state, device):
-                    if not state or not state.get("narrated_text"):
-                        return (
-                            "*Run the test first - the preview speaks the "
-                            "matched quest text.*",
-                            None,
-                        )
-                    from . import guided_setup
-
-                    try:
-                        voice = guided_setup.resolve_voice(
-                            state.get("npc_name", ""), device
-                        )
-                        rate, wav = guided_setup.generate_snippet(
-                            state["narrated_text"], device, voice["voice_id"]
-                        )
-                        who = voice["matched_name"] or "unknown"
-                        info = (
-                            f"**Quest giver:** {who} "
-                            f"({voice['gender']} {voice['race']})"
-                        )
-                        return info, (rate, wav)
-                    except Exception as e:
-                        return (f"*Preview failed: {e}*", None)
-
-                def gs_save(vol, speed):
-                    msg, _, _ = cfg.save_settings(
-                        vol,
-                        defaults.get("omnivoice_volume", 0.4),
-                        speed,
-                        defaults.get("steps", 16),
-                        defaults.get("threshold", 0.5),
-                        defaults.get("tesseract", ""),
-                        defaults.get("chunk_size", 2),
-                    )
-                    return msg + "\n\nSettings saved - you are ready to play!"
-
-                gs_test_btn.click(
-                    gs_run_test,
-                    inputs=[gs_shot, gs_device],
-                    outputs=[gs_verdict, gs_title_img, gs_body_img, gs_state],
-                )
-                gs_preview_btn.click(
-                    gs_preview,
-                    inputs=[gs_state, gs_device],
-                    outputs=[gs_voice_info, gs_audio],
-                )
-                gs_save_btn.click(
-                    gs_save,
-                    inputs=[gs_vol, gs_speed],
-                    outputs=[gs_save_status],
                 )
 
     return demo
