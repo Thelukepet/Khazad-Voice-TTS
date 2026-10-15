@@ -14,7 +14,7 @@ import nltk
 from .audio import play_audio, stop_audio
 from .config.ConfigManager import ConfigManager
 from .models import QuestText, QuestTextLine, TextSourceType, VoiceSelection
-from .ocr import run_name_ocr, run_ocr, run_title_ocr_candidates
+from .ocr import run_nameplate_ocr, run_ocr, run_title_ocr_candidates
 from .utils import extract_quest_areas, load_npc_memory, save_npc_memory, setup_logger
 
 log = setup_logger("ENGINE")
@@ -98,16 +98,16 @@ class NarratorEngine:
 
         log.info("Audio queue wiped and playback stopped.")
 
-    def process_capture(self, quest_img_pil, name_img_pil):
+    def process_capture(self, quest_img_pil, name_img_pil, title_img_pil=None):
         """
         Handles the 'Echoes' (Classic) mode workflow.
 
-        Reads the NPC name and quest body via OCR, then tries to match
-        the OCR text against the offline quest database for pristine text.
-        Falls back to raw OCR if no match is found.
+        Reads the NPC name, quest title and quest body via OCR, then
+        tries to match the OCR text against the offline quest database
+        for pristine text. Falls back to raw OCR if no match is found.
         """
         log.info("Reading NPC Name...")
-        npc_name = run_name_ocr(name_img_pil) or "Unknown"
+        npc_name = run_nameplate_ocr(name_img_pil) or "Unknown"
         log.info(f"NPC Name: '{npc_name}'")
 
         # OCR the body (always needed)
@@ -119,24 +119,28 @@ class NarratorEngine:
 
         full_ocr_text = " ".join(sentences)
 
-        # Try to get a title hint from the first line of the body image
+        # Quest title: read the title bar between the plants when the
+        # capture provides one; fall back to the first line of the body.
         quest_title = None
         try:
-            import numpy as np
             import pytesseract
 
             from .ocr import preprocess_title_image
 
-            title_hint_thresh = preprocess_title_image(quest_img_pil)
-            title_hint = (
-                pytesseract.pytesseract.image_to_string(
-                    title_hint_thresh, config="--psm 7"
+            for title_src in (title_img_pil, quest_img_pil):
+                if title_src is None:
+                    continue
+                title_hint_thresh = preprocess_title_image(title_src)
+                title_hint = (
+                    pytesseract.pytesseract.image_to_string(
+                        title_hint_thresh, config="--psm 7"
+                    )
+                    .strip()
+                    .replace("\n", " ")
                 )
-                .strip()
-                .replace("\n", " ")
-            )
-            if title_hint:
-                quest_title = title_hint
+                if title_hint:
+                    quest_title = title_hint
+                    break
         except Exception:
             pass
 

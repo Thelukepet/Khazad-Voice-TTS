@@ -16,13 +16,13 @@ os.environ["TORCH_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "torch")
 
 
 def _run_calibration(mode: str):
-    """Launch the calibration script for the given mode."""
-    if mode == "retail":
-        from src.calibrate_retail import main as calibrate_main
-    elif mode == "echoes":
-        from src.calibrate_echoes import main as calibrate_main
-    else:
-        from src.calibrate_static import main as calibrate_main
+    """Launch the calibration script for the given mode.
+
+    Retail and Echoes are calibrated from a screenshot (Voice Lab or
+    the setup wizard); only static mode has a calibration script.
+    """
+    from src.calibrate_static import main as calibrate_main
+
     calibrate_main()
 
 
@@ -97,8 +97,8 @@ def get_args():
     )
     parser.add_argument(
         "--calibrate",
-        choices=["retail", "echoes", "static"],
-        help="Run calibration for the given game mode",
+        choices=["static"],
+        help="Run static-mode calibration (other modes calibrate from a screenshot)",
     )
     parser.add_argument(
         "--voice-lab",
@@ -147,17 +147,15 @@ def _interactive_menu():
     print("  1. Start Retail Mode (Auto-detect quest window)")
     print("  2. Start Echoes of Angmar Mode")
     print("  3. Start Static Mode (Fixed quest window)")
-    print("  4. Calibrate Retail")
-    print("  5. Calibrate Echoes of Angmar")
-    print("  6. Calibrate Static Mode")
-    print("  7. Voice Lab & Configuration")
-    print("  8. Install LOTRO Plugin")
-    print("  9. Start Retail Mode + Voice Mix (Experimental)")
-    print(" 10. Start Echoes Mode + Voice Mix (Experimental)")
-    print(" 11. Start Static Mode + Voice Mix (Experimental)")
+    print("  4. Calibrate Static Mode")
+    print("  5. Voice Lab & Configuration (incl. screenshot calibration)")
+    print("  6. Install LOTRO Plugin")
+    print("  7. Start Retail Mode + Voice Mix (Experimental)")
+    print("  8. Start Echoes Mode + Voice Mix (Experimental)")
+    print("  9. Start Static Mode + Voice Mix (Experimental)")
     print()
 
-    choice = input("Enter choice (1-11): ").strip()
+    choice = input("Enter choice (1-9): ").strip()
 
     match choice:
         case "1":
@@ -167,20 +165,16 @@ def _interactive_menu():
         case "3":
             _start_engine("static", _select_device())
         case "4":
-            _run_calibration("retail")
-        case "5":
-            _run_calibration("echoes")
-        case "6":
             _run_calibration("static")
-        case "7":
+        case "5":
             _run_voice_lab()
-        case "8":
+        case "6":
             _run_install_plugin()
-        case "9":
+        case "7":
             _start_engine("retail", _select_device(), voice_mix=True)
-        case "10":
+        case "8":
             _start_engine("echoes", _select_device(), voice_mix=True)
-        case "11":
+        case "9":
             _start_engine("static", _select_device(), voice_mix=True)
         case _:
             print(f"Invalid choice: {choice}")

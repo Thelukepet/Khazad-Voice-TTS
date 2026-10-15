@@ -201,10 +201,12 @@ class EngineStartup:
                     print("Capturing...")
                     time.sleep(0.25)
 
-                    q_img, n_img = capture_screen_areas(mode_prefix="echoes")
+                    q_img, n_img, t_img = capture_screen_areas(
+                        mode_prefix="echoes"
+                    )
 
                     if q_img and n_img:
-                        self.engine.process_capture(q_img, n_img)
+                        self.engine.process_capture(q_img, n_img, t_img)
                     else:
                         print("Capture failed. Check calibration.")
 

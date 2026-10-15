@@ -53,6 +53,7 @@ def run_test(img_rgb: np.ndarray, mode: str = "retail") -> Dict[str, Any]:
         "narrated_text": "",
         "player_name": "",
         "npc_name": "",
+        "npc_name_ocr": None,
         "title_crop": None,
         "body_crop": None,
         "error": "",
@@ -101,13 +102,13 @@ def _run_retail(img_bgr: np.ndarray, result: Dict[str, Any]) -> None:
 
 
 def _run_echoes(img_bgr: np.ndarray, result: Dict[str, Any]) -> None:
-    """Echoes pipeline: stitched text + name box, title from first line."""
+    """Echoes pipeline: title bar + body text + name box."""
     import pytesseract
 
-    from src.ocr import preprocess_title_image, run_ocr
+    from src.ocr import preprocess_title_image, run_nameplate_ocr, run_ocr
     from src.utils import extract_echoes_areas
 
-    quest_pil, name_pil = extract_echoes_areas(img_bgr)
+    quest_pil, name_pil, title_pil = extract_echoes_areas(img_bgr)
     if quest_pil is None:
         result["verdict"] = "NO WINDOW"
         result["error"] = (
@@ -117,19 +118,32 @@ def _run_echoes(img_bgr: np.ndarray, result: Dict[str, Any]) -> None:
         return
 
     result["body_crop"] = quest_pil
-    result["title_crop"] = name_pil  # name box stands in for the title crop
+    result["title_crop"] = title_pil
 
     body = " ".join(run_ocr(quest_pil))
+    result["npc_name_ocr"] = (
+        run_nameplate_ocr(name_pil) if name_pil is not None else ""
+    )
+
+    # Quest title: read the title bar between the plants; fall back to
+    # the first line of the body image.
     title = ""
-    try:
-        thresh = preprocess_title_image(quest_pil)
-        title = (
-            pytesseract.pytesseract.image_to_string(thresh, config="--psm 7")
-            .strip()
-            .replace("\n", " ")
-        )
-    except Exception:
-        pass
+    for title_src in (title_pil, quest_pil):
+        if title_src is None:
+            continue
+        try:
+            thresh = preprocess_title_image(title_src)
+            title = (
+                pytesseract.pytesseract.image_to_string(
+                    thresh, config="--psm 7"
+                )
+                .strip()
+                .replace("\n", " ")
+            )
+        except Exception:
+            title = ""
+        if title:
+            break
     result["title_ocr"] = title
 
     _match_against_db([title] if title else [], body, result)

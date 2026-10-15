@@ -487,6 +487,15 @@ def create_ui() -> gr.Blocks:
                         )
                     if res.get("player_name"):
                         lines.append(f"**Player name read:** {res['player_name']}")
+                    if res.get("npc_name_ocr"):
+                        lines.append(
+                            f"**NPC name OCR:** `{res['npc_name_ocr']}`"
+                        )
+                    elif res.get("npc_name_ocr") is not None:
+                        lines.append(
+                            "**NPC name OCR:** nothing read - check the "
+                            "NPC name box calibration"
+                        )
                     if res.get("narrated_text"):
                         preview = res["narrated_text"]
                         if len(preview) > 400:

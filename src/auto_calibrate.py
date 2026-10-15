@@ -29,10 +29,10 @@ Public entry points
   (ok, report) with per-anchor match scores and saved file paths.
 - :func:`auto_calibrate` -> mode dispatcher.
 
-All functions write to the same files as the manual calibrators
+All functions write the files the engine loads directly
 (``user_*.png`` / ``echoes_*.png`` and ``layout_retail.json`` /
-``layout_echoes.json``), so the engine picks the calibration up without
-any further changes.
+``layout_echoes.json``), so the calibration is picked up without any
+further changes.
 """
 
 import json
@@ -73,8 +73,8 @@ _DEFAULT_FILES_ECHOES = {
     "br_corner": "example_echoes_br_corner.png",
 }
 
-# Same filename layout the manual calibrators write - the engine loads
-# these transparently via load_user_templates().
+# The engine loads these files transparently via
+# load_user_templates().
 _USER_PATHS_RETAIL = {
     "start": "user_start.png",
     "end": "user_end.png",
@@ -351,6 +351,85 @@ def auto_calibrate_retail(img_bgr: np.ndarray) -> Tuple[bool, Dict[str, Any]]:
     )
 
 
+def _detect_npc_nameplate(
+    img_bgr: np.ndarray,
+    window_rect: Optional[Tuple[int, int, int, int]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Find the Echoes NPC nameplate: a solid black box with bright text.
+
+    Scans a ladder of dark thresholds so the plate is still separated
+    from dark scenery (at a low threshold the plate is darker than its
+    surroundings; morphological closing is deliberately avoided - it
+    merges the plate into dark backgrounds, which is how the plate
+    hides). Candidates are filtered by nameplate geometry and solidity,
+    and must not overlap the quest window (the dark title bar looks
+    similar) or the bottom UI bar. The best candidate is OCR'd for the
+    report; OCR failure does not reject the box.
+
+    Parameters
+    ----------
+    img_bgr : np.ndarray
+        Full screenshot (BGR).
+    window_rect : tuple, optional
+        (x0, y0, x1, y1) quest-window bounding box (anchors + title
+        bar); candidates overlapping it are ignored.
+
+    Returns
+    -------
+    dict | None
+        ``{"box": [x, y, w, h], "name": str}`` (name may be empty) or
+        ``None`` when no nameplate is visible.
+    """
+    gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+    h_img, w_img = gray.shape
+    wx0, wy0, wx1, wy1 = window_rect or (-1, -1, -1, -1)
+
+    best: Optional[Dict[str, Any]] = None
+    for thr in (25, 35, 45, 55, 70):
+        _, mask = cv2.threshold(gray, thr, 255, cv2.THRESH_BINARY_INV)
+        contours, _ = cv2.findContours(
+            mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        for c in contours:
+            x, y, bw, bh = cv2.boundingRect(c)
+            if not (100 <= bw <= 500 and 18 <= bh <= 40 and bw > 4 * bh):
+                continue
+            if bw * bh > 0.008 * w_img * h_img:
+                continue
+            if y + bh > 0.93 * h_img:  # bottom UI bar
+                continue
+            if x < wx1 and x + bw > wx0 and y < wy1 and y + bh > wy0:
+                continue  # overlaps the quest window / title bar
+            region = gray[y : y + bh, x : x + bw]
+            fill = float(np.count_nonzero(mask[y : y + bh, x : x + bw])) / (bw * bh)
+            if fill < 0.75 or float(region.mean()) > 45:
+                continue
+            if best is None or fill > best["fill"]:
+                best = {"box": [int(x), int(y), int(bw), int(bh)], "fill": fill}
+
+    if best is None:
+        return None
+
+    # Best-effort name read for the report (never rejects the box)
+    name = ""
+    try:
+        from PIL import Image
+
+        from src.ocr import run_nameplate_ocr
+
+        x, y, bw, bh = best["box"]
+        pad = 2
+        crop = img_bgr[
+            max(0, y - pad) : y + bh + pad, max(0, x - pad) : x + bw + pad
+        ]
+        pil = Image.fromarray(cv2.cvtColor(crop, cv2.COLOR_BGR2RGB))
+        name = run_nameplate_ocr(pil)
+    except Exception:
+        name = ""
+    best["name"] = name
+    return best
+
+
 def auto_calibrate_echoes(img_bgr: np.ndarray) -> Tuple[bool, Dict[str, Any]]:
     """Auto-calibrate Echoes of Angmar mode from a screenshot.
 
@@ -425,13 +504,26 @@ def auto_calibrate_echoes(img_bgr: np.ndarray) -> Tuple[bool, Dict[str, Any]]:
     scale = w_img / 2560.0
     offsets = _default_offsets("echoes", scale)
 
-    # NPC name box: keep the previous calibration if there is one; it is
-    # a static screen position only the user can confirm. On a first
-    # calibration, place a reasonable default just below the window
-    # body (same as the shipped default: 271x24 at 1440p, scaled).
+    # NPC name box: the nameplate is a solid black box the user can
+    # move in their UI, so detect it on the screenshot. Fall back to
+    # the previous calibration, then to a default just below the
+    # window body.
     layout_file = get_layout_file("echoes")
+
+    window_rect = (
+        min(anchors["left_plant"]["x"], tl["x"]),
+        min(anchors["left_plant"]["y"], tl["y"]),
+        br["x"] + tmpls["br_corner"].shape[1],
+        br["y"] + tmpls["br_corner"].shape[0],
+    )
+    plate = _detect_npc_nameplate(img_bgr, window_rect)
+
     npc_box: Optional[list] = None
-    if layout_file.exists():
+    if plate is not None:
+        # Exact box: the plate's border edge corrupts OCR reads, and
+        # run_nameplate_ocr trims any slack itself.
+        npc_box = [int(v) for v in plate["box"]]
+    elif layout_file.exists():
         try:
             previous = json.loads(layout_file.read_text())
             box = previous.get("npc_box")
@@ -456,14 +548,29 @@ def auto_calibrate_echoes(img_bgr: np.ndarray) -> Tuple[bool, Dict[str, Any]]:
     layout_file.write_text(json.dumps(layout, indent=4))
     files["layout"] = str(layout_file)
 
-    return _report(
+    if plate is not None:
+        npc_msg = (
+            f"NPC name box found at ({plate['box'][0]}, {plate['box'][1]}) "
+            f"reading '{plate['name'] or '?'}'. Do not move the NPC name "
+            f"box in your UI after calibrating."
+        )
+    else:
+        npc_msg = (
+            "The NPC name box was not found on the screenshot - the "
+            "previous box was kept (or a default placed below the "
+            "window). If the NPC name is not read correctly, retry with "
+            "a screenshot where the black nameplate box is visible. "
+            "Do not move the NPC name box in your UI after calibrating."
+        )
+
+    ok, report = _report(
         True,
-        "Calibration saved. The previous NPC name box was kept "
-        "(check it still matches your layout; adjust via manual "
-        "calibration if the name is not read correctly).",
+        "Calibration saved. " + npc_msg,
         anchors,
         files,
     )
+    report["npc_name_box"] = plate
+    return ok, report
 
 
 def auto_calibrate(img_bgr: np.ndarray, mode: str = "retail") -> Tuple[bool, Dict[str, Any]]:

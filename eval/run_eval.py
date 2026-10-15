@@ -71,13 +71,13 @@ def run_retail(db, img_np, save_crops, debug_dir, stem):
 
 
 def run_echoes(db, img_np, save_crops, debug_dir, stem):
-    """Mirror the echoes pipeline: stitched text + name box, title from first line."""
+    """Mirror the echoes pipeline: title bar + body text + name box."""
     import pytesseract
 
-    from src.ocr import preprocess_title_image, run_name_ocr, run_ocr
+    from src.ocr import preprocess_title_image, run_nameplate_ocr, run_ocr
     from src.utils import extract_echoes_areas
 
-    quest_pil, name_pil = extract_echoes_areas(img_np)
+    quest_pil, name_pil, title_pil = extract_echoes_areas(img_np)
     if quest_pil is None:
         return {"status": "NO WINDOW", "title_ocr": "", "body_ocr": ""}
 
@@ -85,30 +85,41 @@ def run_echoes(db, img_np, save_crops, debug_dir, stem):
         quest_pil.save(debug_dir / f"{stem}_quest.png")
         if name_pil is not None:
             name_pil.save(debug_dir / f"{stem}_name.png")
+        if title_pil is not None:
+            title_pil.save(debug_dir / f"{stem}_title.png")
 
     body = " ".join(run_ocr(quest_pil))
-    npc = run_name_ocr(name_pil) if name_pil is not None else ""
+    npc = run_nameplate_ocr(name_pil) if name_pil is not None else ""
 
-    # Title hint: first line of the stitched quest image (as in engine.py)
+    # Quest title: read the title bar between the plants; fall back to
+    # the first line of the body image (as in engine.py).
     title = ""
-    try:
-        thresh = preprocess_title_image(quest_pil)
-        title = (
-            pytesseract.pytesseract.image_to_string(thresh, config="--psm 7")
-            .strip()
-            .replace("\n", " ")
-        )
-    except Exception:
-        pass
+    for title_src in (title_pil, quest_pil):
+        if title_src is None:
+            continue
+        try:
+            thresh = preprocess_title_image(title_src)
+            title = (
+                pytesseract.pytesseract.image_to_string(
+                    thresh, config="--psm 7"
+                )
+                .strip()
+                .replace("\n", " ")
+            )
+        except Exception:
+            title = ""
+        if title:
+            break
     return {"status": "OK", "title_ocr": title, "body_ocr": body, "npc_ocr": npc}
 
 
-def read_ground_truth(gt_path: Path, shots: list) -> dict:
+def read_ground_truth(gt_path: Path, shots: list, default_mode: str = "retail") -> dict:
     """Load ground_truth.csv, adding rows for any new screenshots.
 
     Returns a dict {filename: {"expected_title": str, "mode": str}}.
     The CSV is rewritten when new screenshots appeared, so the user only
-    ever fills in the expected_title column.
+    ever fills in the expected_title column. New rows get
+    ``default_mode`` (from --mode) as their mode.
     """
     entries = {}
     if gt_path.exists():
@@ -137,7 +148,7 @@ def read_ground_truth(gt_path: Path, shots: list) -> dict:
     missing = [s.name for s in shots if s.name not in entries]
     if missing or not gt_path.exists():
         for name in missing:
-            entries[name] = {"expected_title": "", "mode": "retail"}
+            entries[name] = {"expected_title": "", "mode": default_mode}
         with open(gt_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(["file", "expected_title", "mode"])
@@ -165,6 +176,12 @@ def main():
         help="Save extracted title/body crops to <shots>/debug/",
     )
     parser.add_argument("--db-path", default=None, help="Override NPC database path")
+    parser.add_argument(
+        "--mode",
+        choices=["retail", "echoes"],
+        default="retail",
+        help="Default mode for newly added screenshots",
+    )
     args = parser.parse_args()
 
     shots_dir = Path(args.shots)
@@ -175,7 +192,7 @@ def main():
         print(f"No screenshots found in {shots_dir}")
         return 1
 
-    gt = read_ground_truth(shots_dir / "ground_truth.csv", shots)
+    gt = read_ground_truth(shots_dir / "ground_truth.csv", shots, args.mode)
 
     debug_dir = None
     if args.save_crops:
@@ -268,6 +285,11 @@ def main():
             print(f"{'':<38} {'expected':<12} {r['expected'][:60]}")
         if r.get("body_match"):
             print(f"{'':<38} {'body match':<12} {r['body_match']}")
+        if "npc_ocr" in r:
+            print(
+                f"{'':<38} {'npc name':<12} "
+                f"{r['npc_ocr'][:60] or '(nothing read)'}"
+            )
 
     print("=" * 78)
     if labeled:

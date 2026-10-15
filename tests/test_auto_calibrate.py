@@ -179,6 +179,60 @@ class TestAutoCalibrateEchoes:
         ok, report = auto_calibrate.auto_calibrate_echoes(canvas)
         assert not ok
 
+    def _make_echoes_screenshot_with_plate(self):
+        """Gray canvas with anchors plus a black nameplate with white
+        text, outside the quest window (as on a real screenshot)."""
+        canvas = np.full((1440, 2560, 3), 128, dtype=np.uint8)
+        _paste(canvas, _load_default("example_echoes_left_plant.png"), 700, 400)
+        _paste(canvas, _load_default("example_echoes_right_plant.png"), 1200, 400)
+        _paste(canvas, _load_default("example_echoes_tl_corner.png"), 693, 470)
+        _paste(canvas, _load_default("example_echoes_br_corner.png"), 1600, 1000)
+        cv2.rectangle(canvas, (300, 900), (573, 925), (0, 0, 0), -1)
+        cv2.putText(
+            canvas,
+            "OTUR",
+            (350, 920),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            1,
+            cv2.LINE_AA,
+        )
+        return canvas
+
+    def test_detects_npc_nameplate(self, tmp_path, monkeypatch):
+        """The black nameplate must be found and saved as the npc_box."""
+        layout_path = tmp_path / "layout_echoes.json"
+        monkeypatch.setattr(
+            "src.auto_calibrate.get_layout_file", lambda mode: layout_path
+        )
+        ok, report = auto_calibrate.auto_calibrate_echoes(
+            self._make_echoes_screenshot_with_plate()
+        )
+        assert ok, report["message"]
+        plate = report["npc_name_box"]
+        assert plate is not None
+        assert plate["box"] == [300, 900, 274, 26]
+        layout = json.loads(layout_path.read_text())
+        assert layout["npc_box"] == [300, 900, 274, 26]
+
+    def test_nameplate_not_found_keeps_previous_box(self, tmp_path, monkeypatch):
+        """Without a visible nameplate the previous npc_box survives."""
+        layout_path = tmp_path / "layout_echoes.json"
+        monkeypatch.setattr(
+            "src.auto_calibrate.get_layout_file", lambda mode: layout_path
+        )
+        layout_path.write_text(
+            json.dumps({"npc_box": [10, 20, 200, 30], "offsets": {}})
+        )
+        ok, report = auto_calibrate.auto_calibrate_echoes(
+            self._make_echoes_screenshot()
+        )
+        assert ok
+        assert report["npc_name_box"] is None
+        layout = json.loads(layout_path.read_text())
+        assert layout["npc_box"] == [10, 20, 200, 30]
+
 
 class TestDispatch:
     def test_dispatch_retail(self):

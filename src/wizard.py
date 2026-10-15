@@ -249,8 +249,8 @@ def _calibration_choice(mode: str) -> None:
     else:
         print(f"  ⚠️  {rep['message']}")
         print("     You can retry later from the Voice Lab (Screenshot Tester")
-        print("     tab, 'Calibrate from this screenshot'), or use the manual")
-        print("     calibration scripts.")
+        print("     tab, 'Calibrate from this screenshot'). If calibration")
+        print("     keeps failing on your UI skin, use Static Mode instead.")
 
 
 def run_wizard() -> None:

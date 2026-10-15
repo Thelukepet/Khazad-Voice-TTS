@@ -752,8 +752,9 @@ class InstallerApp:
                 tk.Label(
                     cal_frame,
                     text=(
-                        "Calibration teaches the app where the quest window is on your screen.\n"
-                        "Without it, the app cannot read any quest text."
+                        "Calibration teaches the app exactly where the quest window is on your screen.\n"
+                        "The app also works uncalibrated on a built-in default layout - "
+                        "calibrate for exact detection on your resolution and UI skin."
                     ),
                     font=("Segoe UI", 9),
                     fg=FG_DIM,
@@ -771,9 +772,10 @@ class InstallerApp:
                         "①  Launch LOTRO (or Echoes of Angmar) and log in to the game.\n\n"
                         "②  Walk up to any NPC and talk to them so a quest window appears.\n\n"
                         "   Make sure the quest window is fully visible on your primary monitor.\n\n"
-                        "③  Run the calibrate_lotro (retail) / calibrate_eoa (EOA) to calibrate.\n\n"
-                        "   You can find the .bat (Windows) or .sh (Linux) files in their respective folders.\n\n"
-                        "   Follow the instructions on the new window that opens."
+                        "③  Take a screenshot, open the Voice Lab ('5' in the launcher menu),\n\n"
+                        "   go to the Screenshot Tester tab, upload the screenshot and press\n\n"
+                        "   'Calibrate from this screenshot'.\n\n"
+                        "   If calibration keeps failing on your UI skin, use Static Mode instead."
                     ),
                     font=("Segoe UI", 9),
                     fg=FG_CYAN,
@@ -799,20 +801,6 @@ class InstallerApp:
 
                 tk.Button(
                     cal_btn_frame,
-                    text="Calibrate Retail LOTRO",
-                    command=lambda: self._launch_app("calibrate_retail"),
-                    **cal_btn_style,
-                ).pack(side=tk.LEFT, padx=(0, 8))
-
-                tk.Button(
-                    cal_btn_frame,
-                    text="Calibrate Echoes of Angmar",
-                    command=lambda: self._launch_app("calibrate_echoes"),
-                    **cal_btn_style,
-                ).pack(side=tk.LEFT, padx=(0, 8))
-
-                tk.Button(
-                    cal_btn_frame,
                     text="Calibrate Static (Fallback)",
                     command=lambda: self._launch_app("calibrate_static"),
                     **cal_btn_style,
@@ -823,7 +811,8 @@ class InstallerApp:
                 tk.Label(
                     cal_frame,
                     text=(
-                        f"Need to re-calibrate later? Open the .bat files inside:\n"
+                        f"Need to re-calibrate later? Use the Voice Lab screenshot\n"
+                        f"calibration, or the static-mode .bat files inside:\n"
                         f"{install_path}\\Windows\\"
                     ),
                     font=("Segoe UI", 8),

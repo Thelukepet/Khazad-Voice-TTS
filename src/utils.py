@@ -1012,7 +1012,10 @@ def extract_quest_areas(
     offsets = config.get("offsets", {}) if "offsets" in config else config
 
     if not tmpls or not offsets:
-        log.warning("Retail Calibration missing. Please run 'calibrate_retail.bat'.")
+        log.warning(
+            "Retail calibration missing. Calibrate from a screenshot "
+            "via the Voice Lab."
+        )
         return None, None
 
     result = _extract_retail_auto(img_gray, full_img_np, tmpls, offsets, h_img, w_img)
@@ -1026,13 +1029,14 @@ def extract_quest_areas(
 
 def extract_echoes_areas(
     full_img_np: np.ndarray,
-) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
+) -> Tuple[Optional[Image.Image], Optional[Image.Image], Optional[Image.Image]]:
     """
-    Extracts Quest Text and NPC Name using Echoes (Classic) logic.
+    Extracts Quest Body, NPC Name and Quest Title using Echoes (Classic)
+    logic.
     1. Anchors (Plants, Corners).
     2. Margins (Calibrated).
     3. Static NPC Box.
-    4. Stitches Title+Body.
+    4. Title bar between the plants (for quest-title OCR).
 
     Parameters
     ----------
@@ -1041,8 +1045,10 @@ def extract_echoes_areas(
 
     Returns
     -------
-    Tuple[Image, Image]
-        (Stitched Text Image, NPC Name Image).
+    Tuple[Optional[Image], Optional[Image], Optional[Image]]
+        (Quest Body Image, NPC Name Image, Quest Title Image). The
+        title bar is returned separately so the title font never
+        contaminates body OCR.
     """
     img_gray = cv2.cvtColor(full_img_np, cv2.COLOR_BGR2GRAY)
 
@@ -1051,8 +1057,11 @@ def extract_echoes_areas(
     config = load_user_config("echoes")
 
     if not tmpls or not config:
-        log.warning("Echoes calibration missing. Run 'calibrate_eoa.bat'")
-        return None, None
+        log.warning(
+            "Echoes calibration missing. Calibrate from a screenshot "
+            "via the Voice Lab."
+        )
+        return None, None, None
 
     offsets = config.get("offsets", {})
     npc_box = config.get("npc_box", [0, 0, 0, 0])
@@ -1070,13 +1079,14 @@ def extract_echoes_areas(
 
     if any(v < 0.7 for v in [val_lp, val_rp, val_tl, val_br]):
         log.warning("Anchors not found in Echoes mode.")
-        return None, None
+        return None, None, None
 
-    # 3. Quest Title position (kept for reference; not used in OCR)
-    # tx = pos_lp[0] + tmpls["left_plant"].shape[1]
-    # ty = pos_lp[1]
-    # tw = pos_rp[0] - tx
-    # th = max(tmpls["left_plant"].shape[0], tmpls["right_plant"].shape[0])
+    # 3. Quest Title bar (between the plants) - used for title OCR,
+    #    kept out of the body image (different font contaminates OCR).
+    tx = pos_lp[0] + tmpls["left_plant"].shape[1]
+    ty = pos_lp[1]
+    tw = pos_rp[0] - tx
+    th = max(tmpls["left_plant"].shape[0], tmpls["right_plant"].shape[0])
 
     # 4. Calculate Quest Body
     bx = pos_tl[0] + offsets.get("body_left_margin", 0)
@@ -1087,7 +1097,7 @@ def extract_echoes_areas(
     bw = bx_end - bx
     bh = by_end - by
 
-    # 5. Crop & Stitch
+    # 5. Crop
     try:
         # Body
         crop_body = full_img_np[by : by + bh, bx : bx + bw]
@@ -1099,16 +1109,20 @@ def extract_echoes_areas(
         else:
             crop_npc = np.zeros((50, 200, 3), dtype=np.uint8)
 
-        # Return body-only for OCR — stitching the title (different font)
-        # into the same image causes cross-contamination and garbage text.
+        # Title bar
+        crop_title = full_img_np[ty : ty + th, tx : tx + tw]
+
+        # Body stays separate from the title (different font): stitching
+        # them into one image causes cross-contamination and garbage text.
         return (
             Image.fromarray(cv2.cvtColor(crop_body, cv2.COLOR_BGR2RGB)),
             Image.fromarray(cv2.cvtColor(crop_npc, cv2.COLOR_BGR2RGB)),
+            Image.fromarray(cv2.cvtColor(crop_title, cv2.COLOR_BGR2RGB)),
         )
 
     except Exception as e:
         log.error(f"Echoes Crop Error: {e}")
-        return None, None
+        return None, None, None
 
 
 # --- SCREEN CAPTURE ENTRY POINT ---
@@ -1125,9 +1139,9 @@ def capture_screen_areas(mode_prefix: str = "retail") -> Tuple[Any, Any]:
 
     Returns
     -------
-    Tuple[Any, Any]
+    Tuple
         Retail: (Full_Screenshot_PIL, Full_Screenshot_NP)
-        Echoes: (Stitched_Quest_PIL, NPC_Name_PIL)
+        Echoes: (Quest_Body_PIL, NPC_Name_PIL, Quest_Title_PIL)
     """
     try:
         screenshot = ImageGrab.grab()

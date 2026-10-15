@@ -259,3 +259,59 @@ def run_name_ocr(img_pil: Image.Image) -> str:
     raw = pytesseract.image_to_string(thresh, config="--psm 7")
     clean = raw.strip().replace("\n", " ").replace("|", "I").replace("1", "I")
     return clean
+
+
+def run_nameplate_ocr(img_pil: Image.Image) -> str:
+    """
+    Runs OCR on an Echoes NPC nameplate: a solid black box with bright
+    text (white/gold). The retail title preprocessing is wrong for this
+    (it expects the dark blue window background), so the plate gets its
+    own pipeline: grayscale, 2x upscale, bright-text threshold inverted
+    to black-on-white, white border padding, PSM 7 with a letters-only
+    whitelist.
+
+    Parameters
+    ----------
+    img_pil : Image.Image
+        Nameplate crop (the black box, tightly or generously framed).
+
+    The crop may include surroundings (a calibrated box is rarely
+    pixel-tight), so the solid dark plate is located inside the crop
+    and the OCR runs on the trimmed plate only - the plate's border
+    edge corrupts the read when it slips into the thresholded image.
+
+    Parameters
+    ----------
+    img_pil : Image.Image
+        Nameplate crop (the black box, tightly or generously framed).
+
+    Returns
+    -------
+    str
+        The name read from the plate (may be empty).
+    """
+    _ensure_initialized()
+    gray = np.array(img_pil.convert("L"))
+
+    # Trim to the solid dark plate (largest dark blob in the crop)
+    _, dark = cv2.threshold(gray, 45, 255, cv2.THRESH_BINARY_INV)
+    contours, _ = cv2.findContours(
+        dark, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    if contours:
+        c = max(contours, key=cv2.contourArea)
+        px, py, pw, ph = cv2.boundingRect(c)
+        if pw > 20 and ph > 8:
+            gray = gray[py : py + ph, px : px + pw]
+
+    big = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    _, thresh = cv2.threshold(big, 90, 255, cv2.THRESH_BINARY_INV)
+    thresh = cv2.copyMakeBorder(
+        thresh, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=255
+    )
+    raw = pytesseract.image_to_string(
+        thresh,
+        config="--psm 7 -c tessedit_char_whitelist="
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ",
+    )
+    return raw.strip().replace("\n", " ")
