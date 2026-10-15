@@ -777,8 +777,8 @@ class InstallerApp:
                         "①  Launch LOTRO (or Echoes of Angmar) and log in to the game.\n\n"
                         "②  Walk up to any NPC and talk to them so a quest window appears.\n\n"
                         "   Make sure the quest window is fully visible on your primary monitor.\n\n"
-                        "③  Take a screenshot, open the Voice Lab ('5' in the launcher menu),\n\n"
-                        "   go to the Screenshot Tester tab, upload the screenshot and press\n\n"
+                        "③  Take a screenshot, press the 'Voice Lab' button below, go to\n\n"
+                        "   the Screenshot Tester tab, upload the screenshot and press\n\n"
                         "   'Calibrate from this screenshot'.\n\n"
                         "   If calibration keeps failing on your UI skin, use Static Mode instead."
                     ),
