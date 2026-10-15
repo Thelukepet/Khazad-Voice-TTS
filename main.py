@@ -186,11 +186,17 @@ def main():
 
     args = get_args()
 
-    # First-run wizard (also via --setup): detects hardware, asks game
-    # version, stores preferences, then launches the narrator directly.
+    # First-run wizard (also via --setup): only gates the bare
+    # interactive launch. An explicit command (--mode, --voice-lab,
+    # --calibrate, --install-retail-plugin) runs as-is - otherwise
+    # the wizard hijacks e.g. the installer's Voice Lab button on a
+    # fresh install and the lab never opens.
     from src.wizard import maybe_run_wizard
 
-    if maybe_run_wizard():
+    explicit_cmd = (
+        args.mode or args.voice_lab or args.calibrate or args.install_retail_plugin
+    )
+    if not explicit_cmd and maybe_run_wizard():
         return
 
     if args.calibrate:
