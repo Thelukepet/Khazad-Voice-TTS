@@ -30,9 +30,10 @@ GITHUB_ZIP_URL = (
 )
 # Private Gitea repo: auth via token header, NOT URL userinfo
 # (urllib only honours username:password@ userinfo; a bare token@ is dropped
-# and triggers a bogus getaddrinfo failure). Token embeds a private key -
-# this build is personal-only, do not distribute.
-GITEA_TOKEN = "6ea8055e7786a883687d352faa1b1cb090d4dcde"
+# and triggers a bogus getaddrinfo failure). The token is never stored in
+# source - set the GITEA_TOKEN environment variable before running or
+# building the installer.
+GITEA_TOKEN = os.environ.get("GITEA_TOKEN", "").strip()
 
 OMNIVOICE_PIP = "omnivoice==0.1.4"
 UV_BINARY_URL = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
@@ -995,6 +996,11 @@ class InstallerApp:
         try:
             req = urllib.request.Request(url)
             if "192.168.2.41" in url:
+                if not GITEA_TOKEN:
+                    raise RuntimeError(
+                        "This download needs the private Gitea token: "
+                        "set the GITEA_TOKEN environment variable."
+                    )
                 req.add_header("Authorization", f"token {GITEA_TOKEN}")
             with urllib.request.urlopen(req, timeout=300) as resp, open(dest, "wb") as f:
                 shutil.copyfileobj(resp, f)
