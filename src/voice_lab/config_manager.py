@@ -40,6 +40,9 @@ def get_current_settings() -> Dict[str, Union[float, int, str]]:
         "chunk_size": cfg.config.getint(
             "TTSSettings", "omnivoice_chunk_size", fallback=2
         ),
+        "narrator_voice_file": cfg.config.get(
+            "TTSSettings", "narrator_voice_file", fallback="quest_narrator.wav"
+        ),
     }
 
     return settings
@@ -53,6 +56,7 @@ def save_settings(
     thresh: float,
     tesseract: str,
     chunk_size: int,
+    narrator_voice_file: str = "",
 ) -> Tuple[str, float, int]:
     """
     Writes new settings to ConfigManager (INI).
@@ -93,6 +97,8 @@ def save_settings(
     cfg.config.set("TTSSettings", "tts_wave_steps", str(steps))
     cfg.config.set("TTSSettings", "omnivoice_chunk_size", str(chunk_size))
     cfg.config.set("Detection", "template_threshold", str(thresh))
+    if narrator_voice_file:
+        cfg.config.set("TTSSettings", "narrator_voice_file", narrator_voice_file)
 
     # Update tesseract via the property (also saves the file)
     cfg.tesseract_cmd = tesseract

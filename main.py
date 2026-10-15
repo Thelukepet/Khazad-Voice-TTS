@@ -16,13 +16,13 @@ os.environ["TORCH_HOME"] = str(ConfigManager.USER_DATA_DIR / "models" / "torch")
 
 
 def _run_calibration(mode: str):
-    """Launch the calibration script for the given mode."""
-    if mode == "retail":
-        from src.calibrate_retail import main as calibrate_main
-    elif mode == "echoes":
-        from src.calibrate_echoes import main as calibrate_main
-    else:
-        from src.calibrate_static import main as calibrate_main
+    """Launch the calibration script for the given mode.
+
+    Retail and Echoes are calibrated from a screenshot (Voice Lab or
+    the setup wizard); only static mode has a calibration script.
+    """
+    from src.calibrate_static import main as calibrate_main
+
     calibrate_main()
 
 
@@ -60,6 +60,21 @@ def _run_install_plugin():
     print("You may need to reload plugins in-game with /plugins refresh")
 
 
+def _start_engine(mode: str, device: str, voice_mix: bool = False) -> None:
+    """Start the narrator, ensuring the character identity is known.
+
+    Every entry point that runs the TTS (launcher scripts, menu choices,
+    --mode runs) goes through here. The identity replaces the
+    ${PLAYER}/${RACE}/${CLASS} placeholders in database quest text; if
+    it has never been configured, the user is asked now - this is what
+    replaces the generic 'Traveler' fallback with the real name.
+    """
+    from src.wizard import ensure_player_identity
+
+    ensure_player_identity()
+    EngineStartup(mode, device, voice_mix=voice_mix)
+
+
 def print_header():
     """Print the startup banner."""
     print(r"""
@@ -82,8 +97,8 @@ def get_args():
     )
     parser.add_argument(
         "--calibrate",
-        choices=["retail", "echoes", "static"],
-        help="Run calibration for the given game mode",
+        choices=["static"],
+        help="Run static-mode calibration (other modes calibrate from a screenshot)",
     )
     parser.add_argument(
         "--voice-lab",
@@ -99,6 +114,11 @@ def get_args():
         "--install-retail-plugin",
         action="store_true",
         help="Install the getNPCNames LOTRO plugin",
+    )
+    parser.add_argument(
+        "--setup",
+        action="store_true",
+        help="Run the first-time setup wizard again",
     )
     return parser.parse_args()
 
@@ -127,41 +147,35 @@ def _interactive_menu():
     print("  1. Start Retail Mode (Auto-detect quest window)")
     print("  2. Start Echoes of Angmar Mode")
     print("  3. Start Static Mode (Fixed quest window)")
-    print("  4. Calibrate Retail")
-    print("  5. Calibrate Echoes of Angmar")
-    print("  6. Calibrate Static Mode")
-    print("  7. Voice Lab & Configuration")
-    print("  8. Install LOTRO Plugin")
-    print("  9. Start Retail Mode + Voice Mix (Experimental)")
-    print(" 10. Start Echoes Mode + Voice Mix (Experimental)")
-    print(" 11. Start Static Mode + Voice Mix (Experimental)")
+    print("  4. Calibrate Static Mode")
+    print("  5. Voice Lab & Configuration (incl. screenshot calibration)")
+    print("  6. Install LOTRO Plugin")
+    print("  7. Start Retail Mode + Voice Mix (Experimental)")
+    print("  8. Start Echoes Mode + Voice Mix (Experimental)")
+    print("  9. Start Static Mode + Voice Mix (Experimental)")
     print()
 
-    choice = input("Enter choice (1-11): ").strip()
+    choice = input("Enter choice (1-9): ").strip()
 
     match choice:
         case "1":
-            EngineStartup("retail", _select_device())
+            _start_engine("retail", _select_device())
         case "2":
-            EngineStartup("echoes", _select_device())
+            _start_engine("echoes", _select_device())
         case "3":
-            EngineStartup("static", _select_device())
+            _start_engine("static", _select_device())
         case "4":
-            _run_calibration("retail")
-        case "5":
-            _run_calibration("echoes")
-        case "6":
             _run_calibration("static")
-        case "7":
+        case "5":
             _run_voice_lab()
-        case "8":
+        case "6":
             _run_install_plugin()
+        case "7":
+            _start_engine("retail", _select_device(), voice_mix=True)
+        case "8":
+            _start_engine("echoes", _select_device(), voice_mix=True)
         case "9":
-            EngineStartup("retail", _select_device(), voice_mix=True)
-        case "10":
-            EngineStartup("echoes", _select_device(), voice_mix=True)
-        case "11":
-            EngineStartup("static", _select_device(), voice_mix=True)
+            _start_engine("static", _select_device(), voice_mix=True)
         case _:
             print(f"Invalid choice: {choice}")
 
@@ -171,6 +185,13 @@ def main():
     print_header()
 
     args = get_args()
+
+    # First-run wizard (also via --setup): detects hardware, asks game
+    # version, stores preferences, then launches the narrator directly.
+    from src.wizard import maybe_run_wizard
+
+    if maybe_run_wizard():
+        return
 
     if args.calibrate:
         _run_calibration(args.calibrate)
@@ -185,7 +206,7 @@ def main():
         return
 
     if args.mode:
-        EngineStartup(args.mode, get_device_arg(args), voice_mix=args.voice_mix)
+        _start_engine(args.mode, get_device_arg(args), voice_mix=args.voice_mix)
     else:
         _interactive_menu()
 

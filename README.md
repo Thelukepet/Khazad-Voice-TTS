@@ -164,52 +164,19 @@ If you are using the GPU model, switch to the **TTS Tester** tab to verify your 
 
 Before running the bot for the first time, you must calibrate it to your screen resolution and UI layout. **This only needs to be done once** (unless you change your UI skin or game resolution).
 
-### Steps
+### Automatic Calibration (Recommended)
 
-1. Open LOTRO / Echoes of Angmar and **log in**.
-2. **Open any Quest Window** by talking to an NPC. Ensure the window is fully visible on screen.
-3. Run the calibration script for your game version:
+The easiest way: take a screenshot of your game with a quest window open and let Khazad find the anchors itself - no box-drawing.
 
-| Game Version | Windows | Linux |
-| :--- | :--- | :--- |
-| **Retail LOTRO** | **`Windows/calibrate_lotro.bat`** | **`./Linux/calibrate_lotro.sh`** |
-| **Echoes of Angmar** | **`Windows/calibrate_eoa.bat`** | **`./Linux/calibrate_eoa.sh`** |
-| **Static Mode** (Fallback) | **`Windows/calibrate_static.bat`** | **`./Linux/calibrate_static.sh`** |
+1. Open the game and a quest window (fully visible, not covered by other panels).
+2. Take a screenshot (e.g. `Win + Print Screen` on Windows).
+3. Either:
+   - open the **Voice Lab** (`khazad --voice-lab`), go to the **Screenshot Tester** tab, upload the screenshot and press **✨ Calibrate from this screenshot**, or
+   - run the setup wizard (`khazad --setup`) and answer **y** when it offers screenshot calibration, then enter the screenshot's file path.
 
-### Retail LOTRO Calibration
+Khazad locates the quest-window anchors on your screenshot, writes the calibration files, and reports the match quality. If it cannot find the window reliably, it tells you what was weak - retake the screenshot with the window fully visible, or fall back to Static Mode (below).
 
-Follow the on-screen visual guide. You will be asked to draw boxes around 5 specific anchors:
-
-| Step | Target | Purpose |
-| :--- | :--- | :--- |
-| **1 & 2** | Left and Right Leaf icons | Finds the Title Bar |
-| **3** | Top-Left corner of text body | Anchor point |
-| **4** | Intersection of left/right panels | Defines width |
-| **5** | Filter icon at the bottom | Defines height |
-| **6** | Confirmation box around actual text | Verifies margins |
-
-<details>
-<summary>📺 Watch Video Tutorial</summary>
-
-https://www.youtube.com/watch?v=6otQUGYiFx4
-
-</details>
-
-### Echoes of Angmar Calibration
-
-| Step | Target |
-| :--- | :--- |
-| **1 & 2** | Left and Right Plant icons (Title Bar) |
-| **3 & 4** | Top-Left and Bottom-Right corners of the text body |
-| **5** | A box around the actual text body (learns margins) |
-| **6** | A box around the NPC Name (static position) |
-
-<details>
-<summary>📺 Watch Video Tutorial</summary>
-
-https://www.youtube.com/watch?v=hYPYav5oWh8
-
-</details>
+> **Note:** even without any calibration, Khazad runs on a built-in default layout that suits most setups - calibrate when detection misses your quest window (e.g. a custom UI skin).
 
 ### Static Quest Window Mode (Fallback)
 
@@ -300,7 +267,7 @@ Want to add a specific voice to the game? The **Configuration Suite** allows you
 
 **Q: The bot isn't detecting the quest window in Retail mode.**
 
-* Run the calibration script again. Ensure you draw tight boxes around the requested icons.
+* Retry the screenshot calibration (Voice Lab, Screenshot Tester tab) with the quest window fully visible.
 * If that does not work consistently, run configuration and lower the **Detection Sensitivity (Threshold)** slider (e.g., to 0.4).
 * **Alternative:** Try the **Static Quest Window Mode** (`Windows/calibrate_static.bat` or `./Linux/calibrate_static.sh`) to manually define the quest text area.
 

@@ -5,6 +5,7 @@ import queue
 import threading
 import time
 from datetime import datetime
+from pathlib import Path
 
 # > Third-party Libraries
 import nltk
@@ -13,7 +14,7 @@ import nltk
 from .audio import play_audio, stop_audio
 from .config.ConfigManager import ConfigManager
 from .models import QuestText, QuestTextLine, TextSourceType, VoiceSelection
-from .ocr import run_name_ocr, run_ocr, run_title_ocr
+from .ocr import run_nameplate_ocr, run_ocr, run_title_ocr_candidates
 from .utils import extract_quest_areas, load_npc_memory, save_npc_memory, setup_logger
 
 log = setup_logger("ENGINE")
@@ -66,6 +67,7 @@ class NarratorEngine:
         self.backend_id = getattr(self.tts, "backend_id", "omnivoice")
 
         self.memory = load_npc_memory(self.mode, self.backend_id)
+        self._prune_stale_voices()
         log.info(f"Loaded memory for mode: {self.mode} | Backend: {self.backend_id}")
 
         self.audio_queue = queue.Queue()
@@ -96,16 +98,16 @@ class NarratorEngine:
 
         log.info("Audio queue wiped and playback stopped.")
 
-    def process_capture(self, quest_img_pil, name_img_pil):
+    def process_capture(self, quest_img_pil, name_img_pil, title_img_pil=None):
         """
         Handles the 'Echoes' (Classic) mode workflow.
 
-        Reads the NPC name and quest body via OCR, then tries to match
-        the OCR text against the offline quest database for pristine text.
-        Falls back to raw OCR if no match is found.
+        Reads the NPC name, quest title and quest body via OCR, then
+        tries to match the OCR text against the offline quest database
+        for pristine text. Falls back to raw OCR if no match is found.
         """
         log.info("Reading NPC Name...")
-        npc_name = run_name_ocr(name_img_pil) or "Unknown"
+        npc_name = run_nameplate_ocr(name_img_pil) or "Unknown"
         log.info(f"NPC Name: '{npc_name}'")
 
         # OCR the body (always needed)
@@ -117,24 +119,28 @@ class NarratorEngine:
 
         full_ocr_text = " ".join(sentences)
 
-        # Try to get a title hint from the first line of the body image
+        # Quest title: read the title bar between the plants when the
+        # capture provides one; fall back to the first line of the body.
         quest_title = None
         try:
-            import numpy as np
             import pytesseract
 
             from .ocr import preprocess_title_image
 
-            title_hint_thresh = preprocess_title_image(quest_img_pil)
-            title_hint = (
-                pytesseract.pytesseract.image_to_string(
-                    title_hint_thresh, config="--psm 7"
+            for title_src in (title_img_pil, quest_img_pil):
+                if title_src is None:
+                    continue
+                title_hint_thresh = preprocess_title_image(title_src)
+                title_hint = (
+                    pytesseract.pytesseract.image_to_string(
+                        title_hint_thresh, config="--psm 7"
+                    )
+                    .strip()
+                    .replace("\n", " ")
                 )
-                .strip()
-                .replace("\n", " ")
-            )
-            if title_hint:
-                quest_title = title_hint
+                if title_hint:
+                    quest_title = title_hint
+                    break
         except Exception:
             pass
 
@@ -186,17 +192,23 @@ class NarratorEngine:
         """
         log.info(f"Detecting Quest Window for: {npc_name}...")
 
+        # Returns True when playback was produced, False when the quest
+        # window could not be extracted (caller must NOT treat that as
+        # a played NPC - see engine_startup trigger logic).
         # 1. Extraction
         title_pil, body_pil = extract_quest_areas(full_screen_np)
         if not body_pil:
             log.info("NPC in log, but valid Quest Window not found.")
-            return
+            return False
 
-        # 2. OCR Title + Body (always)
+        # 2. OCR Title + Body (always). The title is read across several
+        # channel/threshold passes (quest titles are level-coloured) and
+        # the database picks the most plausible reading.
         quest_title = None
         if title_pil is not None:
-            quest_title = run_title_ocr(title_pil)
-            log.info(f"Quest Title: '{quest_title}'")
+            candidates = run_title_ocr_candidates(title_pil)
+            _, quest_title = self.db.resolve_quest_id_best(candidates)
+            log.info(f"Quest Title candidates: {candidates}")
 
         ocr_sentences = run_ocr(body_pil)
         if not ocr_sentences:
@@ -243,6 +255,70 @@ class NarratorEngine:
         # 5. Playback
         voice_selection = self._resolve_voice(db_npc or npc_name)
         self._start_streaming(quest_text, voice_selection)
+        return True
+
+    def _current_voice_id(self, entry: dict):
+        """Resolve a memory entry's voice against the current library.
+
+        Assignments are remembered by source filename when possible, so
+        they survive library changes (added/removed voice files shift the
+        index-based ids). Returns the valid current voice_id, or None
+        when the assigned voice no longer exists - the NPC should then
+        get a fresh pick instead of staying silent.
+        """
+        voice_id = entry.get("voice_id", "")
+        library = getattr(self.tts, "voice_library", None)
+
+        # Filename-based resolution: stable across library changes
+        if library and entry.get("voice_file"):
+            wanted = Path(entry["voice_file"]).name
+            for category, voices in library.items():
+                for sample in voices:
+                    if Path(sample["audio"]).name == wanted:
+                        return f"{category}|{sample['id']}"
+            return None  # source file is gone - stale
+
+        # Index-based validation for older entries without a voice_file
+        if library and "|" in voice_id:
+            category, _, idx_str = voice_id.partition("|")
+            try:
+                idx = int(idx_str)
+            except ValueError:
+                return None
+            voices = library.get(category)
+            if voices is None or not (0 <= idx < len(voices)):
+                return None
+        return voice_id
+
+    def _prune_stale_voices(self) -> None:
+        """Remove memory entries whose voice no longer exists in the library.
+
+        Reference voice files come and go (added, removed, renamed), so a
+        cached ``voice_id`` can point at a library slot that no longer
+        exists - the NPC would then stay silent (generation returns no
+        audio). Pruning makes those NPCs get a fresh voice pick on their
+        next appearance instead. Entries with a valid voice are kept -
+        the memory persists across play sessions.
+        """
+        library = getattr(self.tts, "voice_library", None)
+        if not library:
+            return
+
+        stale = [
+            key
+            for key, entry in self.memory.items()
+            if "|" in entry.get("voice_id", "")
+            and self._current_voice_id(entry) is None
+        ]
+
+        for key in stale:
+            log.info(
+                f"Voice '{self.memory[key].get('voice_id')}' for "
+                f"'{key}' no longer exists - will be re-assigned"
+            )
+            del self.memory[key]
+        if stale:
+            save_npc_memory(self.memory, self.mode)
 
     def _resolve_voice(self, npc_name: str) -> VoiceSelection:
         """
@@ -287,17 +363,29 @@ class NarratorEngine:
                 # If on OmniVoice but found a Kokoro ID (no pipe), allow re-roll.
                 pass
             else:
-                matched_name = self.memory[key].get("name", npc_name)
-                race = self.memory[key].get("race", "")
-                gender = self.memory[key].get("gender", "")
-                return VoiceSelection(
-                    voice_id=voice_id,
-                    category=category,
-                    npc_name=matched_name,
-                    race=race,
-                    gender=gender,
-                    is_default=is_default,
-                )
+                # Resolve the remembered voice against the current library:
+                # the assignment is kept (persisting across sessions), but
+                # its id is refreshed when the library changed underneath.
+                current_id = self._current_voice_id(self.memory[key])
+                if current_id is None:
+                    log.info(
+                        f"Voice for '{key}' no longer exists - re-assigning"
+                    )
+                else:
+                    if current_id != voice_id:
+                        self.memory[key]["voice_id"] = current_id
+                        save_npc_memory(self.memory, self.mode)
+                    matched_name = self.memory[key].get("name", npc_name)
+                    race = self.memory[key].get("race", "")
+                    gender = self.memory[key].get("gender", "")
+                    return VoiceSelection(
+                        voice_id=current_id,
+                        category=category,
+                        npc_name=matched_name,
+                        race=race,
+                        gender=gender,
+                        is_default=is_default,
+                    )
 
         # New NPC - look up in database
         gender, race, matched_name = self.db.lookup(npc_name)
@@ -308,13 +396,24 @@ class NarratorEngine:
             voice_id, category = self.tts.pick_default_voice()
         else:
             voice_id, category = self.tts.pick_voice(gender, race)
-        self.memory[key] = {
+        entry = {
             "name": matched_name,
             "race": race,
             "gender": gender,
             "voice_id": voice_id,
             "category": category,
         }
+        # Remember the source file so the assignment survives library
+        # changes (added/removed voice files shift the index-based ids)
+        library = getattr(self.tts, "voice_library", None)
+        if library and "|" in voice_id:
+            category_, _, idx_str = voice_id.partition("|")
+            try:
+                sample = library[category_][int(idx_str)]
+                entry["voice_file"] = Path(sample["audio"]).name
+            except (KeyError, ValueError, IndexError):
+                pass
+        self.memory[key] = entry
         save_npc_memory(self.memory, self.mode)
 
         return VoiceSelection(

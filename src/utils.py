@@ -649,6 +649,37 @@ def watch_npc_file(callback, log_path: str, ready_event=None):
 # --- TEMPLATE MATCHING UTILS ---
 
 
+def match_template_in_roi_multiscale(
+    img_gray: np.ndarray, template: np.ndarray, x: int, y: int, w: int, h: int
+) -> Tuple[float, int, int]:
+    """
+    Multi-scale variant of :func:`match_template_in_roi`.
+
+    Tries the template at several scale factors (0.85 - 1.15) and returns
+    the best match. Used as a safety net for UI-scale differences: the
+    intricate intersect/icon ornaments lose correlation quickly when
+    their rendering scale drifts from the calibrated template scale,
+    while the leaf and corner ornaments stay matchable.
+
+    Parameters are the same as :func:`match_template_in_roi`; returns
+    (max_val, match_x, match_y) of the best scale.
+    """
+    best_val, best_x, best_y = 0.0, 0, 0
+    th, tw = template.shape[:2]
+
+    for scale in [0.85, 0.90, 0.95, 1.00, 1.05, 1.10, 1.15]:
+        new_w = max(5, int(tw * scale))
+        new_h = max(5, int(th * scale))
+        interpolation = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_CUBIC
+        scaled = cv2.resize(template, (new_w, new_h), interpolation=interpolation)
+        val, mx, my = match_template_in_roi(img_gray, scaled, x, y, w, h)
+        if val > best_val:
+            best_val, best_x, best_y = val, mx, my
+        if val >= 0.99:
+            break
+    return best_val, best_x, best_y
+
+
 def match_template_in_roi(
     img_gray: np.ndarray, template: np.ndarray, x: int, y: int, w: int, h: int
 ) -> Tuple[float, int, int]:
@@ -683,6 +714,18 @@ def match_template_in_roi(
 
 
 # --- RETAIL EXTRACTION LOGIC ---
+
+# > Fixed geometry of the quest-window skin, measured relative to the
+# body's upper-left corner (stable across window positions and widths):
+# the title bar sits 54px above the corner, its text starts 125px right
+# of it, and the end leaf ornament sits 57px above the corner. The
+# reference corner-template height (20px) scales the offsets to other
+# resolutions.
+_CORNER_REF_HEIGHT = 20
+_CORNER_TO_TITLE_DY = 54
+_CORNER_TO_TITLE_TEXT_DX = 125
+_CORNER_TO_END_LEAF_DY = 57
+_DEFAULT_TITLE_W = 670
 
 
 def _extract_retail_auto(
@@ -729,21 +772,75 @@ def _extract_retail_auto(
             f"(threshold: {template_threshold})"
         )
 
-    if val_s <= template_threshold or val_e <= template_threshold:
-        return None, None
+    # Fallback when the leaf ornaments are occluded (e.g. by another UI
+    # panel overlapping the title bar) or matched only weakly at a wrong
+    # position: the window body is usually still intact, so anchor on the
+    # body corner - the most stable template - and derive the title bar
+    # geometry from the fixed skin offsets.
+    corner_anchor = None
 
-    # Title Geometry
-    w_start = tmpls["start"].shape[1]
-    title_x = loc_s[0] + w_start
-    title_y = loc_s[1]
-    title_w = loc_e[0] - title_x
-    title_h = tmpls["start"].shape[0]
+    # Title geometry from the leaf ornaments, when both matched well
+    leaf_ok = val_s > template_threshold and val_e > template_threshold
+    if leaf_ok:
+        w_start = tmpls["start"].shape[1]
+        title_x = loc_s[0] + w_start
+        title_y = loc_s[1]
+        title_w = loc_e[0] - title_x
+        title_h = tmpls["start"].shape[0]
+        # Both leaves must flank the same title bar at a plausible width.
+        # A weak end-leaf match can land elsewhere on screen, producing
+        # a negative width (empty crop -> cvtColor crash) or a garbage
+        # crop - fall back to the corner anchor instead.
+        leaf_dy = abs(loc_s[1] - loc_e[1])
+        if title_w <= 50 or leaf_dy > 10:
+            log.info(
+                "Quest window: leaf geometry implausible "
+                f"(title_w={title_w}, leaf_dy={leaf_dy}) - trying corner anchor"
+            )
+            leaf_ok = False
+
+    if not leaf_ok:
+        val_c, cx, cy = match_template_in_roi(
+            img_gray, tmpls["corner"], 0, 0, w_img, h_img
+        )
+        if val_c <= template_threshold:
+            return None, None
+
+        scale = tmpls["corner"].shape[0] / _CORNER_REF_HEIGHT
+        title_h = tmpls["start"].shape[0]
+        title_y = int(cy - _CORNER_TO_TITLE_DY * scale)
+        title_x = int(cx + _CORNER_TO_TITLE_TEXT_DX * scale)
+
+        # Right edge: re-search the end leaf in a horizontal band at its
+        # expected height; a relaxed threshold tolerates partial occlusion
+        band_y = int(cy - _CORNER_TO_END_LEAF_DY * scale)
+        val_e2, ex, _ = match_template_in_roi(
+            img_gray,
+            tmpls["end"],
+            cx + int(150 * scale),
+            band_y - 12,
+            int(750 * scale),
+            24 + tmpls["end"].shape[0],
+        )
+        title_w = (
+            ex - title_x if val_e2 >= 0.5 else int(_DEFAULT_TITLE_W * scale)
+        )
+        if title_w <= 50:
+            return None, None
+        log.info(
+            "Quest window: title leaves occluded - geometry derived from corner anchor"
+        )
+        corner_anchor = (val_c, cx, cy)
+
     title_bot = title_y + title_h
 
     # Match Corner (Body Top-Left) — search strictly below title
-    val_c, cx, cy = match_template_in_roi(
-        img_gray, tmpls["corner"], 0, title_bot, w_img, h_img - title_bot
-    )
+    if corner_anchor is None:
+        val_c, cx, cy = match_template_in_roi(
+            img_gray, tmpls["corner"], 0, title_bot, w_img, h_img - title_bot
+        )
+    else:
+        val_c, cx, cy = corner_anchor
 
     if debug_scores:
         log.debug(
@@ -754,7 +851,10 @@ def _extract_retail_auto(
     if val_c <= template_threshold:
         return None, None
 
-    # Match Intersection (Width) & Icon (Height)
+    # Match Intersection (Width) & Icon (Height). Both get a multi-scale
+    # safety net: their ornament detail loses correlation under UI-scale
+    # drift, so a single-scale miss must not reject an otherwise valid
+    # window.
     val_int, ix, iy = match_template_in_roi(
         img_gray,
         tmpls["intersect"],
@@ -763,6 +863,15 @@ def _extract_retail_auto(
         w_img - (cx + 50),
         h_img - cy,
     )
+    if val_int <= template_threshold:
+        val_int, ix, iy = match_template_in_roi_multiscale(
+            img_gray,
+            tmpls["intersect"],
+            cx + 50,
+            cy - 20,
+            w_img - (cx + 50),
+            h_img - cy,
+        )
 
     val_i, icx, icy = match_template_in_roi(
         img_gray,
@@ -772,6 +881,15 @@ def _extract_retail_auto(
         w_img,
         h_img - (cy + 50),
     )
+    if val_i <= template_threshold:
+        val_i, icx, icy = match_template_in_roi_multiscale(
+            img_gray,
+            tmpls["icon"],
+            0,
+            cy + 50,
+            w_img,
+            h_img - (cy + 50),
+        )
 
     if debug_scores:
         log.debug(
@@ -894,7 +1012,10 @@ def extract_quest_areas(
     offsets = config.get("offsets", {}) if "offsets" in config else config
 
     if not tmpls or not offsets:
-        log.warning("Retail Calibration missing. Please run 'calibrate_retail.bat'.")
+        log.warning(
+            "Retail calibration missing. Calibrate from a screenshot "
+            "via the Voice Lab."
+        )
         return None, None
 
     result = _extract_retail_auto(img_gray, full_img_np, tmpls, offsets, h_img, w_img)
@@ -908,13 +1029,14 @@ def extract_quest_areas(
 
 def extract_echoes_areas(
     full_img_np: np.ndarray,
-) -> Tuple[Optional[Image.Image], Optional[Image.Image]]:
+) -> Tuple[Optional[Image.Image], Optional[Image.Image], Optional[Image.Image]]:
     """
-    Extracts Quest Text and NPC Name using Echoes (Classic) logic.
+    Extracts Quest Body, NPC Name and Quest Title using Echoes (Classic)
+    logic.
     1. Anchors (Plants, Corners).
     2. Margins (Calibrated).
     3. Static NPC Box.
-    4. Stitches Title+Body.
+    4. Title bar between the plants (for quest-title OCR).
 
     Parameters
     ----------
@@ -923,8 +1045,10 @@ def extract_echoes_areas(
 
     Returns
     -------
-    Tuple[Image, Image]
-        (Stitched Text Image, NPC Name Image).
+    Tuple[Optional[Image], Optional[Image], Optional[Image]]
+        (Quest Body Image, NPC Name Image, Quest Title Image). The
+        title bar is returned separately so the title font never
+        contaminates body OCR.
     """
     img_gray = cv2.cvtColor(full_img_np, cv2.COLOR_BGR2GRAY)
 
@@ -933,8 +1057,11 @@ def extract_echoes_areas(
     config = load_user_config("echoes")
 
     if not tmpls or not config:
-        log.warning("Echoes calibration missing. Run 'calibrate_eoa.bat'")
-        return None, None
+        log.warning(
+            "Echoes calibration missing. Calibrate from a screenshot "
+            "via the Voice Lab."
+        )
+        return None, None, None
 
     offsets = config.get("offsets", {})
     npc_box = config.get("npc_box", [0, 0, 0, 0])
@@ -952,13 +1079,14 @@ def extract_echoes_areas(
 
     if any(v < 0.7 for v in [val_lp, val_rp, val_tl, val_br]):
         log.warning("Anchors not found in Echoes mode.")
-        return None, None
+        return None, None, None
 
-    # 3. Quest Title position (kept for reference; not used in OCR)
-    # tx = pos_lp[0] + tmpls["left_plant"].shape[1]
-    # ty = pos_lp[1]
-    # tw = pos_rp[0] - tx
-    # th = max(tmpls["left_plant"].shape[0], tmpls["right_plant"].shape[0])
+    # 3. Quest Title bar (between the plants) - used for title OCR,
+    #    kept out of the body image (different font contaminates OCR).
+    tx = pos_lp[0] + tmpls["left_plant"].shape[1]
+    ty = pos_lp[1]
+    tw = pos_rp[0] - tx
+    th = max(tmpls["left_plant"].shape[0], tmpls["right_plant"].shape[0])
 
     # 4. Calculate Quest Body
     bx = pos_tl[0] + offsets.get("body_left_margin", 0)
@@ -969,7 +1097,7 @@ def extract_echoes_areas(
     bw = bx_end - bx
     bh = by_end - by
 
-    # 5. Crop & Stitch
+    # 5. Crop
     try:
         # Body
         crop_body = full_img_np[by : by + bh, bx : bx + bw]
@@ -981,16 +1109,20 @@ def extract_echoes_areas(
         else:
             crop_npc = np.zeros((50, 200, 3), dtype=np.uint8)
 
-        # Return body-only for OCR — stitching the title (different font)
-        # into the same image causes cross-contamination and garbage text.
+        # Title bar
+        crop_title = full_img_np[ty : ty + th, tx : tx + tw]
+
+        # Body stays separate from the title (different font): stitching
+        # them into one image causes cross-contamination and garbage text.
         return (
             Image.fromarray(cv2.cvtColor(crop_body, cv2.COLOR_BGR2RGB)),
             Image.fromarray(cv2.cvtColor(crop_npc, cv2.COLOR_BGR2RGB)),
+            Image.fromarray(cv2.cvtColor(crop_title, cv2.COLOR_BGR2RGB)),
         )
 
     except Exception as e:
         log.error(f"Echoes Crop Error: {e}")
-        return None, None
+        return None, None, None
 
 
 # --- SCREEN CAPTURE ENTRY POINT ---
@@ -1007,9 +1139,9 @@ def capture_screen_areas(mode_prefix: str = "retail") -> Tuple[Any, Any]:
 
     Returns
     -------
-    Tuple[Any, Any]
+    Tuple
         Retail: (Full_Screenshot_PIL, Full_Screenshot_NP)
-        Echoes: (Stitched_Quest_PIL, NPC_Name_PIL)
+        Echoes: (Quest_Body_PIL, NPC_Name_PIL, Quest_Title_PIL)
     """
     try:
         screenshot = ImageGrab.grab()

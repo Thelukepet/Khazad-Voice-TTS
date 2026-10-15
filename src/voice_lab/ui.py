@@ -12,12 +12,24 @@ from . import config_manager as cfg
 from . import engine_interface as engine
 from . import library as lib
 
+
+def guided_detect_gpu() -> bool:
+    """Best-effort GPU detection for the Guided Setup device default."""
+    try:
+        from . import guided_setup
+
+        return guided_setup.detect_gpu()
+    except Exception:
+        return False
+
 # --- CONSTANTS ---
 SAMPLE_SCRIPTS = [
     "'I will see if I can learn anything from the dwarves here. Mathi Stouthand is the Lord of Gondamon, and he has spoken openly to me in the past. I will judge his conversation to see if he is hiding something.",
     "I cannot believe this, Strider. Can it be true that Saruman commanded these Uruks to attack the folk of Swanfleet? Why would the Wizard wish to do harm to the folk of Mossward? He has ever been a watchful protector of Middle-earth!",
     "'I was walking on the Greenfields, looking for flowers, when I saw a squat, little man off in the distance. He was carrying a spear, and believe me when I tell you that he was a goblin!",
     "I did not dare to speak openly of the reason for Master Elrond's request in my letter, for fear that the message might be intercepted. I apologize for drawing you here with so little information.",
+    "As the symbol glows, power courses through you. Authority.",
+    "As you look down, you see a glimmering blade hidden behind the barman's hairy hand. It is shining menacingly.",
 ]
 SAMPLE_NAMES = [f"Sample {i + 1}" for i in range(len(SAMPLE_SCRIPTS))]
 SCRIPT_MAP = dict(zip(SAMPLE_NAMES, SAMPLE_SCRIPTS))
@@ -113,6 +125,22 @@ def create_ui() -> gr.Blocks:
                             label="Chunk Size",
                             info="Set to '1' if TTS is still taking too long to compute after reducing Diffusion Quality",
                         )
+
+                with gr.Group():
+                    gr.Markdown("### 🎭 Narrator Voice (stable voice for non-spoken text)")
+                    gr.Markdown(
+                        "*Pick the voice that reads quest descriptions and narration. "
+                        "It stays the same for every quest, so choose one you like listening to.*"
+                    )
+                    narrator_files = lib.get_samples_for_category("narrator")
+                    current_narrator = defaults.get("narrator_voice_file", "quest_narrator.wav")
+                    narrator_dropdown = gr.Dropdown(
+                        choices=narrator_files if narrator_files else [current_narrator],
+                        value=current_narrator if current_narrator in (narrator_files or [current_narrator]) else (narrator_files[0] if narrator_files else current_narrator),
+                        label="Narrator Voice File",
+                        info="Voice used for narration (voice-mix mode) and unknown NPCs fall back to the narrator pool.",
+                        allow_custom_value=True,
+                    )
 
                 with gr.Group():
                     gr.Markdown("### Detection & OCR")
@@ -256,10 +284,11 @@ def create_ui() -> gr.Blocks:
                 # --- EVENTS & LOGIC ---
 
                 # 1. Save Configuration
-                def save_wrapper(vol, omnivoice_vol, spd, stp, tess, chk_idx, thresh):
+                def save_wrapper(vol, omnivoice_vol, spd, stp, tess, chk_idx, thresh, narrator_file):
                     real_chunk = 2 if chk_idx == 0 else 1
                     msg, new_speed, new_steps = cfg.save_settings(
-                        vol, omnivoice_vol, spd, stp, thresh, tess, real_chunk
+                        vol, omnivoice_vol, spd, stp, thresh, tess, real_chunk,
+                        narrator_voice_file=(narrator_file or "").strip(),
                     )
                     return (
                         msg + "\n\n🚀 Configuration Saved! Switch tabs to test.",
@@ -277,6 +306,7 @@ def create_ui() -> gr.Blocks:
                         tess_input,
                         chunk_radio,
                         thresh_slider,
+                        narrator_dropdown,
                     ],
                     outputs=[save_output, lab_speed, lab_steps],
                 )
@@ -392,6 +422,237 @@ def create_ui() -> gr.Blocks:
                     save_and_refresh,
                     inputs=[ref_input, folder_dropdown, name_input, ref_text_input],
                     outputs=[save_status, lib_category, lib_sample],
+                )
+
+            # ==================================
+            # TAB 3: SCREENSHOT TESTER
+            # ==================================
+            with gr.Tab("🧪 Screenshot Tester"):
+                gr.Markdown(
+                    "### Check if the narrator works on your system\n"
+                    "Upload a screenshot of your game with a **quest window open**. "
+                    "The test runs the same pipeline the narrator uses and shows "
+                    "exactly what it would read. **Calibrate** writes the layout "
+                    "settings from the same screenshot - no manual box-drawing."
+                )
+                with gr.Row():
+                    with gr.Column():
+                        shot_input = gr.Image(
+                            label="Screenshot (quest window open)", type="numpy"
+                        )
+                        shot_mode = gr.Dropdown(
+                            choices=["retail", "echoes"],
+                            value="retail",
+                            label="Game mode",
+                        )
+                        shot_btn = gr.Button("Run Test", variant="primary")
+                        cal_btn = gr.Button(
+                            "✨ Calibrate from this screenshot", variant="secondary"
+                        )
+                    with gr.Column():
+                        shot_verdict = gr.Markdown("")
+                        shot_title_img = gr.Image(label="Extracted title")
+                        shot_body_img = gr.Image(label="Extracted text")
+
+                def run_shot_wrapper(img, mode):
+                    if img is None:
+                        return "Please upload a screenshot first.", None, None
+                    from . import screenshot_tester
+
+                    res = screenshot_tester.run_test(img, mode or "retail")
+                    return (
+                        _format_shot_verdict(res),
+                        res["title_crop"],
+                        res["body_crop"],
+                    )
+
+                def _format_shot_verdict(res):
+                    icons = {
+                        "OK": "✅",
+                        "NO WINDOW": "❌",
+                        "TITLE NOT RECOGNIZED": "⚠️",
+                        "BODY NOT MATCHED": "⚠️",
+                        "ERROR": "❌",
+                    }
+                    icon = icons.get(res["verdict"], "❓")
+                    lines = [f"## {icon} {res['verdict']}"]
+                    if res.get("title_ocr"):
+                        lines.append(f"**Title OCR:** `{res['title_ocr']}`")
+                    if res.get("resolved_title"):
+                        lines.append(f"**Recognized quest:** {res['resolved_title']}")
+                    if res.get("body_score") is not None:
+                        lines.append(
+                            f"**Text match:** {res['body_score']:.0%} "
+                            f"({res['text_type']})"
+                        )
+                    if res.get("player_name"):
+                        lines.append(f"**Player name read:** {res['player_name']}")
+                    if res.get("npc_name_ocr"):
+                        lines.append(
+                            f"**NPC name OCR:** `{res['npc_name_ocr']}`"
+                        )
+                    elif res.get("npc_name_ocr") is not None:
+                        lines.append(
+                            "**NPC name OCR:** nothing read - check the "
+                            "NPC name box calibration"
+                        )
+                    if res.get("narrated_text"):
+                        preview = res["narrated_text"]
+                        if len(preview) > 400:
+                            preview = preview[:400] + "..."
+                        lines.append(f"**The narrator would say:**\n\n> {preview}")
+                    if res.get("error"):
+                        lines.append(f"\n*{res['error']}*")
+                    return "\n".join(lines)
+
+                def run_calibration(img, mode):
+                    """Auto-calibrate the layout from the uploaded screenshot."""
+                    if img is None:
+                        return "Please upload a screenshot first.", None, None
+                    import cv2
+
+                    from src.auto_calibrate import auto_calibrate
+
+                    img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+                    ok, rep = auto_calibrate(img_bgr, mode or "retail")
+                    if not ok:
+                        return f"## ❌ Calibration failed\n\n{rep['message']}", None, None
+
+                    score_rows = "\n".join(
+                        f"- {key}: {a['score']:.0%}"
+                        for key, a in rep["anchors"].items()
+                    )
+                    msg = (
+                        f"## ✅ Calibration saved\n\n{rep['message']}\n\n"
+                        f"**Anchor match scores:**\n\n{score_rows}"
+                    )
+                    return msg, None, None
+
+                shot_btn.click(
+                    run_shot_wrapper,
+                    inputs=[shot_input, shot_mode],
+                    outputs=[shot_verdict, shot_title_img, shot_body_img],
+                )
+                cal_btn.click(
+                    run_calibration,
+                    inputs=[shot_input, shot_mode],
+                    outputs=[shot_verdict, shot_title_img, shot_body_img],
+                )
+
+            # ==================================
+            # TAB 4: GUIDED SETUP
+            # ==================================
+            with gr.Tab("🧭 Guided Setup"):
+                gr.Markdown(
+                    "### Set up Khazad in three steps\n\n"
+                    "1. Test a screenshot from your game. 2. Hear the voice "
+                    "the narrator would use. 3. Save volume and speed."
+                )
+
+                gr.Markdown("## Step 1: Test a screenshot")
+                with gr.Row():
+                    with gr.Column():
+                        gs_device = gr.Dropdown(
+                            choices=["cpu", "gpu"],
+                            value="gpu" if guided_detect_gpu() else "cpu",
+                            label="Audio engine (GPU = higher quality)",
+                        )
+                        gs_shot = gr.Image(
+                            label="Screenshot (quest window open)", type="numpy"
+                        )
+                        gs_test_btn = gr.Button("Run Test", variant="primary")
+                    with gr.Column():
+                        gs_verdict = gr.Markdown("")
+                        gs_title_img = gr.Image(label="Extracted title")
+                        gs_body_img = gr.Image(label="Extracted text")
+                gs_state = gr.State(None)
+
+                gr.Markdown("## Step 2: Hear the voice")
+                gs_voice_info = gr.Markdown("*Run the test first.*")
+                gs_preview_btn = gr.Button(
+                    "Generate voice preview (loads the TTS model on first use)"
+                )
+                gs_audio = gr.Audio(label="Preview")
+
+                gr.Markdown("## Step 3: Volume & speed")
+                with gr.Row():
+                    gs_vol = gr.Slider(
+                        0.0, 1.0,
+                        value=defaults.get("volume", 0.4),
+                        label="Volume",
+                    )
+                    gs_speed = gr.Slider(
+                        0.5, 2.0,
+                        value=defaults.get("speed", 1.1),
+                        label="Speaking speed",
+                    )
+                gs_save_btn = gr.Button("Save settings", variant="primary")
+                gs_save_status = gr.Markdown("")
+
+                def gs_run_test(img, device):
+                    if img is None:
+                        return "Please upload a screenshot first.", None, None, None
+                    from . import screenshot_tester
+
+                    res = screenshot_tester.run_test(img, "retail")
+                    return (
+                        _format_shot_verdict(res),
+                        res["title_crop"],
+                        res["body_crop"],
+                        res,
+                    )
+
+                def gs_preview(state, device):
+                    if not state or not state.get("narrated_text"):
+                        return (
+                            "*Run the test first - the preview speaks the "
+                            "matched quest text.*",
+                            None,
+                        )
+                    from . import guided_setup
+
+                    try:
+                        voice = guided_setup.resolve_voice(
+                            state.get("npc_name", ""), device
+                        )
+                        rate, wav = guided_setup.generate_snippet(
+                            state["narrated_text"], device, voice["voice_id"]
+                        )
+                        who = voice["matched_name"] or "unknown"
+                        info = (
+                            f"**Quest giver:** {who} "
+                            f"({voice['gender']} {voice['race']})"
+                        )
+                        return info, (rate, wav)
+                    except Exception as e:
+                        return (f"*Preview failed: {e}*", None)
+
+                def gs_save(vol, speed):
+                    msg, _, _ = cfg.save_settings(
+                        vol,
+                        defaults.get("omnivoice_volume", 0.4),
+                        speed,
+                        defaults.get("steps", 16),
+                        defaults.get("threshold", 0.5),
+                        defaults.get("tesseract", ""),
+                        defaults.get("chunk_size", 2),
+                    )
+                    return msg + "\n\nSettings saved - you are ready to play!"
+
+                gs_test_btn.click(
+                    gs_run_test,
+                    inputs=[gs_shot, gs_device],
+                    outputs=[gs_verdict, gs_title_img, gs_body_img, gs_state],
+                )
+                gs_preview_btn.click(
+                    gs_preview,
+                    inputs=[gs_state, gs_device],
+                    outputs=[gs_voice_info, gs_audio],
+                )
+                gs_save_btn.click(
+                    gs_save,
+                    inputs=[gs_vol, gs_speed],
+                    outputs=[gs_save_status],
                 )
 
     return demo

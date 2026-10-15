@@ -98,22 +98,27 @@ class OmniVoiceBackend(TTSBackend):
         return voice_id, key
 
     def pick_narrator_voice(self) -> Tuple[str, str]:
-        """
-        Returns the dedicated narrator voice (quest_narrator.wav).
+        """Returns the configured narrator voice for narration lines.
 
-        Used for unquoted narration lines in voice-mix mode.
-        Falls back to any available narrator voice, or "default" if none exist.
+        Stable by design: the narrator reads all non-spoken text, so a
+        single consistent voice is required. The voice is selected by
+        filename from config key ``TTSSettings.narrator_voice_file``
+        (set via the Voice Lab or config.ini). Falls back to
+        ``quest_narrator.wav``, then to any available narrator voice.
 
         Returns
         -------
         tuple[str, str]
             (voice_id, category) for the narrator voice.
         """
-        return self._pick_named_narrator("quest_narrator.wav")
+        _cfg = ConfigManager()
+        wanted = _cfg.get_str(
+            "TTSSettings", "narrator_voice_file", fallback="quest_narrator.wav"
+        )
+        return self._pick_named_narrator(wanted)
 
     def pick_default_voice(self) -> Tuple[str, str]:
-        """
-        Returns the fallback voice for unknown NPCs (narrator_1.flac).
+        """Returns the fallback voice for unknown NPCs (narrator_1.flac).
 
         Used when no NPC match is found in the database.
         Falls back to any available narrator voice, or "default" if none exist.
@@ -134,9 +139,26 @@ class OmniVoiceBackend(TTSBackend):
             if Path(entry["audio"]).name == filename:
                 return f"narrator|{entry['id']}", "narrator"
 
-        # Fallback to any narrator voice
+        # Configured file not found (e.g. user removed a custom voice) —
+        # fall back to any narrator voice and warn once per session.
+        if not getattr(self, "_narrator_fallback_warned", False):
+            log.warning(
+                f"Configured narrator voice '{filename}' not found; "
+                f"falling back to the first available narrator voice."
+            )
+            self._narrator_fallback_warned = True
         sample = self.voice_library["narrator"][0]
         return f"narrator|{sample['id']}", "narrator"
+
+    def list_narrator_voices(self) -> List[str]:
+        """Return filenames of all available narrator reference voices.
+
+        Used by the Voice Lab to offer the user a choice of stable
+        narrator voices (e.g. the Khazad narrator samples).
+        """
+        if "narrator" not in self.voice_library:
+            return []
+        return [Path(e["audio"]).name for e in self.voice_library["narrator"]]
 
     def generate(self, text: str, voice_id: str, warmup: bool = False) -> np.ndarray:
         if "|" not in voice_id:

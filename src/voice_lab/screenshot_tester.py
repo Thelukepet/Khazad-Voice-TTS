@@ -1,0 +1,197 @@
+"""Screenshot-based pipeline test for the Voice Lab.
+
+Runs the full recognition pipeline (window detection, title OCR, database
+resolution, body segment match) on an uploaded screenshot and reports
+exactly what the narrator would do - so a user can verify the app works
+on their system without starting the game.
+
+The heavy database is loaded lazily and shared across runs.
+"""
+
+from typing import Any, Dict, Optional
+
+import numpy as np
+
+# Lazily created shared database (loading takes a few seconds)
+_DB = None
+
+
+def _get_db():
+    global _DB
+    if _DB is None:
+        from src.db_sqlite import NPCDatabaseSQLite
+
+        _DB = NPCDatabaseSQLite()
+    return _DB
+
+
+def run_test(img_rgb: np.ndarray, mode: str = "retail") -> Dict[str, Any]:
+    """Run the recognition pipeline on a screenshot.
+
+    Parameters
+    ----------
+    img_rgb : np.ndarray
+        Screenshot as HxWx3 RGB array (as provided by Gradio).
+    mode : str
+        Game mode: ``retail`` or ``echoes``.
+
+    Returns
+    -------
+    dict
+        ``verdict`` (short status string), ``title_ocr``, ``resolved_title``,
+        ``body_score``, ``text_type``, ``narrated_text``, ``player_name``,
+        ``title_crop`` / ``body_crop`` (PIL images or None), ``error``.
+    """
+    import cv2
+
+    result: Dict[str, Any] = {
+        "verdict": "",
+        "title_ocr": "",
+        "resolved_title": "",
+        "body_score": None,
+        "text_type": "",
+        "narrated_text": "",
+        "player_name": "",
+        "npc_name": "",
+        "npc_name_ocr": None,
+        "title_crop": None,
+        "body_crop": None,
+        "error": "",
+    }
+
+    try:
+        img_bgr = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2BGR)
+    except Exception as e:
+        result["error"] = f"Could not read the image: {e}"
+        result["verdict"] = "ERROR"
+        return result
+
+    try:
+        if mode == "echoes":
+            _run_echoes(img_bgr, result)
+        else:
+            _run_retail(img_bgr, result)
+    except Exception as e:
+        result["error"] = str(e)
+        result["verdict"] = "ERROR"
+    return result
+
+
+def _run_retail(img_bgr: np.ndarray, result: Dict[str, Any]) -> None:
+    """Retail pipeline: extract -> title OCR -> body OCR -> DB match."""
+    from src.ocr import run_ocr, run_title_ocr_candidates
+    from src.utils import extract_quest_areas
+
+    title_pil, body_pil = extract_quest_areas(img_bgr)
+    if title_pil is None and body_pil is None:
+        result["verdict"] = "NO WINDOW"
+        result["error"] = (
+            "No quest window was found on the screenshot. Make sure the "
+            "quest window is fully visible and not covered by other panels."
+        )
+        return
+
+    result["title_crop"] = title_pil
+    result["body_crop"] = body_pil
+
+    candidates = run_title_ocr_candidates(title_pil) if title_pil is not None else []
+    result["title_ocr"] = candidates[0] if candidates else ""
+    body = " ".join(run_ocr(body_pil)) if body_pil is not None else ""
+
+    _match_against_db(candidates, body, result)
+
+
+def _run_echoes(img_bgr: np.ndarray, result: Dict[str, Any]) -> None:
+    """Echoes pipeline: title bar + body text + name box."""
+    import pytesseract
+
+    from src.ocr import preprocess_title_image, run_nameplate_ocr, run_ocr
+    from src.utils import extract_echoes_areas
+
+    quest_pil, name_pil, title_pil = extract_echoes_areas(img_bgr)
+    if quest_pil is None:
+        result["verdict"] = "NO WINDOW"
+        result["error"] = (
+            "No quest window was found. Echoes mode requires a calibrated "
+            "layout - run the Echoes calibration first."
+        )
+        return
+
+    result["body_crop"] = quest_pil
+    result["title_crop"] = title_pil
+
+    body = " ".join(run_ocr(quest_pil))
+    result["npc_name_ocr"] = (
+        run_nameplate_ocr(name_pil) if name_pil is not None else ""
+    )
+
+    # Quest title: read the title bar between the plants; fall back to
+    # the first line of the body image.
+    title = ""
+    for title_src in (title_pil, quest_pil):
+        if title_src is None:
+            continue
+        try:
+            thresh = preprocess_title_image(title_src)
+            title = (
+                pytesseract.pytesseract.image_to_string(
+                    thresh, config="--psm 7"
+                )
+                .strip()
+                .replace("\n", " ")
+            )
+        except Exception:
+            title = ""
+        if title:
+            break
+    result["title_ocr"] = title
+
+    _match_against_db([title] if title else [], body, result)
+
+
+def _match_against_db(candidates: list, body: str, result: Dict[str, Any]) -> None:
+    """Resolve the OCR title candidates against the database and match the body.
+
+    ``candidates`` is the list of OCR title readings (retail path); the
+    echoes path passes its single title reading wrapped in a list.
+    """
+    db = _get_db()
+
+    if isinstance(candidates, str):
+        candidates = [candidates]
+    candidates = [c for c in candidates if c]
+
+    quest_id, canonical = db.resolve_quest_id_best(candidates)
+    result["resolved_title"] = canonical or ""
+
+    if quest_id is None:
+        result["verdict"] = "TITLE NOT RECOGNIZED"
+        result["error"] = (
+            "The quest window was found, but the title could not be matched "
+            "to a quest in the database. The narrator will read the raw OCR "
+            "text instead of pristine database text."
+        )
+        return
+
+    if body:
+        # match_quest_text expects the OCR title reading; use the best
+        # candidate we have (first non-empty OCR reading).
+        ocr_title = next((c for c in candidates), "")
+        match = db.match_quest_text(ocr_title, body)
+        if match:
+            result["verdict"] = "OK"
+            result["body_score"] = match["score"]
+            result["text_type"] = match["text_type"]
+            result["narrated_text"] = match["text"]
+            result["player_name"] = match.get("player_name", "")
+            result["npc_name"] = match.get("npc_name") or ""
+        else:
+            result["verdict"] = "BODY NOT MATCHED"
+            result["error"] = (
+                "The quest was recognized, but the shown text was not found "
+                "among its database segments. The narrator will read the raw "
+                "OCR text instead."
+            )
+    else:
+        result["verdict"] = "OK"
+        result["error"] = "Quest recognized (no body text was read)."
