@@ -208,9 +208,55 @@ def ensure_player_identity() -> None:
     _identity_choice()
 
 
+def _calibration_choice(mode: str) -> None:
+    """Offer screenshot-based calibration (the easy path).
+
+    The narrator can run on the shipped default layout, so this is
+    optional - but a screenshot calibration makes detection exact for
+    the user's own UI skin and resolution.
+    """
+    import cv2
+
+    print()
+    print("Optional: calibrate the quest-window layout from a screenshot.")
+    print("This is only needed if detection misses your quest window.")
+    answer = _ask("Calibrate now with a screenshot? [y/N]: ", choices=["y", "n"], default="n")
+    if answer == "n":
+        print("  -> Skipped - the default layout will be used.")
+        return
+
+    print("1. Open the game and a quest window (fully visible).")
+    print("2. Take a screenshot (e.g. Print Screen / Win+Print Screen).")
+    path = _ask("3. Enter the screenshot file path: ")
+    if not path:
+        print("  -> No path given - skipped.")
+        return
+
+    try:
+        img = cv2.imread(path.strip().strip('"'))
+        if img is None:
+            print("  ⚠️  Could not read that image file - calibration skipped.")
+            return
+        from src.auto_calibrate import auto_calibrate
+
+        ok, rep = auto_calibrate(img, mode)
+    except Exception as exc:
+        print(f"  ⚠️  Calibration failed: {exc}")
+        return
+
+    if ok:
+        print(f"  ✅ {rep['message']}")
+    else:
+        print(f"  ⚠️  {rep['message']}")
+        print("     You can retry later from the Voice Lab (Screenshot Tester")
+        print("     tab, 'Calibrate from this screenshot'), or use the manual")
+        print("     calibration scripts.")
+
+
 def run_wizard() -> None:
     """Interactive first-run setup. Detects hardware, asks game version,
-    asks character identity, saves preferences, then launches the narrator."""
+    asks character identity, offers screenshot calibration, saves
+    preferences, then launches the narrator."""
     _print_header()
 
     # 1. Audio engine
@@ -222,7 +268,10 @@ def run_wizard() -> None:
     # 3. Character identity (personalises quest dialogue)
     _identity_choice()
 
-    # 4. Remember the mode so future launches are one-click
+    # 4. Optional screenshot calibration
+    _calibration_choice(mode)
+
+    # 5. Remember the mode so future launches are one-click
     _store_mode_choice(mode)
 
     # 5. Launch
