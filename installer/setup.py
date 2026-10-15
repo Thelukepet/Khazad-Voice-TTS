@@ -25,8 +25,12 @@ from typing import Optional
 # ─── Constants ────────────────────────────────────────────────────────────────
 
 APP_NAME = "Khazad Voice TTS"
+# Public distribution: source comes from the public GitHub repo - no
+# token needed. To build a personal installer against the private
+# Gitea repo instead, point this at the Gitea archive URL and set
+# GITEA_TOKEN (the download helper only sends the token to Gitea).
 GITHUB_ZIP_URL = (
-    "http://192.168.2.41:3000/luthryth/Khazad-Voice-TTS-dev/archive/refs/heads/develop.zip"
+    "https://github.com/Thelukepet/Khazad-Voice-TTS/archive/refs/heads/main.zip"
 )
 # Private Gitea repo: auth via token header, NOT URL userinfo
 # (urllib only honours username:password@ userinfo; a bare token@ is dropped
