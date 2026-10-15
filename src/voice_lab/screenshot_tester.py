@@ -132,12 +132,20 @@ def _run_echoes(img_bgr: np.ndarray, result: Dict[str, Any]) -> None:
         pass
     result["title_ocr"] = title
 
-    _match_against_db(title, body, result)
+    _match_against_db([title] if title else [], body, result)
 
 
 def _match_against_db(candidates: list, body: str, result: Dict[str, Any]) -> None:
-    """Resolve the OCR title candidates against the database and match the body."""
+    """Resolve the OCR title candidates against the database and match the body.
+
+    ``candidates`` is the list of OCR title readings (retail path); the
+    echoes path passes its single title reading wrapped in a list.
+    """
     db = _get_db()
+
+    if isinstance(candidates, str):
+        candidates = [candidates]
+    candidates = [c for c in candidates if c]
 
     quest_id, canonical = db.resolve_quest_id_best(candidates)
     result["resolved_title"] = canonical or ""
@@ -152,7 +160,10 @@ def _match_against_db(candidates: list, body: str, result: Dict[str, Any]) -> No
         return
 
     if body:
-        match = db.match_quest_text(title, body)
+        # match_quest_text expects the OCR title reading; use the best
+        # candidate we have (first non-empty OCR reading).
+        ocr_title = next((c for c in candidates), "")
+        match = db.match_quest_text(ocr_title, body)
         if match:
             result["verdict"] = "OK"
             result["body_score"] = match["score"]
