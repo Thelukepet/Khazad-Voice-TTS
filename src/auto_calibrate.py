@@ -506,8 +506,8 @@ def auto_calibrate_echoes(img_bgr: np.ndarray) -> Tuple[bool, Dict[str, Any]]:
 
     # NPC name box: the nameplate is a solid black box the user can
     # move in their UI, so detect it on the screenshot. Fall back to
-    # the previous calibration, then to a default just below the
-    # window body.
+    # the previous calibration; without one, record an explicitly
+    # unset box instead of guessing a position.
     layout_file = get_layout_file("echoes")
 
     window_rect = (
@@ -519,25 +519,29 @@ def auto_calibrate_echoes(img_bgr: np.ndarray) -> Tuple[bool, Dict[str, Any]]:
     plate = _detect_npc_nameplate(img_bgr, window_rect)
 
     npc_box: Optional[list] = None
+    npc_box_source = "none"
     if plate is not None:
         # Exact box: the plate's border edge corrupts OCR reads, and
         # run_nameplate_ocr trims any slack itself.
         npc_box = [int(v) for v in plate["box"]]
+        npc_box_source = "detected"
     elif layout_file.exists():
         try:
             previous = json.loads(layout_file.read_text())
             box = previous.get("npc_box")
             if isinstance(box, list) and len(box) == 4 and box[2] > 0 and box[3] > 0:
                 npc_box = [int(v) for v in box]
+                npc_box_source = "previous"
         except (json.JSONDecodeError, AttributeError):
             pass
     if npc_box is None:
-        npc_box = [
-            int(tl["x"]),
-            int(min(br["y"] + 30 * scale, h_img - 24)),
-            int(271 * scale),
-            int(24 * scale),
-        ]
+        # No nameplate on the screenshot and no previous calibration:
+        # record an explicitly unset box instead of guessing a
+        # position. A guessed box silently reads scenery garbage as
+        # the NPC name on every capture; an unset box makes the
+        # engine skip the name read (with a log warning) until the
+        # user recalibrates with the nameplate visible.
+        npc_box = [0, 0, 0, 0]
 
     layout = {
         "resolution": f"{w_img}x{h_img}",
@@ -554,13 +558,21 @@ def auto_calibrate_echoes(img_bgr: np.ndarray) -> Tuple[bool, Dict[str, Any]]:
             f"reading '{plate['name'] or '?'}'. Do not move the NPC name "
             f"box in your UI after calibrating."
         )
-    else:
+    elif npc_box_source == "previous":
         npc_msg = (
             "The NPC name box was not found on the screenshot - the "
-            "previous box was kept (or a default placed below the "
-            "window). If the NPC name is not read correctly, retry with "
-            "a screenshot where the black nameplate box is visible. "
-            "Do not move the NPC name box in your UI after calibrating."
+            "previous box was kept. If the NPC name is not read "
+            "correctly, retry with a screenshot where the black "
+            "nameplate box is visible. Do not move the NPC name box in "
+            "your UI after calibrating."
+        )
+    else:
+        npc_msg = (
+            "WARNING: the NPC name box was NOT calibrated - no "
+            "nameplate was found on the screenshot and no previous "
+            "calibration exists. The narrator cannot read NPC names "
+            "until you recalibrate with a screenshot where the black "
+            "nameplate box is visible."
         )
 
     ok, report = _report(

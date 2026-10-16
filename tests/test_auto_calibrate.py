@@ -233,6 +233,23 @@ class TestAutoCalibrateEchoes:
         layout = json.loads(layout_path.read_text())
         assert layout["npc_box"] == [10, 20, 200, 30]
 
+    def test_nameplate_not_found_and_no_previous_writes_unset_box(
+        self, tmp_path, monkeypatch
+    ):
+        """No plate and no previous calibration: the layout must
+        record an explicitly unset box, not a guessed default."""
+        layout_path = tmp_path / "layout_echoes.json"
+        monkeypatch.setattr(
+            "src.auto_calibrate.get_layout_file", lambda mode: layout_path
+        )
+        ok, report = auto_calibrate.auto_calibrate_echoes(
+            self._make_echoes_screenshot()
+        )
+        assert ok
+        layout = json.loads(layout_path.read_text())
+        assert layout["npc_box"] == [0, 0, 0, 0]
+        assert "NOT calibrated" in report["message"]
+
 
 class TestDispatch:
     def test_dispatch_retail(self):

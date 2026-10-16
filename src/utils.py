@@ -1107,6 +1107,11 @@ def extract_echoes_areas(
         if nw > 0 and nh > 0:
             crop_npc = full_img_np[ny : ny + nh, nx : nx + nw]
         else:
+            log.warning(
+                "NPC name box is not calibrated - the NPC name cannot "
+                "be read. Re-run the Echoes calibration with the black "
+                "nameplate box visible."
+            )
             crop_npc = np.zeros((50, 200, 3), dtype=np.uint8)
 
         # Title bar
