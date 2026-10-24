@@ -11,7 +11,7 @@
   <table style="border: none;">
     <tr>
       <td align="center" style="border: none;">
-        <strong>GPU Model (OmniVoice)</strong><br>
+        <strong>GPU Model (OmniVoice, outdated voices)</strong><br>
         <a href="https://youtu.be/FYs8fVtgIXU">
           <img src="https://img.youtube.com/vi/FYs8fVtgIXU/0.jpg" width="400">
         </a>
