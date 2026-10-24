@@ -41,7 +41,7 @@ def get_current_settings() -> Dict[str, Union[float, int, str]]:
             "TTSSettings", "omnivoice_chunk_size", fallback=2
         ),
         "narrator_voice_file": cfg.config.get(
-            "TTSSettings", "narrator_voice_file", fallback="quest_narrator.wav"
+            "TTSSettings", "narrator_voice_file", fallback="narrator_1.flac"
         ),
     }
 

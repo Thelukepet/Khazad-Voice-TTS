@@ -258,7 +258,7 @@ def create_ui() -> gr.Blocks:
                         "It stays the same for every quest, so choose one you like listening to.*"
                     )
                     narrator_files = lib.get_samples_for_category("narrator")
-                    current_narrator = defaults.get("narrator_voice_file", "quest_narrator.wav")
+                    current_narrator = defaults.get("narrator_voice_file", "narrator_1.flac")
                     narrator_dropdown = gr.Dropdown(
                         choices=narrator_files if narrator_files else [current_narrator],
                         value=current_narrator if current_narrator in (narrator_files or [current_narrator]) else (narrator_files[0] if narrator_files else current_narrator),

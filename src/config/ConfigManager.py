@@ -176,7 +176,7 @@ class ConfigManager(metaclass=SingletonMeta):
                 "quest_trigger_key": "middle_mouse",
                 "npc_name_max_age": "60",
                 "omnivoice_chunk_size": "2",
-                "narrator_voice_file": "quest_narrator.wav",
+                "narrator_voice_file": "narrator_1.flac",
             },
             # Player identity - used to resolve ${PLAYER}/${RACE}/${CLASS}
             # placeholders in database quest text when OCR extraction fails.

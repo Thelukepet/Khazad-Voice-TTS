@@ -104,7 +104,7 @@ class OmniVoiceBackend(TTSBackend):
         single consistent voice is required. The voice is selected by
         filename from config key ``TTSSettings.narrator_voice_file``
         (set via the Voice Lab or config.ini). Falls back to
-        ``quest_narrator.wav``, then to any available narrator voice.
+        ``narrator_1.flac``, then to any available narrator voice.
 
         Returns
         -------
@@ -113,7 +113,7 @@ class OmniVoiceBackend(TTSBackend):
         """
         _cfg = ConfigManager()
         wanted = _cfg.get_str(
-            "TTSSettings", "narrator_voice_file", fallback="quest_narrator.wav"
+            "TTSSettings", "narrator_voice_file", fallback="narrator_1.flac"
         )
         return self._pick_named_narrator(wanted)
 
